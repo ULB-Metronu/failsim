@@ -1,0 +1,6 @@
+[submodule "failsim/data/hllhc14"]
+	path = failsim/data/hllhc14
+	url = https://github.com/lhcopt/hllhc14.git
+[submodule "failsim/data/acc-models-lhc"]
+	path = failsim/data/acc-models-lhc
+	url = ssh://git@gitlab.cern.ch:7999/acc-models/acc-models-lhc.git

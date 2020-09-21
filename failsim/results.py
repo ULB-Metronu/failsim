@@ -1,0 +1,6 @@
+class Results:
+    ...
+
+
+class TrackingResults(Results):
+    ...
