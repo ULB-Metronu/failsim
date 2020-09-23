@@ -1,0 +1,49 @@
+SEQUENCES:
+  HLLHCV1.4:
+    sequence_filenames: ['data/acc-models-lhc/lhc.seq', 'data/hllhc14/hllhc_sequence.madx']
+    run: 0
+    version: 1.4
+  runIII:
+    sequence_filenames: ['data/acc-models-lhc/lhc.seq']
+    run: 3
+    version: 0
+
+OPTICS_BASE_PATH: data/hllhc14/
+OPTICS:
+  HL_INJ:
+    type: round
+    beta_ip5: 6000
+    strength_file: ramp/opt_inj_6000.madx
+  HL_INJ_THIN:
+    type: round
+    beta_ip5: 6000
+    strength_file: ramp/opt_inj_6000_thin.madx
+  HL_RAMP:
+    type: round
+    beta_ip5: 2000
+    strength_file: ramp/opt_ramp_2000_1500.madx
+  HL_RAMP_END:
+    type: round
+    beta_ip5: 500
+    strength_file: ramp/opt_endoframp_500_1500.madx
+  HL_COL:
+    type: round
+    beta_ip5: 150
+    strength_file: round/opt_round_150_1500.madx
+  HL_COL_THIN:
+    type: round
+    beta_ip5: 150
+    strength_file: round/opt_round_150_1500_thin.madx
+  HL_FLAT:
+    type: flat
+    beta_ip5: 75
+    strength_file: flat/opt_flatvh_75_300_1500.madx
+  HL_FLAT_THIN:
+    type: flat
+    beta_ip5: 75
+    strength_file: flat/opt_flatvh_75_300_1500_thin.madx
+  HL_FLAT_CC:
+    type: flat
+    beta_ip5: 75
+    strength_file: flatcc/opt_flatvh_75_180_1500.madx
+
