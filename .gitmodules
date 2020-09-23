@@ -4,6 +4,3 @@
 [submodule "failsim/data/acc-models-lhc"]
 	path = failsim/data/acc-models-lhc
 	url = ssh://git@gitlab.cern.ch:7999/acc-models/acc-models-lhc.git
-[submodule "failsim/data/lhcmask"]
-	path = failsim/data/lhcmask
-	url = https://github.com/lhcopt/lhcmask/
