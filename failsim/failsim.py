@@ -78,7 +78,7 @@ class FailSim:
         metadata_stream = pkg_resources.resource_stream(__name__,
                                                         'data/metadata.yaml')
         self._metadata = yaml.safe_load(metadata_stream)
-        return self._metadata['OPTICS'], self._metadata['SEQUENCES']
+        return self._metadata
 
     def select_sequence(self, sequence_key: str):
         """TODO: Docstring for select_sequence.
@@ -238,7 +238,7 @@ class FailSim:
                             beta_ip5=self._beta_ip5,
                             strength_file=self._opt_path)
         else:
-            opt_data = self._metadata['OPTICS'][self._opt_key]
+            opt_data = self._metadata[self._seq_key]['optics'][self._opt_key]
 
         # Set machine versions
         self._mad.input('ver_lhc_run = %s' % seq_data['run'])
