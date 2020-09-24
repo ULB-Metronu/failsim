@@ -124,13 +124,13 @@ class OpticsChecks:
                 self.check_betas(beam=ss[-1],
                                  twiss_df=tt,
                                  variables_dict=var_dict)
-            print('###### RESULT: IP beta test against knobs passed!')
+            print('FailSim -> IP beta test against knobs passed')
 
         if self.separation:
             twiss_df_b1 = twiss_dfs['lhcb1']
             twiss_df_b2 = twiss_dfs['lhcb2']
             self.check_separations(twiss_df_b1, twiss_df_b2, var_dict)
-            print('###### RESULT: IP separation test against knobs passed!')
+            print('FailSim -> IP separation test against knobs passed')
 
         other_data = {}
         other_data.update(var_dict)

@@ -9,11 +9,13 @@ Description: TODO
 
 from typing import Optional, List, Union
 from .checks import OpticsChecks
+from .results import TrackingResult
 import yaml
 import imp
 import os
 import pkg_resources
 import pymask as pm
+import numpy as np
 
 
 class FailSim:
@@ -229,6 +231,8 @@ class FailSim:
                             version=self._hllhc_version)
         else:
             seq_data = self._metadata['SEQUENCES'][self._seq_key]
+            self._run_version = seq_data['run']
+            self._hllhc_version = seq_data['version']
 
         if self._custom_optics:
             opt_data = dict(type=self._opt_type,
@@ -372,14 +376,14 @@ class FailSim:
             print('FailSim -> Doing twiss')
 
         if isinstance(sequence, list):
-            res = dict()
+            twiss_df = {}
+            summ_df = {}
             for seq in sequence:
                 self._mad.use(seq)
                 self._mad.twiss()
-                twiss_df = self._mad.get_twiss_df('twiss')
-                summ_df = self._mad.get_summ_df('summ')
-                res[seq] = {'twiss': twiss_df, 'summ': summ_df}
-            return res
+                twiss_df[seq] = self._mad.get_twiss_df('twiss')
+                summ_df[seq] = self._mad.get_summ_df('summ')
+            return (twiss_df, summ_df)
         else:
             self._mad.use(sequence)
             self._mad.twiss()
@@ -461,8 +465,186 @@ class FailSim:
         Returns: TODO
 
         """
+        if self.failsim_verbosity:
+            print('FailSim -> Crossing save')
+
         self._mad.input('exec, crossing_save')
         if store_optics:
             mod_path = pkg_resources.resource_filename('pymask', '../submodule'
                                                        '_01e_final.madx')
             self._mad.call(mod_path)
+
+    def assert_flatness(self, flat_tol: float):
+        """TODO: Docstring for assert_flatness.
+
+        Args:
+            flat_tol (TODO): TODO
+
+        Returns: TODO
+
+        """
+        if self.failsim_verbosity:
+            print('FailSim -> Asserting flatness')
+
+        twiss_df, summ_df = self.twiss(self._sequences_to_check)
+
+        for ss in twiss_df.keys():
+            tt = twiss_df[ss]
+            max_x = np.max(np.abs(tt.x))
+            max_y = np.max(np.abs(tt.y))
+            assert max_x < flat_tol, 'Flatness %f in x is' \
+                ' over tolerance of %f' % (max_x, flat_tol)
+            assert max_y < flat_tol, 'Flatness %f in y is' \
+                ' over tolerance of %f' % (max_y, flat_tol)
+
+        if self.failsim_verbosity:
+            print("FailSim -> Flatness assertion passed")
+
+    def set_crossing(self, crossing_on: bool,
+                     check_name: str = 'twiss',
+                     run_check: bool = True):
+        """TODO: Docstring for set_crossing.
+
+        Args:
+            crossing_on (TODO): TODO
+
+        Kwargs:
+            check_name (TODO): TODO
+            run_check (TODO): TODO
+
+        Returns: TODO
+
+        """
+        if self.failsim_verbosity:
+            print('FailSim -> Setting crossing: %s' % crossing_on)
+
+        if crossing_on:
+            self._mad.input('exec, crossing_restore')
+        else:
+            self._mad.input('exec, crossing_disable')
+
+        if run_check:
+            self._check(self._mad, self._sequences_to_check, check_name)
+
+    def track_particle(self, track_name: str = None,
+                       turns: int = 40,
+                       start_coords: List = (0, 0, 0, 0),
+                       observation_points: Optional[List[str]] = None,
+                       update_files: Optional[List[str]] = None,
+                       track_flags: Optional[str] = None,
+                       loss_name: Optional[str] = None):
+        """TODO: Docstring for track_particle.
+
+        Kwargs:
+            track_name (TODO): TODO
+            turns (TODO): TODO
+            start_coords (TODO): TODO
+            observation_points (TODO): TODO
+            update_files (TODO): TODO
+            track_flags (TODO): TODO
+            loss_name (TODO): TODO
+
+        Returns: TODO
+
+        """
+        # Check that update_files exist
+        if update_files is not None:
+            for f in update_files:
+                assert os.path.exists(f), 'File %s does not exists' % f
+
+        # Set proper sequence
+        self._mad.use(self._sequence_to_track)
+
+        # Load extra flags
+        flags = ['onetable']  # <- Default flags
+        if isinstance(track_flags, list):
+            flags = flags + track_flags
+        elif isinstance(track_flags, str):
+            flags.append(track_flags)
+        elif track_flags is not None:
+            print(f'track_flags of incompatible type: {type(track_flags)}')
+
+        # Filter flags to only include strings
+        flags = [x for x in flags if isinstance(x, str)]
+
+        # If recloss flag is included, clear trackloss table
+        # to avoid using old table in case of no track loss
+        if 'recloss' in flags:
+            self._mad.input('delete, table=trackloss')
+
+        if update_files is None:
+            # No update files, so tr$macro should be empty
+            self._mad.input('track, ' + ', '.join(flags))
+            self._mad.input('tr$macro(turn): macro = {}')
+        else:
+            # Update files specified, so setup tr$macro accordingly
+
+            # tr$macro is written to a file, since self._mad can't understand
+            # continuity between .input statements
+            with open('.tmp.txt', 'w') as tmp:
+                tmp.write('tr$macro(turn): macro = {\n')
+                tmp.write('\tcomp=turn;\n')
+                for f in update_files:
+                    tmp.write(f'\tcall, file="{f}";\n')
+                tmp.write('};')
+
+            self._mad.call('.tmp.txt')
+            self._mad.input('track, update, ' + ', '.join(flags))
+
+        # Add observation points to track statement
+        if observation_points:
+            for o in observation_points:
+                print('Observing %s' % o)
+                self._mad.input(f'observe, place={o}')
+
+        # Set particle start coordinates and turn limit
+        st = start_coords
+        self._mad.input(f'start, x={st[0]}, px={st[1]}, y={st[2]}, py={st[3]}')
+        self._mad.input(f'run, turns={turns}')
+
+        # Start simulation
+        self._mad.input('endtrack')
+
+        # If loss_name is defined, the loss table should be saved
+        if loss_name is not None and 'recloss' in flags:
+            self.save_table('trackloss', loss_name)
+
+        # If track_name is defined, the track table should be saved
+        if track_name:
+            self.save_table('trackone', track_name)
+
+        # Load track data
+        track_df = self._mad.table['trackone'].dframe()
+
+        twiss_df, summ_df = self.twiss(self._sequence_to_track)
+
+        res = TrackingResult(
+            twiss_df,
+            summ_df,
+            track_df,
+            self._run_version,
+            self._hllhc_version
+        )
+
+        return res
+
+    def save_table(self, table_name: str, path: str):
+        """TODO: Docstring for save_table.
+
+        Args:
+            table_name (TODO): TODO
+            path (TODO): TODO
+
+        Returns: TODO
+
+        """
+        if not path.endswith('.parquet'):
+            path += '.parquet'
+
+        table_dfs = self._mad.table[table_name].dframe()
+
+        path = os.path.dirname(os.path.abspath(path))
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+
+        table_dfs.to_parquet(os.path.basename(path))
