@@ -17,9 +17,9 @@ import pymask as pm
 
 class FailSim:
 
-    verbosity: str = 'echo, warn, info'
-
     """TODO: Docstring for FailSim. """
+
+    verbosity: str = 'echo, warn, info'
 
     def __init__(self, mode: str,
                  save_intermediate_twiss: bool = True,
@@ -27,7 +27,7 @@ class FailSim:
                  check_separations_at_ips: bool = True,
                  tol_beta: List = [1e-3, 10e-2, 1e-3, 1e-2],
                  tol_sep: List = [1e-6, 1e-6, 1e-6, 1e-6]):
-        """TODO: to be defined.
+        """TODO: Docstring for constructor
 
         Args:
             mode (TODO): TODO
