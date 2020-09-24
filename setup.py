@@ -35,6 +35,8 @@ setup(
     install_requires=[
         'numpy',
         'pandas',
+        'pymask',
+        'yaml',
     ],
     package_data={'failsim': ['data']},
 )

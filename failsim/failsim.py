@@ -6,12 +6,10 @@ Github: https://gitlab.cern.ch/machine-protection/fast-beam-failures/
 Description: TODO
 """
 
-
 from typing import Optional, List, Union
 from .checks import OpticsChecks
 from .results import TrackingResult
 import yaml
-import imp
 import os
 import pkg_resources
 import pymask as pm
@@ -19,13 +17,13 @@ import numpy as np
 
 
 class FailSim:
-
     """TODO: Docstring for FailSim. """
 
     mad_verbosity: str = 'echo, warn, info'
     failsim_verbosity: bool = True
 
-    def __init__(self, mode: str,
+    def __init__(self,
+                 mode: str,
                  save_intermediate_twiss: bool = True,
                  check_betas_at_ips: bool = True,
                  check_separations_at_ips: bool = True,
@@ -51,6 +49,7 @@ class FailSim:
         self._save_intermediate_twiss = save_intermediate_twiss
         self._check_betas_at_ips = check_betas_at_ips
         self._check_separations_at_ips = check_separations_at_ips
+        self._metadata = None
 
     def init_check(self):
         """TODO: Docstring for init_check.
@@ -79,7 +78,7 @@ class FailSim:
         metadata_stream = pkg_resources.resource_stream(__name__,
                                                         'data/metadata.yaml')
         self._metadata = yaml.safe_load(metadata_stream)
-        return (self._metadata['OPTICS'], self._metadata['SEQUENCES'])
+        return self._metadata['OPTICS'], self._metadata['SEQUENCES']
 
     def select_sequence(self, sequence_key: str):
         """TODO: Docstring for select_sequence.
@@ -307,7 +306,7 @@ class FailSim:
             print('FailSim -> Cycling sequence')
 
         # Check whether multiple or single sequences should be cycled
-        if isinstance(sequence, str):
+        if not isinstance(sequence, str):
             for seq in sequence:
                 self._mad.input(f'seqedit, sequence={seq}; flatten;'
                                 f'cycle, start={start}; flatten; endedit;')
@@ -330,9 +329,13 @@ class FailSim:
         # If no specific path is given to mask_parameters,
         # assume that mask_parameters.py is in same directory
         if mask_path is None:
-            from mask_parameters import mask_parameters
+            try:
+                from mask_parameters import mask_parameters
+            except ModuleNotFoundError:
+                mask_parameters = {}
         else:
             # Load mask_parameters from path
+            import imp
             mask_params_source = imp.load_source(os.path.basename(mask_path),
                                                  os.path.abspath(mask_path))
             mask_parameters = mask_params_source.mask_parameters
@@ -383,13 +386,13 @@ class FailSim:
                 self._mad.twiss()
                 twiss_df[seq] = self._mad.get_twiss_df('twiss')
                 summ_df[seq] = self._mad.get_summ_df('summ')
-            return (twiss_df, summ_df)
+            return twiss_df, summ_df
         else:
             self._mad.use(sequence)
             self._mad.twiss()
             twiss_df = self._mad.get_twiss_df('twiss')
             summ_df = self._mad.get_summ_df('summ')
-            return (twiss_df, summ_df)
+            return twiss_df, summ_df
 
     def load_knob_parameters(self, knob_path: Optional[str] = None):
         """TODO: Docstring for load_knob_parameters.
@@ -406,14 +409,19 @@ class FailSim:
         # If no specific path is given to knob_parameters,
         # assume that knob_parameters.py is in same directory
         if knob_path is None:
-            from knob_parameters import knob_parameters
+            try:
+                from knob_parameters import knob_parameters
+            except ModuleNotFoundError:
+                knob_parameters = {}
         else:
             # Load mask_parameters from path
+            import imp
             knob_params_source = imp.load_source(os.path.basename(knob_path),
                                                  os.path.abspath(knob_path))
             knob_parameters = knob_params_source.knob_parameters
 
         # PATCH!!!!!!! for leveling not working for b4
+        # Copied from optics_specific_tools example of pymask
         if self._mode == 'b4_without_bb':
             knob_parameters['par_sep8'] = -0.03425547139366354
             knob_parameters['par_sep2'] = 0.14471680504084292
@@ -442,7 +450,7 @@ class FailSim:
         self._mad.globals['on_disp'] = knob_parameters['par_on_disp']
 
         # A check
-        if self._mad.globals.nrj < 500:
+        if self._mad.globals.nrj < 500:  # TODO double check this value
             assert knob_parameters['par_on_disp'] == 0
 
         # Spectrometers at experiments
@@ -526,7 +534,8 @@ class FailSim:
         if run_check:
             self._check(self._mad, self._sequences_to_check, check_name)
 
-    def track_particle(self, track_name: str = None,
+    def track_particle(self,
+                       track_name: str = None,
                        turns: int = 40,
                        start_coords: List = (0, 0, 0, 0),
                        observation_points: Optional[List[str]] = None,
@@ -550,7 +559,7 @@ class FailSim:
         # Check that update_files exist
         if update_files is not None:
             for f in update_files:
-                assert os.path.exists(f), 'File %s does not exists' % f
+                assert os.path.exists(f), f'File {f} does not exists'
 
         # Set proper sequence
         self._mad.use(self._sequence_to_track)

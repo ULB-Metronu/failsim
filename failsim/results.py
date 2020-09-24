@@ -5,7 +5,6 @@ import pandas
 
 @dataclass
 class Result:
-
     """Docstring for Result. """
 
     twiss_df: pandas.DataFrame
