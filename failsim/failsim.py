@@ -3,7 +3,7 @@ File: failsim.py
 Author: Oskari Tuormaa
 Email: oskari.kristian.tuormaa@cern.ch
 Github: https://gitlab.cern.ch/machine-protection/fast-beam-failures/
-Description: TODO
+Description: Main class for the module FailSim
 """
 
 from typing import Optional, List, Union
@@ -27,19 +27,19 @@ class FailSim:
                  save_intermediate_twiss: bool = True,
                  check_betas_at_ips: bool = True,
                  check_separations_at_ips: bool = True,
-                 tol_beta: List = [1e-3, 10e-2, 1e-3, 1e-2],
-                 tol_sep: List = [1e-6, 1e-6, 1e-6, 1e-6]):
+                 tol_beta: List[float] = [1e-3, 10e-2, 1e-3, 1e-2],
+                 tol_sep: List[float] = [1e-6, 1e-6, 1e-6, 1e-6]):
         """TODO: Docstring for constructor
 
         Args:
-            mode (TODO): TODO
+            mode (str): TODO
 
         Kwargs:
-            save_intermediate_twiss (TODO): TODO
-            check_betas_at_ips (TODO): TODO
-            check_separations_at_ips (TODO): TODO
-            tol_beta (TODO): TODO
-            tol_sep (TODO): TODO
+            save_intermediate_twiss (bool): TODO
+            check_betas_at_ips (beta): TODO
+            check_separations_at_ips (beta): TODO
+            tol_beta (List[float]): TODO
+            tol_sep (List[float]): TODO
 
 
         """
@@ -53,7 +53,7 @@ class FailSim:
 
     def init_check(self):
         """TODO: Docstring for init_check.
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -69,7 +69,8 @@ class FailSim:
 
     def load_metadata(self):
         """TODO: Docstring for load_metadata.
-        Returns: TODO
+        Returns:
+            Dict containing the data described in metadata.yaml
 
         """
         if self.failsim_verbosity:
@@ -84,9 +85,9 @@ class FailSim:
         """TODO: Docstring for select_sequence.
 
         Args:
-            sequence_key (TODO): TODO
+            sequence_key (str): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -101,15 +102,13 @@ class FailSim:
         """TODO: Docstring for select_custom_sequence.
 
         Args:
-            sequence_path (TODO): TODO
-            sequence_path (TODO): TODO
-            sequence_path (TODO): TODO
+            sequence_paths (List[str]): TODO
 
         Kwargs:
-            run_version (TODO): TODO
-            hllhc_version (TODO): TODO
+            run_version (int): TODO
+            hllhc_version (float): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -128,9 +127,9 @@ class FailSim:
         """TODO: Docstring for select_optics.
 
         Args:
-            optics_key (TODO): TODO
+            optics_key (str): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -145,9 +144,11 @@ class FailSim:
         """TODO: Docstring for select_custom_optics.
 
         Args:
-            optics_path (TODO): TODO
+            optics_path (str): TODO
+            optics_type (str): TODO
+            beta_ip5 (float): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -161,8 +162,7 @@ class FailSim:
     def init_mad_instance(self):
         """TODO: Docstring for init_mad_instance.
 
-        Returns:
-            None
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -174,9 +174,9 @@ class FailSim:
         """TODO: Docstring for mad_call_file.
 
         Args:
-            file_path (TODO): TODO
+            file_path (str): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -188,7 +188,7 @@ class FailSim:
     def fetch_mode_configuration(self):
         """TODO: Docstring for fetch_mode_configuration.
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -214,10 +214,10 @@ class FailSim:
         """TODO: Docstring for load_sequences_and_optics.
 
         Kwargs:
-            pre_scripts (TODO): TODO
-            post_scripts (TODO): TODO
+            pre_scripts (List[str], optional): TODO
+            post_scripts (List[str], optional): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -225,13 +225,13 @@ class FailSim:
 
         # Load sequence and optics data
         if self._custom_sequence:
-            seq_data = dict(sequence_filenames=self._sequence_paths,
+            self._seq_data = dict(sequence_filenames=self._sequence_paths,
                             run=self._run_version,
                             version=self._hllhc_version)
         else:
-            seq_data = self._metadata['SEQUENCES'][self._seq_key]
-            self._run_version = seq_data['run']
-            self._hllhc_version = seq_data['version']
+            self._seq_data = self._metadata[self._seq_key]
+            self._run_version = self._seq_data['run']
+            self._hllhc_version = self._seq_data['version']
 
         if self._custom_optics:
             opt_data = dict(type=self._opt_type,
@@ -241,8 +241,8 @@ class FailSim:
             opt_data = self._metadata[self._seq_key]['optics'][self._opt_key]
 
         # Set machine versions
-        self._mad.input('ver_lhc_run = %s' % seq_data['run'])
-        self._mad.input('ver_hllhc_optics = %s' % seq_data['version'])
+        self._mad.input('ver_lhc_run = %s' % self._seq_data['run'])
+        self._mad.input('ver_hllhc_optics = %s' % self._seq_data['version'])
 
         # Run pre_scripts if any
         if pre_scripts is not None:
@@ -250,7 +250,7 @@ class FailSim:
                 self.mad_call_file(script)
 
         # Run all sequences
-        for sequence in seq_data['sequence_filenames']:
+        for sequence in self._seq_data['sequence_filenames']:
             if self._custom_sequence:
                 seq_path = sequence
             else:
@@ -260,7 +260,7 @@ class FailSim:
         # Load optics
         opt_path = pkg_resources.resource_filename(
             __name__,
-            self._metadata['OPTICS_BASE_PATH'] + opt_data['strength_file']
+            self._seq_data['optics_base_path'] + opt_data['strength_file']
         )
         self.mad_call_file(opt_path)
 
@@ -274,9 +274,9 @@ class FailSim:
         """TODO: Docstring for make_sequence_thin.
 
         Kwargs:
-            script_path (TODO): TODO
+            script_path (str, optional): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -292,14 +292,14 @@ class FailSim:
         else:
             self._mad.input(script_path)
 
-    def cycle_sequence(self, sequence: Union[str, List], start: str):
+    def cycle_sequence(self, sequence: Union[str, List[str]], start: str):
         """TODO: Docstring for cycle_sequence.
 
         Args:
-            sequence (TODO): TODO
-            start (TODO): TODO
+            sequence (Union[str, List[str]]): TODO
+            start (str): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -318,9 +318,9 @@ class FailSim:
         """TODO: Docstring for load_mask_parameters.
 
         Kwargs:
-            mask_path (TODO): TODO
+            mask_path (str, optional): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -349,7 +349,7 @@ class FailSim:
 
     def prepare_and_attach_beam(self):
         """TODO: Docstring for prepare_and_attach_beam.
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -366,13 +366,17 @@ class FailSim:
         self._check(self._mad, self._sequences_to_check,
                     twiss_name='twiss_from_optics')
 
-    def twiss(self, sequence: Union[List, str]):
+    def twiss(self, sequence: Union[List[str], str]):
         """TODO: Docstring for twiss.
 
         Args:
-            sequence (TODO): TODO
+            sequence (Union[List[str], str]): TODO
 
-        Returns: TODO
+        Returns:
+            (tuple): tuple containing:
+
+                twiss_df (pandas.DataFrame) DataFrame containing twiss data
+                summ_df (pandas.DataFrame) DataFrame containing summ data
 
         """
         if self.failsim_verbosity:
@@ -398,9 +402,9 @@ class FailSim:
         """TODO: Docstring for load_knob_parameters.
 
         Kwargs:
-            knob_path (TODO): TODO
+            knob_path (str, optional): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -450,7 +454,7 @@ class FailSim:
         self._mad.globals['on_disp'] = knob_parameters['par_on_disp']
 
         # A check
-        if self._mad.globals.nrj < 500:  # TODO double check this value
+        if self._mad.globals.nrj < 500:
             assert knob_parameters['par_on_disp'] == 0
 
         # Spectrometers at experiments
@@ -468,9 +472,9 @@ class FailSim:
         """TODO: Docstring for crossing_save.
 
         Kwargs:
-            store_optics (TODO): TODO
+            store_optics (bool): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -486,9 +490,9 @@ class FailSim:
         """TODO: Docstring for assert_flatness.
 
         Args:
-            flat_tol (TODO): TODO
+            flat_tol (float): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -514,13 +518,13 @@ class FailSim:
         """TODO: Docstring for set_crossing.
 
         Args:
-            crossing_on (TODO): TODO
+            crossing_on (bool): TODO
 
         Kwargs:
-            check_name (TODO): TODO
-            run_check (TODO): TODO
+            check_name (str): TODO
+            run_check (bool): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if self.failsim_verbosity:
@@ -537,7 +541,7 @@ class FailSim:
     def track_particle(self,
                        track_name: str = None,
                        turns: int = 40,
-                       start_coords: List = (0, 0, 0, 0),
+                       start_coords: List[float] = (0, 0, 0, 0),
                        observation_points: Optional[List[str]] = None,
                        update_files: Optional[List[str]] = None,
                        track_flags: Optional[str] = None,
@@ -545,15 +549,18 @@ class FailSim:
         """TODO: Docstring for track_particle.
 
         Kwargs:
-            track_name (TODO): TODO
-            turns (TODO): TODO
-            start_coords (TODO): TODO
-            observation_points (TODO): TODO
-            update_files (TODO): TODO
-            track_flags (TODO): TODO
-            loss_name (TODO): TODO
+            track_name (str): TODO
+            turns (int): TODO
+            start_coords (List[float]): TODO
+            observation_points (List[str], optional): TODO
+            update_files (List[str], optional): TODO
+            track_flags (str, optional): TODO
+            loss_name (str, optional): TODO
 
-        Returns: TODO
+        Returns:
+            (TrackingResult) TrackingResult containing tracking data, twiss data
+                summ data, as well as which lhc run and hllhc version the track
+                was made with
 
         """
         # Check that update_files exist
@@ -641,10 +648,10 @@ class FailSim:
         """TODO: Docstring for save_table.
 
         Args:
-            table_name (TODO): TODO
-            path (TODO): TODO
+            table_name (str): TODO
+            path (str): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         if not path.endswith('.parquet'):
