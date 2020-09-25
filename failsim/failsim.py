@@ -74,6 +74,16 @@ class FailSim:
 
         self._mad_out = OutputSuppressor(False)
 
+    def load_macros(self):
+        """TODO: Docstring for load_macros.
+        Returns: TODO
+
+        """
+        macro_path = pkg_resources.resource_filename(__name__,
+                                                     'data/hllhc14/'
+                                                     'toolkit/macro.madx')
+        self.mad_call_file(macro_path)
+
     def set_mad_mute(self, enabled: bool):
         """TODO: Docstring for set_mad_mute.
 
@@ -318,10 +328,6 @@ class FailSim:
 
         # If no script_path given, do nominal slice
         if script_path is None:
-            macro_path = pkg_resources.resource_filename(__name__,
-                                                         'data/hllhc14/'
-                                                         'toolkit/macro.madx')
-            self.mad_call_file(macro_path)
             self._mad.input('exec, myslice')
         else:
             self._mad.input(script_path)
@@ -394,8 +400,12 @@ class FailSim:
         self.mad_call_file(submod_prep)
         self.mad_call_file(submod_beam)
 
+        out_name = 'twiss_from_optics'
+        if self._out_dir is not None:
+            out_name = os.path.join(self._out_dir, out_name)
+
         self._check(self._mad, self._sequences_to_check,
-                    twiss_name='twiss_from_optics')
+                    twiss_name=out_name)
 
         if self.failsim_verbose:
             print('FailSim -> Checks passed')
