@@ -9,6 +9,7 @@ Description: Main class for the module FailSim
 from typing import Optional, List, Union
 from .checks import OpticsChecks
 from .results import TrackingResult
+from .helpers import OutputSuppressor
 import yaml
 import os
 import pkg_resources
@@ -19,8 +20,9 @@ import numpy as np
 class FailSim:
     """TODO: Docstring for FailSim. """
 
+    failsim_verbose: bool = True
     mad_verbosity: str = 'echo, warn, info'
-    failsim_verbosity: bool = True
+    mad_out: OutputSuppressor
 
     def __init__(self,
                  mode: str,
@@ -51,12 +53,25 @@ class FailSim:
         self._check_separations_at_ips = check_separations_at_ips
         self._metadata = None
 
+        self._mad_out = OutputSuppressor(False)
+
+    def set_mad_mute(self, enabled: bool):
+        """TODO: Docstring for set_mad_mute.
+
+        Args:
+            enabled (TODO): TODO
+
+        Returns: TODO
+
+        """
+        self._mad_out._enabled = enabled
+
     def init_check(self):
         """TODO: Docstring for init_check.
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Initializing check class')
 
         self._check = OpticsChecks(
@@ -73,7 +88,7 @@ class FailSim:
             Dict containing the data described in metadata.yaml
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Loading metadata')
 
         metadata_stream = pkg_resources.resource_stream(__name__,
@@ -90,7 +105,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Setting sequence: %s' % sequence_key)
 
         self._seq_key = sequence_key
@@ -111,7 +126,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print("""FailSim -> Setting custom sequence:
                   \tPath: %s
                   \trun_version: %d
@@ -132,7 +147,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Setting optics: %s' % optics_key)
 
         self._opt_key = optics_key
@@ -151,7 +166,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print("FailSim -> Setting custom optics: %s" % optics_path)
 
         self._opt_path = optics_path
@@ -165,10 +180,10 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Initializing MAD instance')
 
-        self._mad = pm.Madxp()
+        self._mad = pm.Madxp(stdout=self._mad_out)
 
     def mad_call_file(self, file_path: str):
         """TODO: Docstring for mad_call_file.
@@ -179,7 +194,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Calling MAD with file: %s' % file_path)
 
         self._mad.input('option, %s' % self.mad_verbosity)
@@ -191,7 +206,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Fetching mode configuration')
 
         (self._beam_to_configure,
@@ -220,14 +235,14 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Loading sequence and optics')
 
         # Load sequence and optics data
         if self._custom_sequence:
             self._seq_data = dict(sequence_filenames=self._sequence_paths,
-                            run=self._run_version,
-                            version=self._hllhc_version)
+                                  run=self._run_version,
+                                  version=self._hllhc_version)
         else:
             self._seq_data = self._metadata[self._seq_key]
             self._run_version = self._seq_data['run']
@@ -279,7 +294,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Making sequence thin')
 
         # If no script_path given, do nominal slice
@@ -302,7 +317,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Cycling sequence')
 
         # Check whether multiple or single sequences should be cycled
@@ -323,7 +338,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Loading mask parameters')
 
         # If no specific path is given to mask_parameters,
@@ -352,7 +367,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Calling preparation and beam modules')
 
         submod_prep = pkg_resources.resource_filename('pymask', '../submodule'
@@ -379,7 +394,7 @@ class FailSim:
                 summ_df (pandas.DataFrame) DataFrame containing summ data
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Doing twiss')
 
         if isinstance(sequence, list):
@@ -407,7 +422,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Loading knob parameters')
 
         # If no specific path is given to knob_parameters,
@@ -477,7 +492,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Crossing save')
 
         self._mad.input('exec, crossing_save')
@@ -495,7 +510,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Asserting flatness')
 
         twiss_df, summ_df = self.twiss(self._sequences_to_check)
@@ -509,7 +524,7 @@ class FailSim:
             assert max_y < flat_tol, 'Flatness %f in y is' \
                 ' over tolerance of %f' % (max_y, flat_tol)
 
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print("FailSim -> Flatness assertion passed")
 
     def set_crossing(self, crossing_on: bool,
@@ -527,7 +542,7 @@ class FailSim:
         Returns: None
 
         """
-        if self.failsim_verbosity:
+        if self.failsim_verbose:
             print('FailSim -> Setting crossing: %s' % crossing_on)
 
         if crossing_on:
@@ -558,9 +573,9 @@ class FailSim:
             loss_name (str, optional): TODO
 
         Returns:
-            (TrackingResult) TrackingResult containing tracking data, twiss data
-                summ data, as well as which lhc run and hllhc version the track
-                was made with
+            (TrackingResult) TrackingResult containing tracking data,
+                twiss data, summ data, as well as which lhc run and
+                hllhc version the track was made with
 
         """
         # Check that update_files exist
