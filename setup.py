@@ -37,6 +37,8 @@ setup(
         'pandas',
         'pymask',
         'yaml',
+        'glob',
+        'shutil',
     ],
     package_data={'failsim': ['data']},
 )

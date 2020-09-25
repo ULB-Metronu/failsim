@@ -10,6 +10,8 @@ from typing import Optional, List, Union
 from .checks import OpticsChecks
 from .results import TrackingResult
 from .helpers import OutputSuppressor
+import shutil
+import glob
 import yaml
 import os
 import pkg_resources
@@ -30,7 +32,9 @@ class FailSim:
                  check_betas_at_ips: bool = True,
                  check_separations_at_ips: bool = True,
                  tol_beta: List[float] = [1e-3, 10e-2, 1e-3, 1e-2],
-                 tol_sep: List[float] = [1e-6, 1e-6, 1e-6, 1e-6]):
+                 tol_sep: List[float] = [1e-6, 1e-6, 1e-6, 1e-6],
+                 out_dir: str = None,
+                 cwd: str = None):
         """TODO: Docstring for constructor
 
         Args:
@@ -42,6 +46,8 @@ class FailSim:
             check_separations_at_ips (beta): TODO
             tol_beta (List[float]): TODO
             tol_sep (List[float]): TODO
+            out_dir (str): TODO
+            cwd (str): TODO
 
 
         """
@@ -52,6 +58,15 @@ class FailSim:
         self._tol_beta = tol_beta
         self._tol_sep = tol_sep
         self._metadata = None
+        self._out_dir = out_dir
+        self._cwd = cwd
+
+        if self._out_dir is not None:
+            if not self._out_dir.startswith("/"):
+                self._out_dir = "%s/%s" % \
+                    (os.path.dirname(os.getcwd()), self._out_dir)
+            if not os.path.exists(self._out_dir):
+                os.makedirs(self._out_dir)
 
         self._mad_out = OutputSuppressor(False)
 
@@ -59,9 +74,9 @@ class FailSim:
         """TODO: Docstring for set_mad_mute.
 
         Args:
-            enabled (TODO): TODO
+            enabled (bool): TODO
 
-        Returns: TODO
+        Returns: None
 
         """
         self._mad_out._enabled = enabled
@@ -495,6 +510,11 @@ class FailSim:
                                                        '_01e_final.madx')
             self._mad.call(mod_path)
 
+            if self._out_dir is not None:
+                for data in glob.glob('%s/twiss_*' % self._cwd):
+                    shutil.move(data, os.path.join(self._out_dir,
+                                                   os.path.basename(data)))
+
     def assert_flatness(self, flat_tol: float):
         """TODO: Docstring for assert_flatness.
 
@@ -545,6 +565,8 @@ class FailSim:
             self._mad.input('exec, crossing_disable')
 
         if run_check:
+            if self._out_dir is not None:
+                check_name = '%s/%s' % (self._out_dir, check_name)
             self._check(self._mad, self._sequences_to_check, check_name)
 
     def track_particle(self,

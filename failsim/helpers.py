@@ -1,3 +1,11 @@
+"""
+File: helpers.py
+Author: Oskari Tuormaa
+Email: oskari.kristian.tuormaa@cern.ch
+Github: https://github.com/Oskari-Tuormaa
+Description: TODO
+"""
+
 
 from typing import ByteString
 
@@ -18,7 +26,6 @@ class OutputSuppressor:
 
 
         """
-
         self._enabled = enabled
 
     def write(self, string: ByteString):
