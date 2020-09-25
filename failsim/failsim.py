@@ -59,12 +59,16 @@ class FailSim:
         self._tol_sep = tol_sep
         self._metadata = None
         self._out_dir = out_dir
-        self._cwd = cwd
+
+        if cwd is not None:
+            self._cwd = os.getcwd()
+        else:
+            self._cwd = cwd
 
         if self._out_dir is not None:
             if not self._out_dir.startswith("/"):
-                self._out_dir = "%s/%s" % \
-                    (os.path.dirname(os.getcwd()), self._out_dir)
+                self._out_dir = os.path.join(self._cwd,
+                                             self._out_dir)
             if not os.path.exists(self._out_dir):
                 os.makedirs(self._out_dir)
 
@@ -393,6 +397,9 @@ class FailSim:
         self._check(self._mad, self._sequences_to_check,
                     twiss_name='twiss_from_optics')
 
+        if self.failsim_verbose:
+            print('FailSim -> Checks passed')
+
     def twiss(self, sequence: Union[List[str], str]):
         """TODO: Docstring for twiss.
 
@@ -442,7 +449,7 @@ class FailSim:
         if knob_path is None:
             knob_path = './knob_parameters.py'
 
-        # Load mask_parameters from path
+        # Load knob_parameters from path
         import imp
         knob_params_source = imp.load_source(os.path.basename(knob_path),
                                              os.path.abspath(knob_path))
@@ -512,6 +519,8 @@ class FailSim:
 
             if self._out_dir is not None:
                 for data in glob.glob('%s/twiss_*' % self._cwd):
+                    print(data)
+                    print(os.path.join(self._out_dir, os.path.basename(data)))
                     shutil.move(data, os.path.join(self._out_dir,
                                                    os.path.basename(data)))
 
@@ -566,7 +575,9 @@ class FailSim:
 
         if run_check:
             if self._out_dir is not None:
-                check_name = '%s/%s' % (self._out_dir, check_name)
+                print(check_name)
+                check_name = os.path.join(self._out_dir, check_name)
+                print(check_name)
             self._check(self._mad, self._sequences_to_check, check_name)
 
     def track_particle(self,
@@ -641,7 +652,6 @@ class FailSim:
         # Add observation points to track statement
         if observation_points:
             for o in observation_points:
-                print('Observing %s' % o)
                 self._mad.input(f'observe, place={o}')
 
         # Set particle start coordinates and turn limit
@@ -654,10 +664,14 @@ class FailSim:
 
         # If loss_name is defined, the loss table should be saved
         if loss_name is not None and 'recloss' in flags:
+            if self._out_dir is not None:
+                loss_name = os.path.join(self._out_dir, loss_name)
             self.save_table('trackloss', loss_name)
 
         # If track_name is defined, the track table should be saved
         if track_name:
+            if self._out_dir is not None:
+                track_name = os.path.join(self._out_dir, track_name)
             self.save_table('trackone', track_name)
 
         # Load track data
@@ -675,7 +689,7 @@ class FailSim:
 
         return res
 
-    def save_table(self, table_name: str, path: str):
+    def save_table(self, table_name: str, file_path: str):
         """TODO: Docstring for save_table.
 
         Args:
@@ -685,13 +699,9 @@ class FailSim:
         Returns: None
 
         """
-        if not path.endswith('.parquet'):
-            path += '.parquet'
+        if not file_path.endswith('.parquet'):
+            file_path += '.parquet'
 
         table_dfs = self._mad.table[table_name].dframe()
 
-        path = os.path.dirname(os.path.abspath(path))
-        if not os.path.exists(path):
-            os.makedirs(path, exist_ok=True)
-
-        table_dfs.to_parquet(os.path.basename(path))
+        table_dfs.to_parquet(file_path)
