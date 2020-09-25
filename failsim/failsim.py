@@ -46,11 +46,11 @@ class FailSim:
 
         """
         self._mode = mode
-        self._tol_beta = tol_beta
-        self._tol_sep = tol_sep
         self._save_intermediate_twiss = save_intermediate_twiss
         self._check_betas_at_ips = check_betas_at_ips
         self._check_separations_at_ips = check_separations_at_ips
+        self._tol_beta = tol_beta
+        self._tol_sep = tol_sep
         self._metadata = None
 
         self._mad_out = OutputSuppressor(False)
@@ -344,16 +344,13 @@ class FailSim:
         # If no specific path is given to mask_parameters,
         # assume that mask_parameters.py is in same directory
         if mask_path is None:
-            try:
-                from mask_parameters import mask_parameters
-            except ModuleNotFoundError:
-                mask_parameters = {}
-        else:
-            # Load mask_parameters from path
-            import imp
-            mask_params_source = imp.load_source(os.path.basename(mask_path),
-                                                 os.path.abspath(mask_path))
-            mask_parameters = mask_params_source.mask_parameters
+            mask_path = './mask_parameters.py'
+
+        # Load mask_parameters from path
+        import imp
+        mask_params_source = imp.load_source(os.path.basename(mask_path),
+                                             os.path.abspath(mask_path))
+        mask_parameters = mask_params_source.mask_parameters
 
         if not self._enable_bb_legacy and not self._enable_bb_python:
             mask_parameters['par_on_bb_switch'] = 0.
@@ -428,16 +425,13 @@ class FailSim:
         # If no specific path is given to knob_parameters,
         # assume that knob_parameters.py is in same directory
         if knob_path is None:
-            try:
-                from knob_parameters import knob_parameters
-            except ModuleNotFoundError:
-                knob_parameters = {}
-        else:
-            # Load mask_parameters from path
-            import imp
-            knob_params_source = imp.load_source(os.path.basename(knob_path),
-                                                 os.path.abspath(knob_path))
-            knob_parameters = knob_params_source.knob_parameters
+            knob_path = './knob_parameters.py'
+
+        # Load mask_parameters from path
+        import imp
+        knob_params_source = imp.load_source(os.path.basename(knob_path),
+                                             os.path.abspath(knob_path))
+        knob_parameters = knob_params_source.knob_parameters
 
         # PATCH!!!!!!! for leveling not working for b4
         # Copied from optics_specific_tools example of pymask
