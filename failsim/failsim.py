@@ -371,11 +371,12 @@ class FailSim:
         if mask_path is None:
             mask_path = './mask_parameters.py'
 
+        if not mask_path.startswith('/'):
+            mask_path = os.path.join(self._cwd, mask_path)
+
         # Load mask_parameters from path
-        import imp
-        mask_params_source = imp.load_source(os.path.basename(mask_path),
-                                             os.path.abspath(mask_path))
-        mask_parameters = mask_params_source.mask_parameters
+        with open(mask_path, 'r') as fd:
+            mask_parameters = yaml.safe_load(fd)
 
         if not self._enable_bb_legacy and not self._enable_bb_python:
             mask_parameters['par_on_bb_switch'] = 0.
@@ -459,11 +460,12 @@ class FailSim:
         if knob_path is None:
             knob_path = './knob_parameters.py'
 
+        if not knob_path.startswith('/'):
+            knob_path = os.path.join(self._cwd, knob_path)
+
         # Load knob_parameters from path
-        import imp
-        knob_params_source = imp.load_source(os.path.basename(knob_path),
-                                             os.path.abspath(knob_path))
-        knob_parameters = knob_params_source.knob_parameters
+        with open(knob_path, 'r') as fd:
+            knob_parameters = yaml.safe_load(fd)
 
         # PATCH!!!!!!! for leveling not working for b4
         # Copied from optics_specific_tools example of pymask
