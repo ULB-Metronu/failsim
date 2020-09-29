@@ -36,9 +36,7 @@ setup(
         'numpy',
         'pandas',
         'pymask',
-        'yaml',
-        'glob',
-        'shutil',
+        'pyyaml',
     ],
     package_data={'failsim': ['data']},
 )
