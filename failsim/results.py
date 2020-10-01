@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass
 import pandas
 
@@ -12,11 +11,13 @@ class Result:
     run_version: int
     hllhc_version: float
 
-    def __init__(self,
-                 twiss_df: pandas.DataFrame,
-                 summ_df: pandas.DataFrame,
-                 run_version: int = 0,
-                 hllhc_version: float = 0.0):
+    def __init__(
+        self,
+        twiss_df: pandas.DataFrame,
+        summ_df: pandas.DataFrame,
+        run_version: int = 0,
+        hllhc_version: float = 0.0,
+    ):
         """TODO: Docstring
 
         Args:
@@ -41,12 +42,14 @@ class TrackingResult(Result):
 
     track_df: pandas.DataFrame
 
-    def __init__(self,
-                 twiss_df: pandas.DataFrame,
-                 summ_df: pandas.DataFrame,
-                 track_df: pandas.DataFrame,
-                 run_version: int = 0,
-                 hllhc_version: float = 0.0):
+    def __init__(
+        self,
+        twiss_df: pandas.DataFrame,
+        summ_df: pandas.DataFrame,
+        track_df: pandas.DataFrame,
+        run_version: int = 0,
+        hllhc_version: float = 0.0,
+    ):
         """TODO: Docstring
 
         Args:
@@ -60,8 +63,6 @@ class TrackingResult(Result):
 
 
         """
-        Result.__init__(self, twiss_df,
-                        summ_df, run_version,
-                        hllhc_version)
+        Result.__init__(self, twiss_df, summ_df, run_version, hllhc_version)
 
         self.track_df = track_df

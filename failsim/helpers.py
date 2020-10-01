@@ -12,13 +12,13 @@ from typing import ByteString
 
 class OutputSuppressor:
 
-    """ Can be used to intercept output to stdout, and only prints
-     if not enabled. """
+    """Can be used to intercept output to stdout, and only prints
+    if not enabled."""
 
     _enabled: bool
 
     def __init__(self, enabled: bool = True):
-        """ Initialized OutputSuppressor.
+        """Initialized OutputSuppressor.
 
         Kwargs:
             enabled (bool): Whether or not OutputSuppressor should
@@ -29,7 +29,7 @@ class OutputSuppressor:
         self._enabled = enabled
 
     def write(self, string: ByteString):
-        """ Prints written content to stdout if self._enabled is False.
+        """Prints written content to stdout if self._enabled is False.
 
         Args:
             string (ByteString): ByteString to print
@@ -38,4 +38,4 @@ class OutputSuppressor:
 
         """
         if not self._enabled:
-            print(string.decode('utf-8'))
+            print(string.decode("utf-8"))
