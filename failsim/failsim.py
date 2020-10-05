@@ -539,7 +539,7 @@ class FailSim:
         self._mad.input("exec, crossing_save")
         if store_optics:
             mod_path = pkg_resources.resource_filename(
-                "pymask", "../submodule" "_01e_final.madx"
+                "pymask", "../submodule_01e_final.madx"
             )
             self._mad.call(mod_path)
 
