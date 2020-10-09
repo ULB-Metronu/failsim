@@ -102,7 +102,7 @@ class FailSim:
         )
         self._mad.chdir(self._cwd)
 
-        if self._madx_verbosity is not "mute":
+        if self._madx_verbosity != "mute":
             self.mad_input("option, " + self._madx_verbosity)
 
         return self
@@ -146,8 +146,10 @@ class FailSim:
         """
         pre_files = os.listdir(self._cwd)
 
-        cwd_path = os.path.join(self._cwd, path)
-        self._mad.call(cwd_path)
+        call_path = path
+        if not path.startswith("/"):
+            call_path = os.path.join(self._cwd, path)
+        self._mad.call(call_path)
 
         post_files = os.listdir(self._cwd)
 
@@ -192,3 +194,33 @@ class FailSim:
             failsim_verbosity=self._failsim_verbosity,
             command_log=self._master_mad_command_log.copy(),
         )
+
+    @_print_info
+    def use(self, seq: str):
+        """TODO: Docstring for use.
+
+        Args:
+            seq (TODO): TODO
+
+        Returns: TODO
+
+        """
+        self._mad.use(seq)
+
+    @_print_info
+    def twiss_and_summ(self, seq: str):
+        """TODO: Docstring for twiss_and_summ.
+
+        Args:
+            seq (TODO): TODO
+
+        Returns: TODO
+
+        """
+        self._mad.twiss(
+            sequence=seq
+        )
+        #return (
+            #self._mad.get_twiss_df,
+            #self._mad.get_summ_df
+        #)

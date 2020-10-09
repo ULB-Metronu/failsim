@@ -1,6 +1,3 @@
-## Moved the load_metadata to LHCSequence
-## LHCSequence has to call madx before build to be able to run checks
-
 from typing import Optional, List, Union
 from .failsim import FailSim
 from .checks import OpticsChecks
@@ -52,12 +49,14 @@ class LHCSequence:
 
         self._metadata = None
         self._custom_sequence = None
+        self._sequence_key = None
         self._run_version = None
         self._hllhc_version = None
         self._sequence_paths = None
         self._optics_base_path = None
         self._sequence_data = None
         self._custom_optics = None
+        self._optics_key = None
         self._optics_path = None
         self._beam_to_configure = None
         self._sequences_to_check = None
@@ -67,6 +66,8 @@ class LHCSequence:
         self._enable_bb_python = None
         self._enable_bb_legacy = None
         self._force_disable_check_separations_at_ips = None
+        self._mask_path = None
+        self._do_cycle = None
 
         self.load_metadata()
         self.init_check()
@@ -151,17 +152,7 @@ class LHCSequence:
 
         else:
             self._custom_sequence = False
-
-            self._sequence_data = self._metadata[sequence]
-
-            rel_paths = self._sequence_data["sequence_filenames"]
-            self._sequence_paths = [
-                pkg_resources.resource_filename(__name__, x) for x in rel_paths
-            ]
-
-            self._run_version = self._sequence_data["run"]
-            self._hllhc_version = self._sequence_data["version"]
-            self._optics_base_path = self._sequence_data["optics_base_path"]
+            self._sequence_key = sequence
 
         return self
 
@@ -183,12 +174,7 @@ class LHCSequence:
             self._optics_path = optics
         else:
             self._custom_optics = False
-
-            rel_path = os.path.join(
-                self._optics_base_path,
-                self._sequence_data["optics"][optics]["strength_file"],
-            )
-            self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
+            self._optics_key = optics
         return self
 
     @_print_info
@@ -197,12 +183,38 @@ class LHCSequence:
         Returns: TODO
 
         """
+        if not self._custom_sequence:
+            sequence_data = self._metadata[self._sequence_key]
+            self._run_version = sequence_data['run']
+            self._hllhc_version = sequence_data['version']
+            self._optics_base_path = sequence_data['optics_base_path']
+
+            rel_paths = sequence_data['sequence_filenames']
+            self._sequence_paths = [
+                pkg_resources.resource_filename(__name__, x)
+                for x in rel_paths
+            ]
+
+        if not self._custom_optics:
+            assert (
+                not self._custom_sequence
+            ), "You can't use non-custom optics with custom sequence"
+
+            rel_path = os.path.join(
+                    self._optics_base_path,
+                    sequence_data['optics'][self._optics_key]['strength_file']
+                )
+            self._optics_path = pkg_resources.resource_filename(
+                __name__,
+                rel_path
+            )
+
         for seq in self._sequence_paths:
             self._failsim.mad_call_file(seq)
         self._failsim.mad_call_file(self._optics_path)
 
-        self._failsim.mad_input(f'ver_lhc_run = {self._run_version}')
-        self._failsim.mad_input(f'ver_hllhc_run = {self._hllhc_version}')
+        self._failsim.mad_input(f"ver_lhc_run = {self._run_version}")
+        self._failsim.mad_input(f"ver_hllhc_run = {self._hllhc_version}")
 
     @_print_info
     def get_mode_configuration(self):
@@ -249,3 +261,157 @@ class LHCSequence:
         self._check(mad=self._failsim._mad, sequences=self._sequences_to_check)
 
         return self
+
+    @_print_info
+    def make_thin(self):
+        """TODO: Docstring for make_thin.
+        Returns: TODO
+
+        """
+        twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
+
+    @_print_info
+    def cycle(self):
+        """TODO: Docstring for cycle.
+        Returns: TODO
+
+        """
+        pass
+
+    @_print_info
+    def set_mask_parameter_path(self, path: str):
+        """TODO: Docstring for set_mask_parameter_path.
+
+        Args:
+            path (TODO): TODO
+
+        Returns: TODO
+
+        """
+        if path.startswith("/"):
+            self._mask_path = path
+        else:
+            self._mask_path = os.path.join(self._cwd, path)
+
+    @_print_info
+    def load_mask_parameters(self):
+        """TODO: Docstring for load_mask_parameters.
+        Returns: TODO
+
+        """
+        if self._mask_path is None:
+            self._mask_path = os.path.join(self._cwd, "./mask_parameters.py")
+
+        with open(self._mask_path, "r") as fd:
+            mask_parameters = yaml.safe_load(fd)
+
+        if not self._enable_bb_legacy and not self._enable_bb_python:
+            mask_parameters["par_on_bb_switch"] = 0.0
+
+        pm.checks_on_parameter_dict(mask_parameters)
+
+        self._failsim._mad.set_variables_from_dict(params=mask_parameters)
+
+    @_print_info
+    def set_knob_parameter_path(self, path: str):
+        """TODO: Docstring for set_knob_parameter_path.
+
+        Args:
+            path (TODO): TODO
+
+        Returns: TODO
+
+        """
+        if path.startswith("/"):
+            self._knob_path = path
+        else:
+            self._knob_path = os.path.join(self._cwd, path)
+
+    @_print_info
+    def load_knob_parameters(self):
+        """TODO: Docstring for load_knob_parameters.
+        Returns: TODO
+
+        """
+        if self._knob_path is None:
+            self._knob_path = os.path.join(self._cwd, "./knob_parameters.py")
+
+        with open(self._knob_path, "r") as fd:
+            knob_parameters = yaml.safe_load(fd)
+
+        # PATCH!!!!!!! for leveling not working for b4
+        # Copied from optics_specific_tools example of pymask
+        if self._beam_mode == "b4_without_bb":
+            knob_parameters["par_sep8"] = -0.03425547139366354
+            knob_parameters["par_sep2"] = 0.14471680504084292
+
+        self._failsim._mad.set_variables_from_dict(params=knob_parameters)
+
+        # Set IP knobs
+        self._failsim._mad.globals["on_x1"] = knob_parameters["par_x1"]
+        self._failsim._mad.globals["on_sep1"] = knob_parameters["par_sep1"]
+        self._failsim._mad.globals["on_x2"] = knob_parameters["par_x2"]
+        self._failsim._mad.globals["on_sep2"] = knob_parameters["par_sep2"]
+        self._failsim._mad.globals["on_x5"] = knob_parameters["par_x5"]
+        self._failsim._mad.globals["on_sep5"] = knob_parameters["par_sep5"]
+        self._failsim._mad.globals["on_x8"] = knob_parameters["par_x8"]
+        self._failsim._mad.globals["on_sep8"] = knob_parameters["par_sep8"]
+        self._failsim._mad.globals["on_a1"] = knob_parameters["par_a1"]
+        self._failsim._mad.globals["on_o1"] = knob_parameters["par_o1"]
+        self._failsim._mad.globals["on_a2"] = knob_parameters["par_a2"]
+        self._failsim._mad.globals["on_o2"] = knob_parameters["par_o2"]
+        self._failsim._mad.globals["on_a5"] = knob_parameters["par_a5"]
+        self._failsim._mad.globals["on_o5"] = knob_parameters["par_o5"]
+        self._failsim._mad.globals["on_a8"] = knob_parameters["par_a8"]
+        self._failsim._mad.globals["on_o8"] = knob_parameters["par_o8"]
+        self._failsim._mad.globals["on_crab1"] = knob_parameters["par_crab1"]
+        self._failsim._mad.globals["on_crab5"] = knob_parameters["par_crab5"]
+        self._failsim._mad.globals["on_disp"] = knob_parameters["par_on_disp"]
+
+        # A check
+        if self._failsim._mad.globals.nrj < 500:
+            assert knob_parameters["par_on_disp"] == 0
+
+        # Spectrometers at experiments
+        if knob_parameters["par_on_alice"] == 1:
+            self._failsim._mad.globals.on_alice = (
+                7000.0 / self._failsim._mad.globals.nrj
+            )
+        if knob_parameters["par_on_lhcb"] == 1:
+            self._failsim._mad.globals.on_lhcb = 7000.0 / self._failsim._mad.globals.nrj
+
+        # Solenoids at experiments
+        self._failsim._mad.globals.on_sol_atlas = knob_parameters["par_on_sol_atlas"]
+        self._failsim._mad.globals.on_sol_cms = knob_parameters["par_on_sol_cms"]
+        self._failsim._mad.globals.on_sol_alice = knob_parameters["par_on_sol_alice"]
+
+    @_print_info
+    def call_pymask_module(self, module: str):
+        """TODO: Docstring for call_pymask_module.
+
+        Args:
+            module (TODO): TODO
+
+        Returns: TODO
+
+        """
+        path = pkg_resources.resource_filename(
+            "pymask", "../" + module
+        )
+        self._failsim.mad_call_file(path)
+
+    @_print_info
+    def build(self):
+        """TODO: Docstring for build.
+        Returns: TODO
+
+        """
+        self.load_sequences_and_optics()
+        self.call_pymask_module("submodule_01a_preparation.madx")
+        self.call_pymask_module("submodule_01b_beam.madx")
+        self._failsim.use(self._sequence_to_track)
+        self.make_thin()
+        if self._do_cycle:
+            self.cycle()
+        self.load_mask_parameters()
+        self.load_knob_parameters()
