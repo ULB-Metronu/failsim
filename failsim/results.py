@@ -1,7 +1,3 @@
-# TODO Function to find specific elements, and show surrounding elements
-# TODO Function to install elements
-# TODO Function to check sequence length
-
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
@@ -63,6 +59,8 @@ class TrackingResult(Result):
         track_df: pd.DataFrame,
         run_version: int = 0,
         hllhc_version: float = 0.0,
+        eps_n: float = 2.5e-6,
+        nrj: float = 7000,
     ):
         """TODO: Docstring
 
@@ -74,12 +72,16 @@ class TrackingResult(Result):
         Kwargs:
             run_version (TODO): TODO
             hllhc_version (TODO): TODO
+            eps_n (TODO): TODO
+            nrj (TODO): TODO
 
 
         """
         Result.__init__(self, twiss_df, summ_df, run_version, hllhc_version)
 
         self.track_df = track_df
+
+        self.normalize_track(eps_n, nrj)
 
     def normalize_track(self, eps_n: float = 2.5e-6, nrj: float = 7000):
         """TODO: Docstring for normalize_track.
@@ -130,4 +132,8 @@ class TrackingResult(Result):
         Returns: TODO
 
         """
-        pass
+        actionx = np.sqrt(self.track_df["xn"] ** 2 + self.track_df["pxn"] ** 2)
+        actiony = np.sqrt(self.track_df["yn"] ** 2 + self.track_df["pyn"] ** 2)
+        actionr = np.sqrt(actionx ** 2 + actiony ** 2)
+
+        return {"x": actionx, "y": actiony, "r": actionr}

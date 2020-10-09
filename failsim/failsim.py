@@ -39,6 +39,7 @@ class FailSim:
         self._extra_macro_files = extra_macro_files
         self._failsim_verbosity = failsim_verbosity
         self._mad = None
+        self._macros_loaded = False
 
         if command_log is None:
             self._master_mad_command_log = ArrayFile()
@@ -87,7 +88,8 @@ class FailSim:
                 kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
                 signature = ", ".join(args_repr + kwargs_repr)
                 print(f"FailSim -> {func.__name__}({signature})")
-            func(self, *args, **kwargs)
+            val = func(self, *args, **kwargs)
+            return val
 
         return wrapper_print_info
 
@@ -131,6 +133,7 @@ class FailSim:
             __name__, "data/hllhc14/" "toolkit/macro.madx"
         )
         self.mad_call_file(macro_path)
+        self._macros_loaded = True
 
         return self
 
@@ -153,9 +156,12 @@ class FailSim:
 
         post_files = os.listdir(self._cwd)
 
-        new_files = np.setdiff1d(post_files, pre_files)
-        for file in new_files:
-            shutil.move(file, self._output_dir)
+        if self._output_dir is not None:
+            new_files = np.setdiff1d(post_files, pre_files)
+            for file in new_files:
+                shutil.move(
+                    file, os.path.join(self._output_dir, os.path.basename(file))
+                )
 
         return self
 
@@ -175,9 +181,12 @@ class FailSim:
 
         post_files = os.listdir(self._cwd)
 
-        new_files = np.setdiff1d(post_files, pre_files)
-        for file in new_files:
-            shutil.move(file, self._output_dir)
+        if self._output_dir is not None:
+            new_files = np.setdiff1d(post_files, pre_files)
+            for file in new_files:
+                shutil.move(
+                    file, os.path.join(self._output_dir, os.path.basename(file))
+                )
 
         return self
 
@@ -207,6 +216,8 @@ class FailSim:
         """
         self._mad.use(seq)
 
+        return self
+
     @_print_info
     def twiss_and_summ(self, seq: str):
         """TODO: Docstring for twiss_and_summ.
@@ -217,10 +228,65 @@ class FailSim:
         Returns: TODO
 
         """
-        self._mad.twiss(
-            sequence=seq
-        )
-        #return (
-            #self._mad.get_twiss_df,
-            #self._mad.get_summ_df
-        #)
+        self._mad.twiss(sequence=seq)
+        return (self._mad.table["twiss"].dframe(), self._mad.table["summ"].dframe())
+
+    @_print_info
+    def call_pymask_module(self, module: str):
+        """TODO: Docstring for call_pymask_module.
+
+        Args:
+            module (TODO): TODO
+
+        Returns: TODO
+
+        """
+        path = pkg_resources.resource_filename("pymask", "../" + module)
+        self.mad_call_file(path)
+
+    @_print_info
+    def make_thin(self, beam: str):
+        """TODO: Docstring for make_thin.
+
+        Args:
+            beam (TODO): TODO
+
+        Returns: TODO
+
+        """
+        self.use(f"lhcb{beam}")
+
+        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
+        pre_len = summ_df["length"][0]
+
+        if not self._macros_loaded:
+            self.load_macros()
+
+        self.mad_input(f"use, sequence={beam}; exec myslice")
+
+        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
+        post_len = summ_df["length"][0]
+
+        assert post_len == pre_len, "Length of sequence changed by makethin"
+
+    def path_to_cwd(self, path: str):
+        """TODO: Docstring for path_to_cwd.
+
+        Args:
+            path (TODO): TODO
+
+        Returns: TODO
+
+        """
+        return os.path.join(self._cwd, path)
+
+    def print_info(self, info: str):
+        """TODO: Docstring for print_info.
+
+        Args:
+            info (TODO): TODO
+
+        Returns: TODO
+
+        """
+        print(f"FailSim :INFO: -> {info}")

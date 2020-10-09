@@ -1,6 +1,7 @@
 from typing import Optional, List, Union
 from .failsim import FailSim
 from .checks import OpticsChecks
+from .sequence_tracker import SequenceTracker
 import pymask as pm
 import functools
 import pkg_resources
@@ -19,10 +20,12 @@ class LHCSequence:
         optics_key: Optional[str] = None,
         check_betas_at_ips: bool = True,
         check_separations_at_ips: bool = True,
-        tolerances_beta: List[float] = [1, 1, 1, 1],
-        tolerances_seperation: List[float] = [1, 1, 1, 1],
+        tolerances_beta: List[float] = [1e-3, 10e-2, 1e-3, 1e-2],
+        tolerances_seperation: List[float] = [1e-6, 1e-6, 1e-6, 1e-6],
         failsim: Optional[FailSim] = None,
         verbose: bool = True,
+        mask_path: Optional[str] = None,
+        knob_path: Optional[str] = None,
     ):
         """TODO: to be defined.
 
@@ -38,6 +41,8 @@ class LHCSequence:
             tolerances_seperation (TODO): TODO
             failsim (TODO): TODO
             verbose (TODO): TODO
+            mask_path (TODO): TODO
+            knob_path (TODO): TODO
 
         """
         self._beam_mode = beam_mode
@@ -46,6 +51,8 @@ class LHCSequence:
         self._tolerances_beta = tolerances_beta
         self._tolerances_seperation = tolerances_seperation
         self._verbose = verbose
+        self._mask_path = mask_path
+        self._knob_path = knob_path
 
         self._metadata = None
         self._custom_sequence = None
@@ -66,8 +73,9 @@ class LHCSequence:
         self._enable_bb_python = None
         self._enable_bb_legacy = None
         self._force_disable_check_separations_at_ips = None
-        self._mask_path = None
         self._do_cycle = None
+        self._sequences_to_cycle = None
+        self._cycle_target = None
 
         self.load_metadata()
         self.init_check()
@@ -84,6 +92,9 @@ class LHCSequence:
         else:
             self._failsim = failsim
 
+        if sequence_key is not None and optics_key is not None:
+            self.initial_build()
+
     def _print_info(func):
         """Decorator to print LHCSequence debug information"""
 
@@ -94,7 +105,8 @@ class LHCSequence:
                 kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
                 signature = ", ".join(args_repr + kwargs_repr)
                 print(f"LHCSequence -> {func.__name__}({signature})")
-            func(self, *args, **kwargs)
+            val = func(self, *args, **kwargs)
+            return val
 
         return wrapper_print_info
 
@@ -178,21 +190,20 @@ class LHCSequence:
         return self
 
     @_print_info
-    def load_sequences_and_optics(self):
-        """TODO: Docstring for load_sequences_and_optics.
+    def initial_build(self):
+        """TODO: Docstring for initial_build.
         Returns: TODO
 
         """
         if not self._custom_sequence:
             sequence_data = self._metadata[self._sequence_key]
-            self._run_version = sequence_data['run']
-            self._hllhc_version = sequence_data['version']
-            self._optics_base_path = sequence_data['optics_base_path']
+            self._run_version = sequence_data["run"]
+            self._hllhc_version = sequence_data["version"]
+            self._optics_base_path = sequence_data["optics_base_path"]
 
-            rel_paths = sequence_data['sequence_filenames']
+            rel_paths = sequence_data["sequence_filenames"]
             self._sequence_paths = [
-                pkg_resources.resource_filename(__name__, x)
-                for x in rel_paths
+                pkg_resources.resource_filename(__name__, x) for x in rel_paths
             ]
 
         if not self._custom_optics:
@@ -201,20 +212,25 @@ class LHCSequence:
             ), "You can't use non-custom optics with custom sequence"
 
             rel_path = os.path.join(
-                    self._optics_base_path,
-                    sequence_data['optics'][self._optics_key]['strength_file']
-                )
-            self._optics_path = pkg_resources.resource_filename(
-                __name__,
-                rel_path
+                self._optics_base_path,
+                sequence_data["optics"][self._optics_key]["strength_file"],
             )
+            self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
 
         for seq in self._sequence_paths:
             self._failsim.mad_call_file(seq)
         self._failsim.mad_call_file(self._optics_path)
 
+        self._failsim.mad_input(f"mylhcbeam = {self._beam_to_configure}")
         self._failsim.mad_input(f"ver_lhc_run = {self._run_version}")
-        self._failsim.mad_input(f"ver_hllhc_run = {self._hllhc_version}")
+        self._failsim.mad_input(f"ver_hllhc_optics = {self._hllhc_version}")
+
+        self.load_mask_parameters()
+        self._failsim.call_pymask_module("submodule_01a_preparation.madx")
+        self._failsim.call_pymask_module("submodule_01b_beam.madx")
+        for seq in self._sequences_to_check:
+            self._failsim.make_thin(seq[-1])
+        self.load_knob_parameters()
 
     @_print_info
     def get_mode_configuration(self):
@@ -263,20 +279,20 @@ class LHCSequence:
         return self
 
     @_print_info
-    def make_thin(self):
-        """TODO: Docstring for make_thin.
-        Returns: TODO
-
-        """
-        twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
-
-    @_print_info
-    def cycle(self):
+    def cycle(self, sequences: List[str], target: str):
         """TODO: Docstring for cycle.
+
+        Args:
+            sequences (TODO): TODO
+            target (TODO): TODO
+
         Returns: TODO
 
         """
-        pass
+        for seq in sequences:
+            self._failsim.mad_input(
+                f"seqedit, sequence={seq}; flatten; cycle, start={target}; flatten; endedit"
+            )
 
     @_print_info
     def set_mask_parameter_path(self, path: str):
@@ -291,7 +307,7 @@ class LHCSequence:
         if path.startswith("/"):
             self._mask_path = path
         else:
-            self._mask_path = os.path.join(self._cwd, path)
+            self._mask_path = self._failsim.path_to_cwd(path)
 
     @_print_info
     def load_mask_parameters(self):
@@ -300,7 +316,7 @@ class LHCSequence:
 
         """
         if self._mask_path is None:
-            self._mask_path = os.path.join(self._cwd, "./mask_parameters.py")
+            self._mask_path = self._failsim.path_to_cwd("./mask_parameters.yaml")
 
         with open(self._mask_path, "r") as fd:
             mask_parameters = yaml.safe_load(fd)
@@ -334,7 +350,7 @@ class LHCSequence:
 
         """
         if self._knob_path is None:
-            self._knob_path = os.path.join(self._cwd, "./knob_parameters.py")
+            self._knob_path = self._failsim.path_to_cwd("input/knob_parameters.yaml")
 
         with open(self._knob_path, "r") as fd:
             knob_parameters = yaml.safe_load(fd)
@@ -386,32 +402,11 @@ class LHCSequence:
         self._failsim._mad.globals.on_sol_alice = knob_parameters["par_on_sol_alice"]
 
     @_print_info
-    def call_pymask_module(self, module: str):
-        """TODO: Docstring for call_pymask_module.
-
-        Args:
-            module (TODO): TODO
-
+    def build_tracker(self):
+        """TODO: Docstring for build_tracker.
         Returns: TODO
 
         """
-        path = pkg_resources.resource_filename(
-            "pymask", "../" + module
-        )
-        self._failsim.mad_call_file(path)
-
-    @_print_info
-    def build(self):
-        """TODO: Docstring for build.
-        Returns: TODO
-
-        """
-        self.load_sequences_and_optics()
-        self.call_pymask_module("submodule_01a_preparation.madx")
-        self.call_pymask_module("submodule_01b_beam.madx")
-        self._failsim.use(self._sequence_to_track)
-        self.make_thin()
-        if self._do_cycle:
-            self.cycle()
-        self.load_mask_parameters()
-        self.load_knob_parameters()
+        new_fs = self._failsim.duplicate()
+        tracker = SequenceTracker(new_fs, self._sequence_to_track)
+        return tracker
