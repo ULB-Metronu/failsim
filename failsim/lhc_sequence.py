@@ -410,3 +410,49 @@ class LHCSequence:
         new_fs = self._failsim.duplicate()
         tracker = SequenceTracker(new_fs, self._sequence_to_track)
         return tracker
+
+    @_print_info
+    def crossing_save(self):
+        """TODO: Docstring for crossing_save.
+        Returns: TODO
+
+        """
+        self._failsim.mad_input("exec, crossing_save")
+
+    @_print_info
+    def set_crossing(self, crossing_on: bool):
+        """TODO: Docstring for set_crossing.
+
+        Args:
+            crossing_on (TODO): TODO
+
+        Returns: TODO
+
+        """
+        state = "restore" if crossing_on else "disable"
+        self._failsim.mad_input(f"exec, crossing_{state}")
+
+    @_print_info
+    def call_file(self, file_path: str):
+        """TODO: Docstring for call_file.
+
+        Args:
+            file_path (TODO): TODO
+
+        Returns: TODO
+
+        """
+        self._failsim.mad_call_file(file_path)
+
+    @_print_info
+    def call_files(self, file_paths: List[str]):
+        """TODO: Docstring for call_files.
+
+        Args:
+            file_paths (TODO): TODO
+
+        Returns: TODO
+
+        """
+        for file in file_paths:
+            self.call_file(file)

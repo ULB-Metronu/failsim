@@ -262,7 +262,7 @@ class FailSim:
         if not self._macros_loaded:
             self.load_macros()
 
-        self.mad_input(f"use, sequence={beam}; exec myslice")
+        self.mad_input(f"use, sequence=lhcb{beam}; exec myslice")
 
         twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
         post_len = summ_df["length"][0]
