@@ -1,3 +1,8 @@
+"""
+Contains the class FailSim.
+"""
+
+
 from .helpers import OutputSuppressor, ArrayFile
 
 from typing import Optional, List, Union
@@ -13,7 +18,18 @@ import io
 
 class FailSim:
 
-    """TODO: Docstring for FailSim. """
+    """
+    This class is the interface to the Mad-X instance.
+
+    Args:
+        output_dir: Sets the desired output directory. If output_dir is None, FailSim outputs all files in the cwd.
+        cwd: Sets the desired cwd. If cwd is None, FailSim uses os.getcwd() to set the cwd.
+        madx_verbosity: Sets the verbosity of Mad-X. If this parameter is "mute", FailSim will use [OutputSuppressor](failsim.helpers.OutputSuppressor) to completely mute Mad-X output.
+        failsim_verbosity: Enables or disables stdout output from FailSim.
+        extra_macro_files: An optional list of .madx files that should be called when Mad-X is initialized.
+        command_log: Is command_log is not None, FailSim will input each of the commands in the log into the initialized Mad-X instance.
+
+    """
 
     cwd: str = os.getcwd()
 
@@ -26,17 +42,6 @@ class FailSim:
         extra_macro_files: Optional[List[str]] = None,
         command_log: Optional[ArrayFile] = None,
     ):
-        """TODO: Docstring
-
-        Kwargs:
-            output_dir (TODO): TODO
-            cwd (TODO): TODO
-            madx_verbosity (TODO): TODO
-            failsim_verbosity (TODO): TODO
-            extra_macro_files (TODO): TODO
-            command_log (TODO): TODO
-
-        """
         self._madx_verbosity = madx_verbosity
         self._extra_macro_files = extra_macro_files
         self._failsim_verbosity = failsim_verbosity
@@ -84,7 +89,7 @@ class FailSim:
                 self.mad_input(command)
 
     def _print_info(func):
-        """Decorator to print FailSim debug information"""
+        """ Decorator to print FailSim debug information """
 
         @functools.wraps(func)
         def wrapper_print_info(self, *args, **kwargs):
@@ -100,8 +105,11 @@ class FailSim:
 
     @_print_info
     def initialize_mad(self):
-        """TODO: Docstring for initialize_mad.
-        Returns: TODO
+        """Initializes the Mad-X instance.
+        Also sets the cwd and verbosity of the instance.
+
+        Returns:
+            FailSim: Returns self
 
         """
         self._mad = pm.Madxp(
@@ -116,12 +124,13 @@ class FailSim:
 
     @_print_info
     def set_mad_mute(self, is_muted: bool):
-        """TODO: Docstring for set_mad_mute.
+        """Enables/disables the internal [OutputSuppressor](failsim.helpers.OutputSuppressor).
 
         Args:
-            is_muted (TODO): TODO
+            is_muted: Whether the Mad-X instance should be muted or not.
 
-        Returns: TODO
+        Returns:
+            FailSim: Returns self
 
         """
         self._madx_mute.set_enabled(is_muted)
@@ -130,8 +139,10 @@ class FailSim:
 
     @_print_info
     def load_macros(self):
-        """TODO: Docstring for load_macros.
-        Returns: TODO
+        """Loads macro.madx into the Mad-X instance.
+
+        Returns:
+            FailSim: Returns self
 
         """
         macro_path = pkg_resources.resource_filename(
@@ -144,12 +155,14 @@ class FailSim:
 
     @_print_info
     def mad_call_file(self, path: str):
-        """TODO: Docstring for mad_call_file.
+        """Method to call a file using the Mad-X instance.
+        If an output directory has been specified, FailSim will move any new files or directories to the output directory.
 
         Args:
-            path (TODO): TODO
+            path: The path of the file to call. If path doesn't start with "/", FailSim will prepend the cwd to the path.
 
-        Returns: TODO
+        Returns:
+            FailSim: Returns self
 
         """
         pre_files = os.listdir(self._cwd)
@@ -172,12 +185,14 @@ class FailSim:
 
     @_print_info
     def mad_input(self, command: str):
-        """TODO: Docstring for mad_input.
+        """Method to input a command into the Mad-X instance.
+        If an output directory has been specified, FailSim will move any new files or directories to the output directory.
 
         Args:
-            command (TODO): TODO
+            command: Command to input.
 
-        Returns: TODO
+        Returns:
+            FailSim: Returns self
 
         """
         pre_files = os.listdir(self._cwd)
@@ -197,8 +212,10 @@ class FailSim:
 
     @_print_info
     def duplicate(self):
-        """TODO: Docstring for duplicate.
-        Returns: TODO
+        """Duplicates the FailSim instance.
+
+        Returns:
+            FailSim: The new copy
 
         """
         return FailSim(
@@ -211,12 +228,13 @@ class FailSim:
 
     @_print_info
     def use(self, seq: str):
-        """TODO: Docstring for use.
+        """Method to use a sequence in the Mad-X instance.
 
         Args:
-            seq (TODO): TODO
+            seq: Sequence to use.
 
-        Returns: TODO
+        Returns:
+            FailSim: Returns self
 
         """
         self._mad.use(seq)
@@ -225,12 +243,16 @@ class FailSim:
 
     @_print_info
     def twiss_and_summ(self, seq: str):
-        """TODO: Docstring for twiss_and_summ.
+        """Does a twiss with the given sequence on the Mad-X instance.
 
         Args:
-            seq (TODO): TODO
+            seq: Sequence to run twiss on.
 
-        Returns: TODO
+        Returns:
+            tuple: Tuple containing:
+
+                pandas.DataFrame: DataFrame containing the twiss table
+                pandas.DataFrame: DataFrame containing the summ table
 
         """
         self._mad.twiss(sequence=seq)
@@ -238,25 +260,29 @@ class FailSim:
 
     @_print_info
     def call_pymask_module(self, module: str):
-        """TODO: Docstring for call_pymask_module.
+        """Calls a pymask module using the Mad-X instance.
 
         Args:
-            module (TODO): TODO
+            module: Module to call
 
-        Returns: TODO
+        Returns:
+            FailSim: Returns self
 
         """
         path = pkg_resources.resource_filename("pymask", "../" + module)
         self.mad_call_file(path)
 
+        return self
+
     @_print_info
     def make_thin(self, beam: str):
-        """TODO: Docstring for make_thin.
+        """Makes the given sequence thin using the myslice macro.
 
         Args:
-            beam (TODO): TODO
+            beam: The lhc beam to make thin. Can be either 1, 2 or 4.
 
-        Returns: TODO
+        Returns:
+            FailSim: Returns self
 
         """
         self.use(f"lhcb{beam}")
@@ -274,25 +300,17 @@ class FailSim:
 
         assert post_len == pre_len, "Length of sequence changed by makethin"
 
+        return self
+
     @classmethod
     def path_to_cwd(cls, path: str):
-        """TODO: Docstring for path_to_cwd.
+        """Class method that prepends the cwd to a given path.
 
         Args:
-            path (TODO): TODO
+            path: The path to alter.
 
-        Returns: TODO
+        Returns:
+            str: Modified path with cwd prepended.
 
         """
         return os.path.join(cls.cwd, path)
-
-    def print_info(self, info: str):
-        """TODO: Docstring for print_info.
-
-        Args:
-            info (TODO): TODO
-
-        Returns: TODO
-
-        """
-        print(f"FailSim :INFO: -> {info}")

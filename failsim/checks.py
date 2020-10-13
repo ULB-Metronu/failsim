@@ -1,40 +1,37 @@
 """
-File: checks.py
-Author: Oskari Tuormaa
-Email: oskari.kristian.tuormaa@cern.ch
-Github: https://github.com/Oskari-Tuormaa
-Description: TODO
+Contains classes that handle tolerance checking of sequences.
 """
 
-from typing import List
-import pymask
-import pandas
+
+from typing import List, Dict
+import pymask as pm
+import pandas as pd
 
 
 class OpticsChecks:
 
-    """TODO: Docstring for OpticsChecks. """
+    """
+    Class for handling tolerance checks of sequences.
+
+    Is used internally by [LHCSequence](failsim.lhc_sequence.LHCSequence) to run checks.
+
+    Args:
+        separation: Whether beam seperation should be checked.
+        beta: Whether betas should be checked.
+        tol_sep: List containing the tolerances for beam separation.
+        tol_beta: List containing the tolerances for betas.
+        save_twiss_files: Whether the intermediate twiss files should be saved.
+
+    """
 
     def __init__(
         self,
         separation: bool = True,
         beta: bool = True,
-        tol_sep: List = [1e-3, 10e-2, 1e-3, 1e-2],
-        tol_beta: List = [1e-6, 1e-6, 1e-6, 1e-6],
+        tol_sep: List[float] = [1e-3, 10e-2, 1e-3, 1e-2],
+        tol_beta: List[float] = [1e-6, 1e-6, 1e-6, 1e-6],
         save_twiss_files: bool = True,
     ):
-        """TODO: Docstring for __init__.
-
-        Kwargs:
-            separation (TODO): TODO
-            beta (TODO): TODO
-            tol_sep (TODO): TODO
-            tol_beta (TODO): TODO
-            save_twiss_files (TODO): TODO
-
-        Returns: TODO
-
-        """
         self.separation = separation
         self.beta = beta
         self.tol_sep = tol_sep
@@ -43,18 +40,17 @@ class OpticsChecks:
 
     def check_separations(
         self,
-        twiss_df_b1: pandas.DataFrame,
-        twiss_df_b2: pandas.DataFrame,
-        variables_dict: dict,
+        twiss_df_b1: pd.DataFrame,
+        twiss_df_b2: pd.DataFrame,
+        variables_dict: Dict,
     ):
-        """TODO: Docstring for check_separations.
+        """
+        Checks seperation against tolerances specified in the constructor.
 
         Args:
-            twiss_df_b1 (TODO): TODO
-            twiss_df_b2 (TODO): TODO
-            variables_dict (TODO): TODO
-
-        Returns: TODO
+            twiss_df_b1: DataFrame containing the twiss data for beam 1.
+            twiss_df_b2: DataFrame containing the twiss data for beam 2.
+            variables_dict: Dictionary containing Mad-X variables.
 
         """
         separations_to_check = []
@@ -71,19 +67,18 @@ class OpticsChecks:
                         "tol": self.tol_sep[iip],
                     }
                 )
-        pymask.check_separations_against_madvars(
+        pm.check_separations_against_madvars(
             separations_to_check, twiss_df_b1, twiss_df_b2, variables_dict
         )
 
-    def check_betas(self, beam: str, twiss_df: pandas.DataFrame, variables_dict: dict):
-        """TODO: Docstring for check_betas.
+    def check_betas(self, beam: str, twiss_df: pd.DataFrame, variables_dict: Dict):
+        """
+        Checks betas against tolerances specified in the constructor.
 
         Args:
-            beam (TODO): TODO
-            twiss_df (TODO): TODO
-            variables_dict (TODO): TODO
-
-        Returns: TODO
+            beam: Which beam to check. Must be a single number; either 1, 2 or 4.
+            twiss_df: DataFrame containing twiss data for the given beam.
+            variables_dict: Dictionary containing Mad-X variables.
 
         """
         twiss_value_checks = []
@@ -98,18 +93,22 @@ class OpticsChecks:
                         "tol": self.tol_beta[iip],
                     }
                 )
-        pymask.check_twiss_against_madvars(twiss_value_checks, twiss_df, variables_dict)
+        pm.check_twiss_against_madvars(twiss_value_checks, twiss_df, variables_dict)
 
-    def __call__(
-        self, mad: pymask.Madxp, sequences: List[str], twiss_name: str = "twiss"
-    ):
-        """TODO: Docstring for __call__.
+    def __call__(self, mad: pm.Madxp, sequences: List[str], twiss_name: str = "twiss"):
+        """
+        Method that runs a check.
 
         Args:
-            mad (TODO): TODO
-            sequences (TODO): TODO
+            mad: Mad-X instance to check.
+            sequences: List of sequences to check.
+            twiss_name: The name of the saved twiss table.
 
-        Returns: TODO
+        Returns:
+            tuple: Tuple containing:
+
+                twiss_df: Twiss generated during checks.
+                other_data: Dictionary containing the summ dataframe and all Mad-X variables.
 
         """
         var_dict = mad.get_variables_dicts()

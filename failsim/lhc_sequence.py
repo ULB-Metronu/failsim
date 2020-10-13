@@ -1,3 +1,8 @@
+"""
+Module containing the class LHCSequence.
+"""
+
+
 from typing import Optional, List, Union
 from .failsim import FailSim
 from .checks import OpticsChecks
@@ -11,7 +16,27 @@ import os
 
 class LHCSequence:
 
-    """Docstring for LHCSequence. """
+    """
+    Class for handling a Mad-X sequence.
+    This class is used to setup and alter a sequence, after which [build_tracker](failsim.lhc_sequence.LHCSequence.build_tracker) can be called to freeze the sequence.
+
+    Note:
+        If either sequence_key or optics_key isn't specified, [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) has to be called after [select_sequence](failsim.lhc_sequence.LHCSequence.select_sequence) or [select_optics](failsim.lhc_sequence.LHCSequence.select_optics) has been called respectively.
+
+    Args:
+        beam_mode: Selects the beam mode to use. Available modes can be found [here](http://lhcmaskdoc.web.cern.ch/pymask/#selecting-the-beam-mode)
+        sequence_key: The sequence to use. Must be one of the sequence keys found in metadata.yaml. If sequence_key isn't specified, [select_sequence](failsim.lhc_sequence.LHCSequence.select_sequence) must be called later.
+        optics_key: The optics to use. Must be one of the optics keys under the selected sequence found in metadata.yaml. If optics_key isn't specified, [select_optics](failsim.lhc_sequence.LHCSequence.select_optics) must be called later.
+        check_betas_at_ips: Whether [run_check](failsim.lhc_sequence.LHCSequence.run_check) checks beta tolerances.
+        check_separations_at_ips: Whether [run_check](failsim.lhc_sequence.LHCSequence.run_check) checks separation tolerances.
+        tolerances_beta: The beta function tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
+        tolerances_seperation: The separation tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
+        failsim: The [FailSim](failsim.failsim.FailSim) instance to use. If failsim is None, LHCSequence will initialize a default instance.
+        verbose: Whether LHCSequence outputs a message each time a method is called.
+        mask_path: Allows specification of the mask_parameters.yaml file. If no path is given, LHCSequence will assume that mask_parameters.yaml is in the cwd.
+        knob_path: Allows specification of the knob_parameters.yaml file. If no path is given, LHCSequence will assume that knob_parameters.yaml is in the cwd.
+
+    """
 
     def __init__(
         self,
@@ -27,24 +52,6 @@ class LHCSequence:
         mask_path: Optional[str] = None,
         knob_path: Optional[str] = None,
     ):
-        """TODO: to be defined.
-
-        Args:
-            beam_mode (TODO): TODO
-
-        Kwargs:
-            sequence_key (TODO): TODO
-            optics_key (TODO): TODO
-            check_betas_at_ips (TODO): TODO
-            check_separations_at_ips (TODO): TODO
-            tolerances_beta (TODO): TODO
-            tolerances_seperation (TODO): TODO
-            failsim (TODO): TODO
-            verbose (TODO): TODO
-            mask_path (TODO): TODO
-            knob_path (TODO): TODO
-
-        """
         self._beam_mode = beam_mode
         self._check_betas_at_ips = check_betas_at_ips
         self._check_separations_at_ips = check_separations_at_ips
@@ -81,16 +88,16 @@ class LHCSequence:
         self.init_check()
         self.get_mode_configuration()
 
+        if failsim is None:
+            self._failsim = FailSim()
+        else:
+            self._failsim = failsim
+
         if sequence_key is not None:
             self.select_sequence(sequence_key)
 
         if optics_key is not None:
             self.select_optics(optics_key)
-
-        if failsim is None:
-            self._failsim = FailSim()
-        else:
-            self._failsim = failsim
 
         if sequence_key is not None and optics_key is not None:
             self.initial_build()
@@ -112,8 +119,10 @@ class LHCSequence:
 
     @_print_info
     def load_metadata(self):
-        """TODO: Docstring for load_metadata.
-        Returns: TODO
+        """Loads the metadata.yaml file.
+
+        Returns:
+            LHCSequence: Returns self
 
         """
         metadata_stream = pkg_resources.resource_stream(__name__, "data/metadata.yaml")
@@ -125,26 +134,33 @@ class LHCSequence:
     def select_sequence(
         self,
         sequence: Union[str, List[str]],
-        custom: bool = False,
         run_version: Optional[int] = None,
         hllhc_version: Optional[float] = None,
         optics_base_path: Optional[str] = None,
     ):
-        """TODO: Docstring for select_sequence.
+        """Sets the selected sequence. Can be either a sequence found in metadata.yaml by specifying a valid key, or a custom list of .madx files containing sequence definitions.
+
+        Note:
+            If a list of .madx files is passed to sequence, the following things have to be considered:
+
+            - optics_base_path has to be specified
+            - Either run_version or hllhc_version has to be specified. These variables are used internally by pymask.
 
         Args:
-            sequence (TODO): TODO
+            sequence: Can either be a sequence key or a list of .madx files.
+            run_version: The LHC run that is being used.
+            hllhc_version: The HLLHC version that is being used.
+            optics_base_path: The base path for the optics strength files.
 
-        Kwargs:
-            custom (TODO): TODO
-            run_version (TODO): TODO
-            hllhc_version (TODO): TODO
-            optics_base_path (TODO): TODO
-
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self
 
         """
-        if custom:
+        if type(sequence) is str:
+            self._custom_sequence = False
+            self._sequence_key = sequence
+
+        else:
             assert (
                 run_version or hllhc_version
             ), "You must specify either run or hllhc version when using custom sequence"
@@ -162,37 +178,50 @@ class LHCSequence:
             self._sequence_paths = sequence
             self._optics_base_path = optics_base_path
 
-        else:
-            self._custom_sequence = False
-            self._sequence_key = sequence
-
         return self
 
     @_print_info
     def select_optics(self, optics: str, custom: bool = False):
-        """TODO: Docstring for select_optics.
+        """Sets the selected optics. The selected optics can either be an optics key found in metadata.yaml by specifying a valid key, or a custom optics strength file by specifying a path.
 
         Args:
-            optics (TODO): TODO
+            optics: Can either be an optics key or the path of a .madx file.
+            custom: Choosed whether optics is interpreted as a key or a path. If custom is True, optics is interpreted as a key, if custom if False, optics is interpreted as a path.
 
-        Kwargs:
-            custom (TODO): TODO
-
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self
 
         """
+        self._custom_optics = custom
         if custom:
-            self._custom_optics = True
+            if not optics.startswith("/"):
+                optics = self._failsim.path_to_cwd(optics)
             self._optics_path = optics
         else:
-            self._custom_optics = False
             self._optics_key = optics
+
         return self
 
     @_print_info
     def initial_build(self):
-        """TODO: Docstring for initial_build.
-        Returns: TODO
+        """Does the initial build of the sequence.
+
+        Note:
+            Specifically does the following:
+
+            1. If a sequence key has been specified, loads the relevant sequence data.
+            1. If an optics key has been specified, loads the relevant optics data.
+            1. Calls all sequence files sequentially.
+            1. Calls optics strength file.
+            1. Inputs *mylhcbeam*, *ver_lhc_run* and *ver_hllhc_optics* into the Mad-X instance.
+            1. Loads mask_parameters.yaml.
+            1. Calls *submodule_01a_preparation.madx* and *submodule_01b_beam.madx*
+                - These set basic internal Mad-X variables and define the beam.
+            1. Makes all sequences thin.
+            1. Loads knob_parameters.yaml
+
+        Returns:
+            LHCSequence: Returns self
 
         """
         if not self._custom_sequence:
@@ -232,10 +261,17 @@ class LHCSequence:
             self._failsim.make_thin(seq[-1])
         self.load_knob_parameters()
 
+        return self
+
     @_print_info
     def get_mode_configuration(self):
-        """TODO: Docstring for get_mode_configuration.
-        Returns: TODO
+        """Loads the mode configuration.
+
+        Note:
+            This function is automatically called by the constructor and isn't meant to be called by the user.
+
+        Returns:
+            LHCSequence: Returns self
 
         """
         (
@@ -253,10 +289,17 @@ class LHCSequence:
             self._check_separations_at_ips = False
             self._check.check_separations = False
 
+        return self
+
     @_print_info
     def init_check(self):
-        """TODO: Docstring for init_check.
-        Returns: TODO
+        """Initializes the internal [OpticsChecks](failsim.checks.OpticsChecks) instance.
+
+        Note:
+            This function is automatically called by the constructor and isn't meant to be called by the user.
+
+        Returns:
+            LHCSequence: Returns self
 
         """
         self._check = OpticsChecks(
@@ -270,8 +313,10 @@ class LHCSequence:
 
     @_print_info
     def run_check(self):
-        """TODO: Docstring for run_check.
-        Returns: TODO
+        """Runs a check using the internal [OpticsChecks](failsim.checks.OpticsChecks) instance.
+
+        Returns:
+            LHCSequence: Returns self
 
         """
         self._check(mad=self._failsim._mad, sequences=self._sequences_to_check)
@@ -280,13 +325,14 @@ class LHCSequence:
 
     @_print_info
     def cycle(self, sequences: List[str], target: str):
-        """TODO: Docstring for cycle.
+        """Cycles the specified sequence to start at the target element.
 
         Args:
-            sequences (TODO): TODO
-            target (TODO): TODO
+            sequences: A list of sequences to cycle.
+            target: The name of the element the sequences should start at.
 
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self
 
         """
         for seq in sequences:
@@ -294,14 +340,17 @@ class LHCSequence:
                 f"seqedit, sequence={seq}; flatten; cycle, start={target}; flatten; endedit"
             )
 
+        return self
+
     @_print_info
     def set_mask_parameter_path(self, path: str):
-        """TODO: Docstring for set_mask_parameter_path.
+        """Sets the mask_parameters.yaml path.
 
         Args:
-            path (TODO): TODO
+            path: The path to mask_parameter.yaml. Can be either absolute or relative.
 
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self
 
         """
         if path.startswith("/"):
@@ -309,10 +358,17 @@ class LHCSequence:
         else:
             self._mask_path = self._failsim.path_to_cwd(path)
 
+        return self
+
     @_print_info
     def load_mask_parameters(self):
-        """TODO: Docstring for load_mask_parameters.
-        Returns: TODO
+        """Loads mask_parameters.yaml.
+
+        Note:
+            This function is automatically called by [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) and isn't meant to be called by the user.
+
+        Returns:
+            LHCSequence: Returns self
 
         """
         if self._mask_path is None:
@@ -328,14 +384,17 @@ class LHCSequence:
 
         self._failsim._mad.set_variables_from_dict(params=mask_parameters)
 
+        return self
+
     @_print_info
     def set_knob_parameter_path(self, path: str):
-        """TODO: Docstring for set_knob_parameter_path.
+        """Sets the knob_parameters.yaml path.
 
         Args:
-            path (TODO): TODO
+            path: The path to knob_parameters.yaml. Can be either absolute or relative.
 
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self
 
         """
         if path.startswith("/"):
@@ -343,10 +402,17 @@ class LHCSequence:
         else:
             self._knob_path = os.path.join(self._cwd, path)
 
+        return self
+
     @_print_info
     def load_knob_parameters(self):
-        """TODO: Docstring for load_knob_parameters.
-        Returns: TODO
+        """Loads knob_parameters.yaml.
+
+        Note:
+            This function is automatically called by [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) and isn't meant to be called by the user.
+
+        Returns:
+            LHCSequence: Returns self
 
         """
         if self._knob_path is None:
@@ -401,10 +467,14 @@ class LHCSequence:
         self._failsim._mad.globals.on_sol_cms = knob_parameters["par_on_sol_cms"]
         self._failsim._mad.globals.on_sol_alice = knob_parameters["par_on_sol_alice"]
 
+        return self
+
     @_print_info
     def build_tracker(self):
-        """TODO: Docstring for build_tracker.
-        Returns: TODO
+        """Builds a [SequenceTracker](failsim.sequence_tracker.SequenceTracker) instance.
+
+        Returns:
+            SequenceTracker: A SequenceTracker instance containing this sequence.
 
         """
         new_fs = self._failsim.duplicate()
@@ -413,46 +483,62 @@ class LHCSequence:
 
     @_print_info
     def crossing_save(self):
-        """TODO: Docstring for crossing_save.
-        Returns: TODO
+        """Saves the current crossing settings in internal Mad-X variables.
+
+        Returns:
+            LHCSequence: Returns self
 
         """
         self._failsim.mad_input("exec, crossing_save")
 
+        return self
+
     @_print_info
     def set_crossing(self, crossing_on: bool):
-        """TODO: Docstring for set_crossing.
+        """Either enables or disables crossing depending on the crossing_on parameter.
+
+        Note:
+            Crossing can only be enabled is [crossing_save](failsim.lhc_sequence.LHCSequence.crossing_save) was called before the crossings were disabled.
 
         Args:
-            crossing_on (TODO): TODO
+            crossing_on: Turns crossings on if True, turns crossings off if False.
 
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self
 
         """
         state = "restore" if crossing_on else "disable"
         self._failsim.mad_input(f"exec, crossing_{state}")
 
+        return self
+
     @_print_info
     def call_file(self, file_path: str):
-        """TODO: Docstring for call_file.
+        """Forwards the file_path to [failsim.mad_call_file](failsim.failsim.FailSim.mad_call_file).
 
         Args:
-            file_path (TODO): TODO
+            file_path: The path of the file to call. Can be either absolute or relative.
 
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self
 
         """
         self._failsim.mad_call_file(file_path)
 
+        return self
+
     @_print_info
     def call_files(self, file_paths: List[str]):
-        """TODO: Docstring for call_files.
+        """Calls multiple files using the internal Mad-X instance.
 
         Args:
-            file_paths (TODO): TODO
+            file_paths: A list of paths to call. The paths can be either absolute or relative.
 
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self
 
         """
         for file in file_paths:
             self.call_file(file)
+
+        return self

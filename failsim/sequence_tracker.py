@@ -1,3 +1,8 @@
+"""
+Module containing the class SequenceTracker
+"""
+
+
 from typing import List, Optional
 from .failsim import FailSim
 from .results import TrackingResult
@@ -7,20 +12,20 @@ import os
 
 class SequenceTracker:
 
-    """Docstring for SequenceTracker. """
+    """
+    This class handles tracking of particles.
+
+    Note:
+        This class should not be created by the user, and should only be instantiated through [build_tracker](failsim.lhc_sequence.LHCSequence.build_tracker).
+
+    Args:
+        failsim: The [FailSim](failsim.failsim.FailSim) instance to use.
+        sequence_to_track: The sequence to track.
+        verbose: Whether SequenceTracker should output a message each time a method is called.
+
+    """
 
     def __init__(self, failsim: FailSim, sequence_to_track: str, verbose: bool = True):
-        """TODO: to be defined.
-
-        Args:
-            failsim (TODO): TODO
-            sequence_to_track (TODO): TODO
-
-        Kwargs:
-            verbose (TODO): TODO
-
-
-        """
         self._failsim = failsim
         self._sequence_to_track = sequence_to_track
         self._verbose = verbose
@@ -47,12 +52,14 @@ class SequenceTracker:
 
     @_print_info
     def track(self, turns: int = 40):
-        """TODO: Docstring for track.
+        """
+        Does a tracking simulation using the current setup.
 
-        Kwargs:
-            turns (int): TODO
+        Args:
+            turns: How many turns to track.
 
-        Returns: TODO
+        Returns:
+            TrackingResult: Returns the resulting tracking data.
 
         """
         self._failsim.use(self._sequence_to_track)
@@ -107,24 +114,30 @@ class SequenceTracker:
 
     @_print_info
     def add_track_flags(self, flags: List[str]):
-        """TODO: Docstring for add_track_flags.
+        """
+        Method for adding additional flags to the Mad-X 'track' call.
 
         Args:
-            flags (TODO): TODO
+            flags: List of flags to add.
 
-        Returns: TODO
+        Returns:
+            SequenceTracker: Returns self
 
         """
         self._track_flags.extend(flags)
 
+        return self
+
     @_print_info
     def add_time_dependence(self, file_paths: List[str]):
-        """TODO: Docstring for add_time_dependence.
+        """
+        Adds a list of files to be called on each iteration of the track.
 
         Args:
-            file_paths (TODO): TODO
+            file_paths: List of files to call each iteration. Paths can be either absolute or relative.
 
-        Returns: TODO
+        Returns:
+            SequenceTracker: Returns self
 
         """
         fixed_paths = []
@@ -135,17 +148,23 @@ class SequenceTracker:
 
         self._time_dependencies.extend(fixed_paths)
 
+        return self
+
     @_print_info
     def add_observation_points(self, points: List[str]):
-        """TODO: Docstring for add_observation_points.
+        """
+        Adds observation points to the track.
 
         Args:
-            points (TODO): TODO
+            points: List of element names to observe during tracking.
 
-        Returns: TODO
+        Returns:
+            SequenceTracker: Returns self
 
         """
         self._observation_points.extend(points)
+
+        return self
 
     @_print_info
     def add_mask_keys(
@@ -154,20 +173,45 @@ class SequenceTracker:
         values: Optional[List[str]] = None,
         **kwargs,
     ):
-        """TODO: Docstring for add_mask_keys.
+        """
+        Adds mask key/value pairs to replace in the time dependence files.
+
+        Note:
+            The length of keys and values must be equal, as each index in keys is to be replaced with the corresponding value at the same index in the values list.
+
+        Note:
+            Kwargs can be used in this case to do some smarter key/value pairing in case the key is a valid python parameter name. The method can therefore be used as follows:
+
+                >>> sequence_tracker.add_mask_keys(key=value)
+
+        Example:
+            Say we have a file called *time_dependence.txt*, which looks like this:
+
+                "Hello %s!"
+
+            We can then specify add_mask_keys in the following manner:
+
+                >>> sequence_tracker.add_mask_keys(keys=["%s"], values=["world"])
+
+            Which would result the *time_dependence.txt* looking like this:
+
+                "Hello world!"
 
         Args:
-            **kwargs: TODO
+            keys: List of keys.
+            values: List of values.
 
-        Kwargs:
-            keys (TODO): TODO
-            values (TODO): TODO
-
-        Returns: TODO
+        Returns:
+            SequenceTracker: Returns self
 
         """
         if keys and values:
+            assert len(keys) == len(
+                values
+            ), "The length of keys and values must be equal"
             for key, value in zip(keys, values):
                 self._mask_values[key] = value
         for key, value in kwargs.items():
             self._mask_values[key] = value
+
+        return self
