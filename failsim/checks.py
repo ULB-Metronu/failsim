@@ -3,6 +3,8 @@ Contains classes that handle tolerance checking of sequences.
 """
 
 
+from .failsim import FailSim
+
 from typing import List, Dict
 import pymask as pm
 import pandas as pd
@@ -123,6 +125,12 @@ class OpticsChecks:
             summ_dfs[ss] = sdf
 
         if self.save_twiss_files:
+            if not twiss_name.startswith("/"):
+                if "/" in twiss_name:
+                    twiss_name = FailSim.path_to_cwd(twiss_name)
+                else:
+                    twiss_name = FailSim.path_to_output(twiss_name)
+
             for ss in sequences:
                 tt = twiss_dfs[ss]
                 tt.to_parquet(twiss_name + f"_seq_{ss}.parquet")

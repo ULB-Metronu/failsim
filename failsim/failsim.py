@@ -32,6 +32,7 @@ class FailSim:
     """
 
     cwd: str = os.getcwd()
+    output_dir: str = None
 
     def __init__(
         self,
@@ -59,9 +60,6 @@ class FailSim:
         else:
             self._cwd = cwd
 
-        # Set static variable cwd
-        FailSim.cwd = self._cwd
-
         # Setup output directory
         if output_dir is None:
             self._output_dir = self._cwd
@@ -70,6 +68,10 @@ class FailSim:
                 self._output_dir = output_dir
             else:
                 self._output_dir = os.path.join(self._cwd, output_dir)
+
+        # Set static variables
+        FailSim.cwd = self._cwd
+        FailSim.output_dir = self._output_dir
 
         # Setup output suppressor
         if madx_verbosity == "mute":
@@ -314,3 +316,18 @@ class FailSim:
 
         """
         return os.path.join(cls.cwd, path)
+
+    @classmethod
+    def path_to_output(cls, path: str):
+        """Class method that prepends the output directory to a given path.
+
+        Args:
+            path: The path to alter.
+
+        Returns:
+            str: Modified path with the output directory prepended.
+
+        """
+        if cls.output_dir is None:
+            return path
+        return os.path.join(cls.output_dir, path)
