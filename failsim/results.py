@@ -1,7 +1,9 @@
+from .failsim import FailSim
 from typing import Optional, List, Union
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
+import os
 
 import plotly.graph_objects as go
 
@@ -12,8 +14,7 @@ class Result:
 
     twiss_df: pd.DataFrame
     summ_df: pd.DataFrame
-    run_version: int
-    hllhc_version: float
+    info_df: pd.DataFrame
 
     def __init__(
         self,
@@ -21,6 +22,8 @@ class Result:
         summ_df: pd.DataFrame,
         run_version: int = 0,
         hllhc_version: float = 0.0,
+        eps_n: float = 2.5e-6,
+        nrj: float = 7000,
     ):
         """TODO: Docstring
 
@@ -31,13 +34,23 @@ class Result:
         Kwargs:
             run_version (TODO): TODO
             hllhc_version (TODO): TODO
+            eps_n (TODO): TODO
+            nrj (TODO): TODO
 
 
         """
         self.twiss_df = twiss_df
         self.summ_df = summ_df
-        self.run_version = run_version
-        self.hllhc_version = hllhc_version
+
+        self.info_df = pd.DataFrame(
+            dict(
+                run_version=run_version,
+                hllhc_version=hllhc_version,
+                eps_n=eps_n,
+                nrj=nrj,
+            ),
+            index=["info"],
+        )
 
         self.fix_twiss_name()
 
@@ -87,6 +100,44 @@ class TrackingResult(Result):
 
         self.normalize_track(eps_n, nrj)
 
+    @classmethod
+    def load_data(cls, path: str, suffix: str = ""):
+        """TODO: Docstring for load_data.
+
+        Args:
+            path (TODO): TODO
+
+        Kwargs:
+            suffix (TODO): TODO
+
+        Returns: TODO
+
+        """
+        # Load twiss
+        twiss_df = pd.read_parquet(os.path.join(path, suffix + "twiss.parquet"))
+
+        # Load track
+        track_df = pd.read_parquet(os.path.join(path, suffix + "track.parquet"))
+
+        # Load summ
+        summ_df = pd.read_parquet(os.path.join(path, suffix + "summ.parquet"))
+
+        # Load info
+        info_df = pd.read_parquet(os.path.join(path, suffix + "info.parquet"))
+
+        # Create instance
+        inst = TrackingResult(
+            twiss_df=twiss_df,
+            summ_df=summ_df,
+            track_df=track_df,
+            run_version=info_df["run_version"],
+            hllhc_version=info_df["hllhc_version"],
+            eps_n=info_df["eps_n"],
+            nrj=info_df["nrj"],
+        )
+
+        return inst
+
     def normalize_track(self, eps_n: float = 2.5e-6, nrj: float = 7000):
         """TODO: Docstring for normalize_track.
 
@@ -97,8 +148,8 @@ class TrackingResult(Result):
         Returns: TODO
 
         """
-        gamma = nrj / 0.938
-        eps_g = eps_n / gamma
+        gamma = self.info_df["nrj"] / 0.938
+        eps_g = self.info_df["eps_n"] / gamma
 
         data_out = pd.DataFrame()
 
@@ -191,3 +242,35 @@ class TrackingResult(Result):
             figure.write_html(save_path)
 
         return figure
+
+    def save_data(self, path: str, suffix: str = ""):
+        """TODO: Docstring for save_data.
+
+        Args:
+            path (TODO): TODO
+
+        Kwargs:
+            suffix (TODO): TODO
+
+        Returns: TODO
+
+        """
+
+        if not path.startswith("/"):
+            path = FailSim.path_to_cwd(path)
+
+        # Save twiss
+        twiss_name = os.path.join(path, suffix + "twiss.parquet")
+        self.twiss_df.to_parquet(twiss_name)
+
+        # Save track
+        track_name = os.path.join(path, suffix + "track.parquet")
+        self.track_df.to_parquet(track_name)
+
+        # Save summ
+        summ_name = os.path.join(path, suffix + "summ.parquet")
+        self.summ_df.to_parquet(summ_name)
+
+        # Save extra info
+        info_name = os.path.join(path, suffix + "info.parquet")
+        self.info_df.to_parquet(info_name)

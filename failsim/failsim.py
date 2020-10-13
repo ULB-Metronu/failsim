@@ -15,6 +15,8 @@ class FailSim:
 
     """TODO: Docstring for FailSim. """
 
+    cwd: str = os.getcwd()
+
     def __init__(
         self,
         output_dir: Optional[str] = None,
@@ -51,6 +53,9 @@ class FailSim:
             self._cwd = os.getcwd()
         else:
             self._cwd = cwd
+
+        # Set static variable cwd
+        FailSim.cwd = self._cwd
 
         # Setup output directory
         if output_dir is None:
@@ -269,7 +274,8 @@ class FailSim:
 
         assert post_len == pre_len, "Length of sequence changed by makethin"
 
-    def path_to_cwd(self, path: str):
+    @classmethod
+    def path_to_cwd(cls, path: str):
         """TODO: Docstring for path_to_cwd.
 
         Args:
@@ -278,7 +284,7 @@ class FailSim:
         Returns: TODO
 
         """
-        return os.path.join(self._cwd, path)
+        return os.path.join(cls.cwd, path)
 
     def print_info(self, info: str):
         """TODO: Docstring for print_info.
