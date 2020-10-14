@@ -115,7 +115,7 @@ class SequenceTracker:
     @_print_info
     def add_track_flags(self, flags: List[str]):
         """
-        Method for adding additional flags to the Mad-X 'track' call.
+        Method for adding additional flags to the Mad-X *track* command.
 
         Args:
             flags: List of flags to add.

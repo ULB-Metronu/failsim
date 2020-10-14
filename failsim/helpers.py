@@ -51,10 +51,10 @@ class ArrayFile:
     Examples:
         A simple example showing writing to and reading from an ArrayFile object.
 
-        >>> af = ArrayFile()
-        >>> af("Hello")
+        >>> af = ArrayFile() # Create ArrayFile object
+        >>> af("Hello") # Write to ArrayFile
         >>> af(" world!")
-        >>> x = af.read()
+        >>> x = af.read() # Read from ArrayFile
         >>> print(x)
         Hello world!
     """

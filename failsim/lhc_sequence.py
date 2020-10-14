@@ -24,17 +24,17 @@ class LHCSequence:
         If either sequence_key or optics_key isn't specified, [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) has to be called after [select_sequence](failsim.lhc_sequence.LHCSequence.select_sequence) or [select_optics](failsim.lhc_sequence.LHCSequence.select_optics) has been called respectively.
 
     Args:
-        beam_mode: Selects the beam mode to use. Available modes can be found [here](http://lhcmaskdoc.web.cern.ch/pymask/#selecting-the-beam-mode)
+        beam_mode: Selects the beam mode to use. Available modes can be found [here](http://lhcmaskdoc.web.cern.ch/pymask/#selecting-the-beam-mode).
         sequence_key: The sequence to use. Must be one of the sequence keys found in metadata.yaml. If sequence_key isn't specified, [select_sequence](failsim.lhc_sequence.LHCSequence.select_sequence) must be called later.
-        optics_key: The optics to use. Must be one of the optics keys under the selected sequence found in metadata.yaml. If optics_key isn't specified, [select_optics](failsim.lhc_sequence.LHCSequence.select_optics) must be called later.
+        optics_key: The optics to use. Can only be used if a sequence key has been specified. Must be one of the optics keys under the selected sequence found in metadata.yaml. If optics_key isn't specified, [select_optics](failsim.lhc_sequence.LHCSequence.select_optics) must be called later.
         check_betas_at_ips: Whether [run_check](failsim.lhc_sequence.LHCSequence.run_check) checks beta tolerances.
         check_separations_at_ips: Whether [run_check](failsim.lhc_sequence.LHCSequence.run_check) checks separation tolerances.
         tolerances_beta: The beta function tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
         tolerances_seperation: The separation tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
         failsim: The [FailSim](failsim.failsim.FailSim) instance to use. If failsim is None, LHCSequence will initialize a default instance.
         verbose: Whether LHCSequence outputs a message each time a method is called.
-        mask_path: Allows specification of the mask_parameters.yaml file. If no path is given, LHCSequence will assume that mask_parameters.yaml is in the cwd.
-        knob_path: Allows specification of the knob_parameters.yaml file. If no path is given, LHCSequence will assume that knob_parameters.yaml is in the cwd.
+        mask_path: Allows specification of the path to the mask_parameters.yaml file. If no path is given, LHCSequence will assume that mask_parameters.yaml is in the cwd.
+        knob_path: Allows specification of the path to the knob_parameters.yaml file. If no path is given, LHCSequence will assume that knob_parameters.yaml is in the cwd.
 
     """
 
@@ -85,8 +85,8 @@ class LHCSequence:
         self._cycle_target = None
 
         self.load_metadata()
-        self.init_check()
-        self.get_mode_configuration()
+        self._init_check()
+        self._get_mode_configuration()
 
         if failsim is None:
             self._failsim = FailSim()
@@ -118,6 +118,143 @@ class LHCSequence:
         return wrapper_print_info
 
     @_print_info
+    def _get_mode_configuration(self):
+        """Loads the mode configuration.
+
+        Note:
+            This function is automatically called by the constructor and isn't meant to be called by the user.
+
+        Returns:
+            LHCSequence: Returns self
+
+        """
+        (
+            self._beam_to_configure,
+            self._sequences_to_check,
+            self._sequence_to_track,
+            self._generate_b4_from_b2,
+            self._track_from_b4_mad_instance,
+            self._enable_bb_python,
+            self._enable_bb_legacy,
+            self._force_disable_check_separations_at_ips,
+        ) = pm.get_pymask_configuration(self._beam_mode)
+
+        if self._force_disable_check_separations_at_ips:
+            self._check_separations_at_ips = False
+            self._check.check_separations = False
+
+    @_print_info
+    def _init_check(self):
+        """Initializes the internal [OpticsChecks](failsim.checks.OpticsChecks) instance.
+
+        Note:
+            This function is automatically called by the constructor and isn't meant to be called by the user.
+
+        Returns:
+            LHCSequence: Returns self
+
+        """
+        self._check = OpticsChecks(
+            separation=self._check_separations_at_ips,
+            beta=self._check_betas_at_ips,
+            tol_sep=self._tolerances_seperation,
+            tol_beta=self._tolerances_beta,
+        )
+
+        return self
+
+    @_print_info
+    def _load_mask_parameters(self):
+        """Loads mask_parameters.yaml.
+
+        Note:
+            This function is automatically called by [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) and isn't meant to be called by the user.
+
+        Returns:
+            LHCSequence: Returns self
+
+        """
+        if self._mask_path is None:
+            self._mask_path = self._failsim.path_to_cwd("./mask_parameters.yaml")
+
+        with open(self._mask_path, "r") as fd:
+            mask_parameters = yaml.safe_load(fd)
+
+        if not self._enable_bb_legacy and not self._enable_bb_python:
+            mask_parameters["par_on_bb_switch"] = 0.0
+
+        pm.checks_on_parameter_dict(mask_parameters)
+
+        self._failsim._mad.set_variables_from_dict(params=mask_parameters)
+
+        return self
+
+    @_print_info
+    def _load_knob_parameters(self):
+        """Loads knob_parameters.yaml.
+
+        Note:
+            This function is automatically called by [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) and isn't meant to be called by the user.
+
+        Returns:
+            LHCSequence: Returns self
+
+        """
+        if self._knob_path is None:
+            self._knob_path = self._failsim.path_to_cwd("input/knob_parameters.yaml")
+
+        with open(self._knob_path, "r") as fd:
+            knob_parameters = yaml.safe_load(fd)
+
+        # PATCH!!!!!!! for leveling not working for b4
+        # Copied from optics_specific_tools example of pymask
+        if self._beam_mode == "b4_without_bb":
+            knob_parameters["par_sep8"] = -0.03425547139366354
+            knob_parameters["par_sep2"] = 0.14471680504084292
+
+        self._failsim._mad.set_variables_from_dict(params=knob_parameters)
+
+        # Set IP knobs
+        self._failsim._mad.globals["on_x1"] = knob_parameters["par_x1"]
+        self._failsim._mad.globals["on_sep1"] = knob_parameters["par_sep1"]
+        self._failsim._mad.globals["on_x2"] = knob_parameters["par_x2"]
+        self._failsim._mad.globals["on_sep2"] = knob_parameters["par_sep2"]
+        self._failsim._mad.globals["on_x5"] = knob_parameters["par_x5"]
+        self._failsim._mad.globals["on_sep5"] = knob_parameters["par_sep5"]
+        self._failsim._mad.globals["on_x8"] = knob_parameters["par_x8"]
+        self._failsim._mad.globals["on_sep8"] = knob_parameters["par_sep8"]
+        self._failsim._mad.globals["on_a1"] = knob_parameters["par_a1"]
+        self._failsim._mad.globals["on_o1"] = knob_parameters["par_o1"]
+        self._failsim._mad.globals["on_a2"] = knob_parameters["par_a2"]
+        self._failsim._mad.globals["on_o2"] = knob_parameters["par_o2"]
+        self._failsim._mad.globals["on_a5"] = knob_parameters["par_a5"]
+        self._failsim._mad.globals["on_o5"] = knob_parameters["par_o5"]
+        self._failsim._mad.globals["on_a8"] = knob_parameters["par_a8"]
+        self._failsim._mad.globals["on_o8"] = knob_parameters["par_o8"]
+        self._failsim._mad.globals["on_crab1"] = knob_parameters["par_crab1"]
+        self._failsim._mad.globals["on_crab5"] = knob_parameters["par_crab5"]
+        self._failsim._mad.globals["on_disp"] = knob_parameters["par_on_disp"]
+
+        # A check
+        if self._failsim._mad.globals.nrj < 500:
+            assert knob_parameters["par_on_disp"] == 0
+
+        # Spectrometers at experiments
+        if knob_parameters["par_on_alice"] == 1:
+            self._failsim._mad.globals.on_alice = (
+                7000.0 / self._failsim._mad.globals.nrj
+            )
+        if knob_parameters["par_on_lhcb"] == 1:
+            self._failsim._mad.globals.on_lhcb = 7000.0 / self._failsim._mad.globals.nrj
+
+        # Solenoids at experiments
+        self._failsim._mad.globals.on_sol_atlas = knob_parameters["par_on_sol_atlas"]
+        self._failsim._mad.globals.on_sol_cms = knob_parameters["par_on_sol_cms"]
+        self._failsim._mad.globals.on_sol_alice = knob_parameters["par_on_sol_alice"]
+
+        return self
+
+    @_print_info
     def load_metadata(self):
         """Loads the metadata.yaml file.
 
@@ -136,21 +273,16 @@ class LHCSequence:
         sequence: Union[str, List[str]],
         run_version: Optional[int] = None,
         hllhc_version: Optional[float] = None,
-        optics_base_path: Optional[str] = None,
     ):
         """Sets the selected sequence. Can be either a sequence found in metadata.yaml by specifying a valid key, or a custom list of .madx files containing sequence definitions.
 
         Note:
-            If a list of .madx files is passed to sequence, the following things have to be considered:
-
-            - optics_base_path has to be specified
-            - Either run_version or hllhc_version has to be specified. These variables are used internally by pymask.
+            If a list of .madx files is passed to sequence, either run_version or hllhc_version has to be specified. These variables are used internally by pymask. Note that specifying both parameters will lead to an AssertionError.
 
         Args:
             sequence: Can either be a sequence key or a list of .madx files.
             run_version: The LHC run that is being used.
             hllhc_version: The HLLHC version that is being used.
-            optics_base_path: The base path for the optics strength files.
 
         Returns:
             LHCSequence: Returns self
@@ -176,7 +308,6 @@ class LHCSequence:
             self._run_version = run_version
             self._hllhc_version = hllhc_version
             self._sequence_paths = sequence
-            self._optics_base_path = optics_base_path
 
         return self
 
@@ -186,7 +317,7 @@ class LHCSequence:
 
         Args:
             optics: Can either be an optics key or the path of a .madx file.
-            custom: Choosed whether optics is interpreted as a key or a path. If custom is True, optics is interpreted as a key, if custom if False, optics is interpreted as a path.
+            custom: Chooses whether the optics parameter is interpreted as a key or a path. If custom is True, optics is interpreted as a key, if custom if False, optics is interpreted as a path.
 
         Returns:
             LHCSequence: Returns self
@@ -254,60 +385,14 @@ class LHCSequence:
         self._failsim.mad_input(f"ver_lhc_run = {self._run_version}")
         self._failsim.mad_input(f"ver_hllhc_optics = {self._hllhc_version}")
 
-        self.load_mask_parameters()
+        self._load_mask_parameters()
         self._failsim.call_pymask_module("submodule_01a_preparation.madx")
         self._failsim.call_pymask_module("submodule_01b_beam.madx")
         for seq in self._sequences_to_check:
             self._failsim.make_thin(seq[-1])
-        self.load_knob_parameters()
+        self._load_knob_parameters()
 
         return self
-
-    @_print_info
-    def get_mode_configuration(self):
-        """Loads the mode configuration.
-
-        Note:
-            This function is automatically called by the constructor and isn't meant to be called by the user.
-
-        Returns:
-            LHCSequence: Returns self
-
-        """
-        (
-            self._beam_to_configure,
-            self._sequences_to_check,
-            self._sequence_to_track,
-            self._generate_b4_from_b2,
-            self._track_from_b4_mad_instance,
-            self._enable_bb_python,
-            self._enable_bb_legacy,
-            self._force_disable_check_separations_at_ips,
-        ) = pm.get_pymask_configuration(self._beam_mode)
-
-        if self._force_disable_check_separations_at_ips:
-            self._check_separations_at_ips = False
-            self._check.check_separations = False
-
-        return self
-
-    @_print_info
-    def init_check(self):
-        """Initializes the internal [OpticsChecks](failsim.checks.OpticsChecks) instance.
-
-        Note:
-            This function is automatically called by the constructor and isn't meant to be called by the user.
-
-        Returns:
-            LHCSequence: Returns self
-
-        """
-        self._check = OpticsChecks(
-            separation=self._check_separations_at_ips,
-            beta=self._check_betas_at_ips,
-            tol_sep=self._tolerances_seperation,
-            tol_beta=self._tolerances_beta,
-        )
 
         return self
 
@@ -325,7 +410,7 @@ class LHCSequence:
 
     @_print_info
     def cycle(self, sequences: List[str], target: str):
-        """Cycles the specified sequence to start at the target element.
+        """Cycles the specified sequences to start at the target element.
 
         Args:
             sequences: A list of sequences to cycle.
@@ -361,32 +446,6 @@ class LHCSequence:
         return self
 
     @_print_info
-    def load_mask_parameters(self):
-        """Loads mask_parameters.yaml.
-
-        Note:
-            This function is automatically called by [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) and isn't meant to be called by the user.
-
-        Returns:
-            LHCSequence: Returns self
-
-        """
-        if self._mask_path is None:
-            self._mask_path = self._failsim.path_to_cwd("./mask_parameters.yaml")
-
-        with open(self._mask_path, "r") as fd:
-            mask_parameters = yaml.safe_load(fd)
-
-        if not self._enable_bb_legacy and not self._enable_bb_python:
-            mask_parameters["par_on_bb_switch"] = 0.0
-
-        pm.checks_on_parameter_dict(mask_parameters)
-
-        self._failsim._mad.set_variables_from_dict(params=mask_parameters)
-
-        return self
-
-    @_print_info
     def set_knob_parameter_path(self, path: str):
         """Sets the knob_parameters.yaml path.
 
@@ -401,71 +460,6 @@ class LHCSequence:
             self._knob_path = path
         else:
             self._knob_path = os.path.join(self._cwd, path)
-
-        return self
-
-    @_print_info
-    def load_knob_parameters(self):
-        """Loads knob_parameters.yaml.
-
-        Note:
-            This function is automatically called by [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) and isn't meant to be called by the user.
-
-        Returns:
-            LHCSequence: Returns self
-
-        """
-        if self._knob_path is None:
-            self._knob_path = self._failsim.path_to_cwd("input/knob_parameters.yaml")
-
-        with open(self._knob_path, "r") as fd:
-            knob_parameters = yaml.safe_load(fd)
-
-        # PATCH!!!!!!! for leveling not working for b4
-        # Copied from optics_specific_tools example of pymask
-        if self._beam_mode == "b4_without_bb":
-            knob_parameters["par_sep8"] = -0.03425547139366354
-            knob_parameters["par_sep2"] = 0.14471680504084292
-
-        self._failsim._mad.set_variables_from_dict(params=knob_parameters)
-
-        # Set IP knobs
-        self._failsim._mad.globals["on_x1"] = knob_parameters["par_x1"]
-        self._failsim._mad.globals["on_sep1"] = knob_parameters["par_sep1"]
-        self._failsim._mad.globals["on_x2"] = knob_parameters["par_x2"]
-        self._failsim._mad.globals["on_sep2"] = knob_parameters["par_sep2"]
-        self._failsim._mad.globals["on_x5"] = knob_parameters["par_x5"]
-        self._failsim._mad.globals["on_sep5"] = knob_parameters["par_sep5"]
-        self._failsim._mad.globals["on_x8"] = knob_parameters["par_x8"]
-        self._failsim._mad.globals["on_sep8"] = knob_parameters["par_sep8"]
-        self._failsim._mad.globals["on_a1"] = knob_parameters["par_a1"]
-        self._failsim._mad.globals["on_o1"] = knob_parameters["par_o1"]
-        self._failsim._mad.globals["on_a2"] = knob_parameters["par_a2"]
-        self._failsim._mad.globals["on_o2"] = knob_parameters["par_o2"]
-        self._failsim._mad.globals["on_a5"] = knob_parameters["par_a5"]
-        self._failsim._mad.globals["on_o5"] = knob_parameters["par_o5"]
-        self._failsim._mad.globals["on_a8"] = knob_parameters["par_a8"]
-        self._failsim._mad.globals["on_o8"] = knob_parameters["par_o8"]
-        self._failsim._mad.globals["on_crab1"] = knob_parameters["par_crab1"]
-        self._failsim._mad.globals["on_crab5"] = knob_parameters["par_crab5"]
-        self._failsim._mad.globals["on_disp"] = knob_parameters["par_on_disp"]
-
-        # A check
-        if self._failsim._mad.globals.nrj < 500:
-            assert knob_parameters["par_on_disp"] == 0
-
-        # Spectrometers at experiments
-        if knob_parameters["par_on_alice"] == 1:
-            self._failsim._mad.globals.on_alice = (
-                7000.0 / self._failsim._mad.globals.nrj
-            )
-        if knob_parameters["par_on_lhcb"] == 1:
-            self._failsim._mad.globals.on_lhcb = 7000.0 / self._failsim._mad.globals.nrj
-
-        # Solenoids at experiments
-        self._failsim._mad.globals.on_sol_atlas = knob_parameters["par_on_sol_atlas"]
-        self._failsim._mad.globals.on_sol_cms = knob_parameters["par_on_sol_cms"]
-        self._failsim._mad.globals.on_sol_alice = knob_parameters["par_on_sol_alice"]
 
         return self
 
