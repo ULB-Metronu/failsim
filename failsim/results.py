@@ -225,7 +225,11 @@ class TrackingResult(Result):
 
         figure.add_trace(data)
 
-        figure.update_layout(kwargs)
+        figure.update_layout(
+            kwargs,
+            xaxis_title=r"$\text{Time} [\text{LHC Turn}]$",
+            yaxis_title=r"$\text{Radial orbit excursion} [\sigma_r]$",
+        )
 
         if save_path is not None:
             if not save_path.endswith(".html"):
