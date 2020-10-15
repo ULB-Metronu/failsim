@@ -80,7 +80,7 @@ class FailSim:
         FailSim.output_dir = self._output_dir
 
         # Setup output suppressor
-        if madx_verbosity == "mute":
+        if madx_verbosity == "mute" or not FSGlobals.verbose:
             self._madx_mute = OutputSuppressor(True)
         else:
             self._madx_mute = OutputSuppressor(False)
