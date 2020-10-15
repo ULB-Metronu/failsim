@@ -420,6 +420,21 @@ class LHCSequence:
         return self
 
     @_print_info
+    def call_pymask_module(self, module: str):
+        """Calls a pymask module using the internal Mad-X instance.
+
+        Args:
+            module: The name of the module to call.
+
+        Returns:
+            LHCSequence: Returns self
+
+        """
+        self._failsim.call_pymask_module(module_name)
+
+        return self
+
+    @_print_info
     def cycle(self, sequences: List[str], target: str):
         """Cycles the specified sequences to start at the target element.
 
