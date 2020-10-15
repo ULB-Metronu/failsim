@@ -308,9 +308,6 @@ class LHCSequence:
             assert not (
                 run_version and hllhc_version
             ), "You cant specify both run and hllhc version when using custom sequence"
-            assert (
-                optics_base_path
-            ), "You must specify an optics base path when using custom sequence"
 
             self._custom_sequence = True
 
