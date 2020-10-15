@@ -17,10 +17,10 @@ class OutputSuppressor:
 
     """
 
-    _enabled: bool
-
     def __init__(self, enabled: bool = True):
         self._enabled = enabled
+        self._buffer = []
+        self._buffer_maxlen = 100
 
     def set_enabled(self, enabled: bool):
         """Enables or disables OutputSuppressor.
@@ -38,8 +38,22 @@ class OutputSuppressor:
             string: ByteString to print.
 
         """
+        self._buffer.append(string)
+
+        while len(self._buffer) > self._buffer_maxlen:
+            self._buffer.pop(0)
+
         if not self._enabled:
             print(string.decode("utf-8"))
+
+    def read(self):
+        """Returns what's currently in the buffer.
+
+        Returns:
+            List[str]: Returns what's currently in the buffer.
+
+        """
+        return self._buffer
 
 
 class ArrayFile:
