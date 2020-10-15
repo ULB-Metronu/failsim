@@ -119,10 +119,10 @@ class TrackingResult(Result):
         """
         Adds 4 columns to track_df:
 
-        - [**xn**]: The normalized horizontal transverse position.
-        - [**pxn**]: The normalized horizontal transverse velocity.
-        - [**yn**]: The normalized vertical transverse position.
-        - [**pyn**]: The normalized vertical transverse velocity.
+        - **xn**: The normalized horizontal transverse position.
+        - **pxn**: The normalized horizontal transverse velocity.
+        - **yn**: The normalized vertical transverse position.
+        - **pyn**: The normalized vertical transverse velocity.
 
         Args:
             eps_n: The normalized emmitance
@@ -238,10 +238,10 @@ class TrackingResult(Result):
         """
         Saves the TrackingResult data in 4 disctinct files:
 
-        - [info.parquet]: Contains miscellaneous table
-        - [summ.parquet]: Contains the summ table
-        - [track.parquet]: Contains the tracking data
-        - [twiss.parquet]: Contains the twiss table
+        - **info.parquet**: Contains miscellaneous table
+        - **summ.parquet**: Contains the summ table
+        - **track.parquet**: Contains the tracking data
+        - **twiss.parquet**: Contains the twiss table
 
         Args:
             path: The directory in which to save the data. Can be either absolute or relative to cwd.
