@@ -64,9 +64,9 @@ class SequenceTracker:
         """
         self._failsim.use(self._sequence_to_track)
 
+        tmp_files = []
         if len(self._time_dependencies) != 0:
             time_depen = []
-            tmp_files = []
             for idx, file in enumerate(self._time_dependencies):
                 # Subsistute keys for values
                 with open(file, "r") as fd:
