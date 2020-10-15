@@ -457,15 +457,18 @@ class LHCSequence:
         return self
 
     @_print_info
-    def build_tracker(self):
+    def build_tracker(self, verbose: bool = True):
         """Builds a [SequenceTracker](failsim.sequence_tracker.SequenceTracker) instance.
+
+        Args:
+            verbose: Whether the generated [SequenceTracker](failsim.sequence_tracker.SequenceTracker) object should be verbose or not.
 
         Returns:
             SequenceTracker: A SequenceTracker instance containing this sequence.
 
         """
         new_fs = self._failsim.duplicate()
-        tracker = SequenceTracker(new_fs, self._sequence_to_track)
+        tracker = SequenceTracker(new_fs, self._sequence_to_track, verbose=verbose)
         return tracker
 
     @_print_info
