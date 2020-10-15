@@ -3,7 +3,7 @@ Module containing the class LHCSequence.
 """
 
 
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 from .failsim import FailSim
 from .checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
@@ -33,8 +33,7 @@ class LHCSequence:
         tolerances_seperation: The separation tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
         failsim: The [FailSim](failsim.failsim.FailSim) instance to use. If failsim is None, LHCSequence will initialize a default instance.
         verbose: Whether LHCSequence outputs a message each time a method is called.
-        mask_path: Allows specification of the path to the mask_parameters.yaml file. If no path is given, LHCSequence will assume that mask_parameters.yaml is in the cwd.
-        knob_path: Allows specification of the path to the knob_parameters.yaml file. If no path is given, LHCSequence will assume that knob_parameters.yaml is in the cwd.
+        input_param_path: Allows specification of the path to the input_parameters.yaml file. If no path is given, LHCSequence will assume that input_parameters.yaml is in the cwd.
 
     """
 
@@ -49,8 +48,7 @@ class LHCSequence:
         tolerances_seperation: List[float] = [1e-6, 1e-6, 1e-6, 1e-6],
         failsim: Optional[FailSim] = None,
         verbose: bool = True,
-        mask_path: Optional[str] = None,
-        knob_path: Optional[str] = None,
+        input_param_path: Optional[str] = None,
     ):
         self._beam_mode = beam_mode
         self._check_betas_at_ips = check_betas_at_ips
@@ -58,8 +56,7 @@ class LHCSequence:
         self._tolerances_beta = tolerances_beta
         self._tolerances_seperation = tolerances_seperation
         self._verbose = verbose
-        self._mask_path = mask_path
-        self._knob_path = knob_path
+        self._input_param_path = input_param_path
 
         self._metadata = None
         self._custom_sequence = None
@@ -164,25 +161,40 @@ class LHCSequence:
         return self
 
     @_print_info
-    def _load_mask_parameters(self):
-        """Loads mask_parameters.yaml.
+    def _load_input_parameters(self):
+        """Loads input_parameters.yaml.
 
         Note:
             This function is automatically called by [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) and isn't meant to be called by the user.
 
         Returns:
+            Dict: Returns a dictionary containing the input parameters.
+
+        """
+        if self._input_param_path is None:
+            self._input_param_path = self._failsim.path_to_cwd(
+                "./input_parameters.yaml"
+            )
+
+        with open(self._input_param_path, "r") as fd:
+            input_parameters = yaml.safe_load(fd)
+
+        return input_parameters
+
+    @_print_info
+    def _load_mask_parameters(self, mask_parameters: Dict):
+        """Loads mask_parameters.yaml.
+
+        Note:
+            This function is automatically called by [_load_input_parameters](failsim.lhc_sequence.LHCSequence._load_input_parameters) and isn't meant to be called by the user.
+
+        Args:
+            mask_parameters: A dict containing the mask parameters.
+
+        Returns:
             LHCSequence: Returns self
 
         """
-        if self._mask_path is None:
-            self._mask_path = self._failsim.path_to_cwd("./mask_parameters.yaml")
-
-        with open(self._mask_path, "r") as fd:
-            mask_parameters = yaml.safe_load(fd)
-
-        if not self._enable_bb_legacy and not self._enable_bb_python:
-            mask_parameters["par_on_bb_switch"] = 0.0
-
         pm.checks_on_parameter_dict(mask_parameters)
 
         self._failsim._mad.set_variables_from_dict(params=mask_parameters)
@@ -190,22 +202,19 @@ class LHCSequence:
         return self
 
     @_print_info
-    def _load_knob_parameters(self):
+    def _load_knob_parameters(self, knob_parameters: Dict):
         """Loads knob_parameters.yaml.
 
         Note:
-            This function is automatically called by [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) and isn't meant to be called by the user.
+            This function is automatically called by [_load_input_parameters](failsim.lhc_sequence.LHCSequence._load_input_parameters) and isn't meant to be called by the user.
+
+        Args:
+            knob_parameters: A dict containing the knob parameters.
 
         Returns:
             LHCSequence: Returns self
 
         """
-        if self._knob_path is None:
-            self._knob_path = self._failsim.path_to_cwd("input/knob_parameters.yaml")
-
-        with open(self._knob_path, "r") as fd:
-            knob_parameters = yaml.safe_load(fd)
-
         # PATCH!!!!!!! for leveling not working for b4
         # Copied from optics_specific_tools example of pymask
         if self._beam_mode == "b4_without_bb":
@@ -385,12 +394,14 @@ class LHCSequence:
         self._failsim.mad_input(f"ver_lhc_run = {self._run_version}")
         self._failsim.mad_input(f"ver_hllhc_optics = {self._hllhc_version}")
 
-        self._load_mask_parameters()
+        input_parameters = self._load_input_parameters()
+
+        self._load_mask_parameters(input_parameters["mask_parameters"])
         self._failsim.call_pymask_module("submodule_01a_preparation.madx")
         self._failsim.call_pymask_module("submodule_01b_beam.madx")
         for seq in self._sequences_to_check:
             self._failsim.make_thin(seq[-1])
-        self._load_knob_parameters()
+        self._load_knob_parameters(input_parameters["knob_parameters"])
 
         return self
 
@@ -428,38 +439,20 @@ class LHCSequence:
         return self
 
     @_print_info
-    def set_mask_parameter_path(self, path: str):
-        """Sets the mask_parameters.yaml path.
+    def set_input_parameter_path(self, path: str):
+        """Sets the input_parameters.yaml path.
 
         Args:
-            path: The path to mask_parameter.yaml. Can be either absolute or relative.
+            path: The path to input_parameters.yaml. Can be either absolute or relative.
 
         Returns:
             LHCSequence: Returns self
 
         """
         if path.startswith("/"):
-            self._mask_path = path
+            self._input_param_path = path
         else:
-            self._mask_path = self._failsim.path_to_cwd(path)
-
-        return self
-
-    @_print_info
-    def set_knob_parameter_path(self, path: str):
-        """Sets the knob_parameters.yaml path.
-
-        Args:
-            path: The path to knob_parameters.yaml. Can be either absolute or relative.
-
-        Returns:
-            LHCSequence: Returns self
-
-        """
-        if path.startswith("/"):
-            self._knob_path = path
-        else:
-            self._knob_path = os.path.join(self._cwd, path)
+            self._input_param_path = self._failsim.path_to_cwd(path)
 
         return self
 
