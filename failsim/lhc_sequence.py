@@ -30,7 +30,7 @@ class LHCSequence:
         check_betas_at_ips: Whether [run_check](failsim.lhc_sequence.LHCSequence.run_check) checks beta tolerances.
         check_separations_at_ips: Whether [run_check](failsim.lhc_sequence.LHCSequence.run_check) checks separation tolerances.
         tolerances_beta: The beta function tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
-        tolerances_seperation: The separation tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
+        tolerances_saperation: The separation tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
         failsim: The [FailSim](failsim.failsim.FailSim) instance to use. If failsim is None, LHCSequence will initialize a default instance.
         verbose: Whether LHCSequence outputs a message each time a method is called.
         input_param_path: Allows specification of the path to the input_parameters.yaml file. If no path is given, LHCSequence will assume that input_parameters.yaml is in the cwd.
@@ -45,7 +45,7 @@ class LHCSequence:
         check_betas_at_ips: bool = True,
         check_separations_at_ips: bool = True,
         tolerances_beta: List[float] = [1e-3, 10e-2, 1e-3, 1e-2],
-        tolerances_seperation: List[float] = [1e-6, 1e-6, 1e-6, 1e-6],
+        tolerances_saperation: List[float] = [1e-6, 1e-6, 1e-6, 1e-6],
         failsim: Optional[FailSim] = None,
         verbose: bool = True,
         input_param_path: Optional[str] = None,
@@ -54,7 +54,7 @@ class LHCSequence:
         self._check_betas_at_ips = check_betas_at_ips
         self._check_separations_at_ips = check_separations_at_ips
         self._tolerances_beta = tolerances_beta
-        self._tolerances_seperation = tolerances_seperation
+        self._tolerances_saperation = tolerances_saperation
         self._verbose = verbose
         self._input_param_path = input_param_path
 
@@ -154,7 +154,7 @@ class LHCSequence:
         self._check = OpticsChecks(
             separation=self._check_separations_at_ips,
             beta=self._check_betas_at_ips,
-            tol_sep=self._tolerances_seperation,
+            tol_sep=self._tolerances_saperation,
             tol_beta=self._tolerances_beta,
         )
 
