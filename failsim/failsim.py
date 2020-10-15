@@ -68,6 +68,8 @@ class FailSim:
                 self._output_dir = output_dir
             else:
                 self._output_dir = os.path.join(self._cwd, output_dir)
+            if not os.path.exists(self._output_dir):
+                os.makedirs(self._output_dir)
 
         # Set static variables
         FailSim.cwd = self._cwd
