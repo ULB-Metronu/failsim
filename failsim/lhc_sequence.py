@@ -81,7 +81,7 @@ class LHCSequence:
         self._sequences_to_cycle = None
         self._cycle_target = None
 
-        self.load_metadata()
+        self._load_metadata()
         self._init_check()
         self._get_mode_configuration()
 
@@ -264,7 +264,7 @@ class LHCSequence:
         return self
 
     @_print_info
-    def load_metadata(self):
+    def _load_metadata(self):
         """Loads the metadata.yaml file.
 
         Returns:
