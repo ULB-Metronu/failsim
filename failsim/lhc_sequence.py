@@ -427,7 +427,7 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
-        self._failsim.call_pymask_module(module_name)
+        self._failsim.call_pymask_module(module)
 
         return self
 
