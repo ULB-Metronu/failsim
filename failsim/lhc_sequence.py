@@ -2,11 +2,12 @@
 Module containing the class LHCSequence.
 """
 
-
-from typing import Optional, List, Union, Dict
 from .failsim import FailSim
 from .checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
+from .globals import FSGlobals
+
+from typing import Optional, List, Union, Dict
 import pymask as pm
 import functools
 import pkg_resources
@@ -104,7 +105,7 @@ class LHCSequence:
 
         @functools.wraps(func)
         def wrapper_print_info(self, *args, **kwargs):
-            if self._verbose:
+            if self._verbose and FSGlobals.verbose:
                 args_repr = [repr(a) for a in args]
                 kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
                 signature = ", ".join(args_repr + kwargs_repr)

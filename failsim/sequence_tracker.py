@@ -2,10 +2,11 @@
 Module containing the class SequenceTracker
 """
 
-
-from typing import List, Optional
 from .failsim import FailSim
 from .results import TrackingResult
+from .globals import FSGlobals
+
+from typing import List, Optional
 import functools
 import os
 
@@ -40,7 +41,7 @@ class SequenceTracker:
 
         @functools.wraps(func)
         def wrapper_print_info(self, *args, **kwargs):
-            if self._verbose:
+            if self._verbose and FSGlobals.verbose:
                 args_repr = [repr(a) for a in args]
                 kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
                 signature = ", ".join(args_repr + kwargs_repr)

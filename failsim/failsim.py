@@ -4,6 +4,7 @@ Contains the class FailSim.
 
 
 from .helpers import OutputSuppressor, ArrayFile
+from .globals import FSGlobals
 
 from typing import Optional, List, Union
 import numpy as np
@@ -62,7 +63,10 @@ class FailSim:
 
         # Setup output directory
         if output_dir is None:
-            self._output_dir = self._cwd
+            if FSGlobals.output_dir is None:
+                self._output_dir = self._cwd
+            else:
+                self._output_dir = FSGlobals.output_dir
         else:
             if output_dir.startswith("/"):
                 self._output_dir = output_dir
@@ -97,7 +101,7 @@ class FailSim:
 
         @functools.wraps(func)
         def wrapper_print_info(self, *args, **kwargs):
-            if self._failsim_verbosity:
+            if self._failsim_verbosity and FSGlobals.verbose:
                 args_repr = [repr(a) for a in args]
                 kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
                 signature = ", ".join(args_repr + kwargs_repr)
