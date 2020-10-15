@@ -22,8 +22,12 @@ class FailSim:
     """
     This class is the interface to the Mad-X instance.
 
+    Note:
+        The output directory and the cwd can also be set globally by setting the static variables output_dir and cwd in the [FSGlobals](failsim.globals.FSGlobals) class.
+        If an output directory or cwd are specified in the constructor, the ones specified in the constructor will take priority.
+
     Args:
-        output_dir: Sets the desired output directory. If output_dir is None, FailSim outputs all files in the cwd.
+        output_dir: Sets the desired output directory. If output_dir is None, and FSGlobals.output_dir is None, FailSim outputs all files in the cwd.
         cwd: Sets the desired cwd. If cwd is None, FailSim uses os.getcwd() to set the cwd.
         madx_verbosity: Sets the verbosity of Mad-X. If this parameter is "mute", FailSim will use [OutputSuppressor](failsim.helpers.OutputSuppressor) to completely mute Mad-X output.
         failsim_verbosity: Enables or disables stdout output from FailSim.
@@ -57,7 +61,10 @@ class FailSim:
 
         # Setup cwd
         if cwd is None:
-            self._cwd = os.getcwd()
+            if FSGlobals.cwd is None:
+                self._cwd = os.getcwd()
+            else:
+                self._cwd = FSGlobals.cwd
         else:
             self._cwd = cwd
 
@@ -68,12 +75,15 @@ class FailSim:
             else:
                 self._output_dir = FSGlobals.output_dir
         else:
-            if output_dir.startswith("/"):
-                self._output_dir = output_dir
-            else:
-                self._output_dir = os.path.join(self._cwd, output_dir)
-            if not os.path.exists(self._output_dir):
-                os.makedirs(self._output_dir)
+            self._output_dir = output_dir
+
+        # Make output directory path absolute
+        if not self._output_dir.startswith("/"):
+            self._output_dir = os.path.join(self._cwd, self._output_dir)
+
+        # Create output directory if it doesn't exist
+        if not os.path.exists(self._output_dir):
+            os.makedirs(self._output_dir)
 
         # Set static variables
         FailSim.cwd = self._cwd
