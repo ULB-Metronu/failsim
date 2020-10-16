@@ -26,7 +26,7 @@ class SequenceTracker:
 
     """
 
-    def __init__(self, failsim: FailSim, sequence_to_track: str, verbose: bool = True):
+    def __init__(self, failsim: FailSim, sequence_to_track: str, verbose: bool = False):
         self._failsim = failsim
         self._sequence_to_track = sequence_to_track
         self._verbose = verbose

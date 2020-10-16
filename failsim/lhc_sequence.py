@@ -48,7 +48,7 @@ class LHCSequence:
         tolerances_beta: List[float] = [1e-3, 10e-2, 1e-3, 1e-2],
         tolerances_separation: List[float] = [1e-6, 1e-6, 1e-6, 1e-6],
         failsim: Optional[FailSim] = None,
-        verbose: bool = True,
+        verbose: bool = False,
         input_param_path: Optional[str] = None,
     ):
         self._beam_mode = beam_mode

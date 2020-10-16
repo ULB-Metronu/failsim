@@ -43,8 +43,8 @@ class FailSim:
         self,
         output_dir: Optional[str] = None,
         cwd: Optional[str] = None,
-        madx_verbosity: str = "echo warn info",
-        failsim_verbosity: bool = True,
+        madx_verbosity: str = "mute",
+        failsim_verbosity: bool = False,
         extra_macro_files: Optional[List[str]] = None,
         command_log: Optional[ArrayFile] = None,
     ):
