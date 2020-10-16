@@ -470,7 +470,7 @@ class LHCSequence:
         return self
 
     @_print_info
-    def build_tracker(self, verbose: bool = True):
+    def build_tracker(self, verbose: bool = False):
         """Builds a [SequenceTracker](failsim.sequence_tracker.SequenceTracker) instance.
 
         Args:

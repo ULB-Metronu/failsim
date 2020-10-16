@@ -195,6 +195,8 @@ class FailSim:
         if self._output_dir is not None:
             new_files = np.setdiff1d(post_files, pre_files)
             for file in new_files:
+                if os.path.basename(file).startswith("."):
+                    pass
                 shutil.move(
                     file, os.path.join(self._output_dir, os.path.basename(file))
                 )
