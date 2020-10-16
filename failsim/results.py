@@ -81,7 +81,7 @@ class Result:
 class TrackingResult(Result):
 
     """
-    Dataclass containing tracking data. The class inherits from [Result](failsim.results.Result), as it is also convenient to keep the tracking data together with twiss and summ data.
+    Dataclass containing tracking data. The class inherits from Result, as it is also convenient to keep the tracking data together with twiss and summ data.
 
     Attributes:
         track_df: DataFrame containing the tracking data.

@@ -19,20 +19,20 @@ class LHCSequence:
 
     """
     Class for handling a Mad-X sequence.
-    This class is used to setup and alter a sequence, after which [build_tracker](failsim.lhc_sequence.LHCSequence.build_tracker) can be called to freeze the sequence.
+    This class is used to setup and alter a sequence, after which build_tracker can be called to freeze the sequence.
 
     Note:
-        If either sequence_key or optics_key isn't specified, [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) has to be called after [select_sequence](failsim.lhc_sequence.LHCSequence.select_sequence) or [select_optics](failsim.lhc_sequence.LHCSequence.select_optics) has been called respectively.
+        If either sequence_key or optics_key isn't specified, initial_build has to be called after select_sequence or select_optics has been called respectively.
 
     Args:
         beam_mode: Selects the beam mode to use. Available modes can be found [here](http://lhcmaskdoc.web.cern.ch/pymask/#selecting-the-beam-mode).
-        sequence_key: The sequence to use. Must be one of the sequence keys found in metadata.yaml. If sequence_key isn't specified, [select_sequence](failsim.lhc_sequence.LHCSequence.select_sequence) must be called later.
-        optics_key: The optics to use. Can only be used if a sequence key has been specified. Must be one of the optics keys under the selected sequence found in metadata.yaml. If optics_key isn't specified, [select_optics](failsim.lhc_sequence.LHCSequence.select_optics) must be called later.
-        check_betas_at_ips: Whether [run_check](failsim.lhc_sequence.LHCSequence.run_check) checks beta tolerances.
-        check_separations_at_ips: Whether [run_check](failsim.lhc_sequence.LHCSequence.run_check) checks separation tolerances.
-        tolerances_beta: The beta function tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
-        tolerances_seperation: The separation tolerances used by [run_check](failsim.lhc_sequence.LHCSequence.run_check). The values must correspond to: [IP1, IP2, IP5, IP8].
-        failsim: The [FailSim](failsim.failsim.FailSim) instance to use. If failsim is None, LHCSequence will initialize a default instance.
+        sequence_key: The sequence to use. Must be one of the sequence keys found in metadata.yaml. If sequence_key isn't specified, select_sequence must be called later.
+        optics_key: The optics to use. Can only be used if a sequence key has been specified. Must be one of the optics keys under the selected sequence found in metadata.yaml. If optics_key isn't specified, select_optics must be called later.
+        check_betas_at_ips: Whether run_check checks beta tolerances.
+        check_separations_at_ips: Whether run_check checks separation tolerances.
+        tolerances_beta: The beta function tolerances used by run_check. The values must correspond to: [IP1, IP2, IP5, IP8].
+        tolerances_seperation: The separation tolerances used by run_check. The values must correspond to: [IP1, IP2, IP5, IP8].
+        failsim: The FailSim instance to use. If failsim is None, LHCSequence will initialize a default instance.
         verbose: Whether LHCSequence outputs a message each time a method is called.
         input_param_path: Allows specification of the path to the input_parameters.yaml file. If no path is given, LHCSequence will assume that input_parameters.yaml is in the cwd.
 
@@ -143,7 +143,7 @@ class LHCSequence:
 
     @_print_info
     def _init_check(self):
-        """Initializes the internal [OpticsChecks](failsim.checks.OpticsChecks) instance.
+        """Initializes the internal OpticsChecks instance.
 
         Note:
             This function is automatically called by the constructor and isn't meant to be called by the user.
@@ -166,7 +166,7 @@ class LHCSequence:
         """Loads input_parameters.yaml.
 
         Note:
-            This function is automatically called by [initial_build](failsim.lhc_sequence.LHCSequence.initial_build) and isn't meant to be called by the user.
+            This function is automatically called by initial_build and isn't meant to be called by the user.
 
         Returns:
             Dict: Returns a dictionary containing the input parameters.
@@ -187,7 +187,7 @@ class LHCSequence:
         """Loads mask_parameters.yaml.
 
         Note:
-            This function is automatically called by [_load_input_parameters](failsim.lhc_sequence.LHCSequence._load_input_parameters) and isn't meant to be called by the user.
+            This function is automatically called by _load_input_parameters and isn't meant to be called by the user.
 
         Args:
             mask_parameters: A dict containing the mask parameters.
@@ -207,7 +207,7 @@ class LHCSequence:
         """Loads knob_parameters.yaml.
 
         Note:
-            This function is automatically called by [_load_input_parameters](failsim.lhc_sequence.LHCSequence._load_input_parameters) and isn't meant to be called by the user.
+            This function is automatically called by _load_input_parameters and isn't meant to be called by the user.
 
         Args:
             knob_parameters: A dict containing the knob parameters.
@@ -407,7 +407,7 @@ class LHCSequence:
 
     @_print_info
     def run_check(self):
-        """Runs a check using the internal [OpticsChecks](failsim.checks.OpticsChecks) instance.
+        """Runs a check using the internal OpticsChecks instance.
 
         Returns:
             LHCSequence: Returns self
@@ -471,10 +471,10 @@ class LHCSequence:
 
     @_print_info
     def build_tracker(self, verbose: bool = False):
-        """Builds a [SequenceTracker](failsim.sequence_tracker.SequenceTracker) instance.
+        """Builds a SequenceTracker instance.
 
         Args:
-            verbose: Whether the generated [SequenceTracker](failsim.sequence_tracker.SequenceTracker) object should be verbose or not.
+            verbose: Whether the generated SequenceTracker object should be verbose or not.
 
         Returns:
             SequenceTracker: A SequenceTracker instance containing this sequence.
@@ -501,7 +501,7 @@ class LHCSequence:
         """Either enables or disables crossing depending on the crossing_on parameter.
 
         Note:
-            Crossing can only be enabled is [crossing_save](failsim.lhc_sequence.LHCSequence.crossing_save) was called before the crossings were disabled.
+            Crossing can only be enabled is crossing_save was called before the crossings were disabled.
 
         Args:
             crossing_on: Turns crossings on if True, turns crossings off if False.
@@ -517,7 +517,7 @@ class LHCSequence:
 
     @_print_info
     def call_file(self, file_path: str):
-        """Forwards the file_path to [failsim.mad_call_file](failsim.failsim.FailSim.mad_call_file).
+        """Forwards the file_path to failsim.mad_call_file.
 
         Args:
             file_path: The path of the file to call. Can be either absolute or relative.

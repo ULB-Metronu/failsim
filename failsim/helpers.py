@@ -10,7 +10,7 @@ class OutputSuppressor:
 
     """Can be used to intercept output to stdout, and only prints if not enabled.
 
-    Is used by [FailSim](failsim.failsim.FailSim) to suppress Mad-X output.
+    Is used by FailSim to suppress Mad-X output.
 
     Args:
         enabled: Whether or not OutputSuppressor should initially suppress incoming messages or not.
@@ -60,7 +60,7 @@ class ArrayFile:
 
     """Array that behaves like a file.
 
-    Is used by [FailSim](failsim.failsim.FailSim) to keep track of commands sent to Mad-X.
+    Is used by FailSim to keep track of commands sent to Mad-X.
 
     Examples:
         A simple example showing writing to and reading from an ArrayFile object.

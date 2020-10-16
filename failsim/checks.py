@@ -15,7 +15,7 @@ class OpticsChecks:
     """
     Class for handling tolerance checks of sequences.
 
-    Is used internally by [LHCSequence](failsim.lhc_sequence.LHCSequence) to run checks.
+    Is used internally by LHCSequence to run checks.
 
     Args:
         separation: Whether beam seperation should be checked.

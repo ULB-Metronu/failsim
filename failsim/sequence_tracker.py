@@ -17,10 +17,10 @@ class SequenceTracker:
     This class handles tracking of particles.
 
     Note:
-        This class should not be created by the user, and should only be instantiated through [build_tracker](failsim.lhc_sequence.LHCSequence.build_tracker).
+        This class should not be created by the user, and should only be instantiated through build_tracker.
 
     Args:
-        failsim: The [FailSim](failsim.failsim.FailSim) instance to use.
+        failsim: The FailSim instance to use.
         sequence_to_track: The sequence to track.
         verbose: Whether SequenceTracker should output a message each time a method is called.
 

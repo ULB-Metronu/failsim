@@ -23,13 +23,13 @@ class FailSim:
     This class is the interface to the Mad-X instance.
 
     Note:
-        The output directory and the cwd can also be set globally by setting the static variables output_dir and cwd in the [FSGlobals](failsim.globals.FSGlobals) class.
+        The output directory and the cwd can also be set globally by setting the static variables output_dir and cwd in the FSGlobals class.
         If an output directory or cwd are specified in the constructor, the ones specified in the constructor will take priority.
 
     Args:
         output_dir: Sets the desired output directory. If output_dir is None, and FSGlobals.output_dir is None, FailSim outputs all files in the cwd.
         cwd: Sets the desired cwd. If cwd is None, FailSim uses os.getcwd() to set the cwd.
-        madx_verbosity: Sets the verbosity of Mad-X. If this parameter is "mute", FailSim will use [OutputSuppressor](failsim.helpers.OutputSuppressor) to completely mute Mad-X output.
+        madx_verbosity: Sets the verbosity of Mad-X. If this parameter is "mute", FailSim will use OutputSuppressor to completely mute Mad-X output.
         failsim_verbosity: Enables or disables stdout output from FailSim.
         extra_macro_files: An optional list of .madx files that should be called when Mad-X is initialized.
         command_log: Is command_log is not None, FailSim will input each of the commands in the log into the initialized Mad-X instance.
@@ -142,7 +142,7 @@ class FailSim:
 
     @_print_info
     def set_mad_mute(self, is_muted: bool):
-        """Enables/disables the internal [OutputSuppressor](failsim.helpers.OutputSuppressor).
+        """Enables/disables the internal OutputSuppressor.
 
         Args:
             is_muted: Whether the Mad-X instance should be muted or not.
