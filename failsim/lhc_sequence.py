@@ -71,14 +71,6 @@ class LHCSequence:
         self._custom_optics = None
         self._optics_key = None
         self._optics_path = None
-        self._beam_to_configure = None
-        self._sequences_to_check = None
-        self._sequence_to_track = None
-        self._generate_b4_from_b2 = None
-        self._track_from_b4_mad_instance = None
-        self._enable_bb_python = None
-        self._enable_bb_legacy = None
-        self._force_disable_check_separations_at_ips = None
         self._do_cycle = None
         self._sequences_to_cycle = None
         self._cycle_target = None
