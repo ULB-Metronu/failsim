@@ -6,6 +6,7 @@ from .failsim import FailSim
 from .checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
 from .globals import FSGlobals
+from .helpers import print_info
 
 from typing import Optional, List, Union, Dict
 import pymask as pm
@@ -100,22 +101,7 @@ class LHCSequence:
         if sequence_key is not None and optics_key is not None:
             self.initial_build()
 
-    def _print_info(func):
-        """Decorator to print LHCSequence debug information"""
-
-        @functools.wraps(func)
-        def wrapper_print_info(self, *args, **kwargs):
-            if self._verbose and FSGlobals.verbose:
-                args_repr = [repr(a) for a in args]
-                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
-                signature = ", ".join(args_repr + kwargs_repr)
-                print(f"LHCSequence -> {func.__name__}({signature})")
-            val = func(self, *args, **kwargs)
-            return val
-
-        return wrapper_print_info
-
-    @_print_info
+    @print_info("LHCSequence")
     def _get_mode_configuration(self):
         """Loads the mode configuration.
 
@@ -141,7 +127,7 @@ class LHCSequence:
             self._check_separations_at_ips = False
             self._check.check_separations = False
 
-    @_print_info
+    @print_info("LHCSequence")
     def _init_check(self):
         """Initializes the internal OpticsChecks instance.
 
@@ -161,7 +147,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def _load_input_parameters(self):
         """Loads input_parameters.yaml.
 
@@ -182,7 +168,7 @@ class LHCSequence:
 
         return input_parameters
 
-    @_print_info
+    @print_info("LHCSequence")
     def _load_mask_parameters(self, mask_parameters: Dict):
         """Loads mask_parameters.yaml.
 
@@ -202,7 +188,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def _load_knob_parameters(self, knob_parameters: Dict):
         """Loads knob_parameters.yaml.
 
@@ -264,7 +250,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def _load_metadata(self):
         """Loads the metadata.yaml file.
 
@@ -277,7 +263,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def select_sequence(
         self,
         sequence: Union[str, List[str]],
@@ -318,7 +304,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def select_optics(self, optics: str, custom: bool = False):
         """Sets the selected optics. The selected optics can either be an optics key found in metadata.yaml by specifying a valid key, or a custom optics strength file by specifying a path.
 
@@ -340,7 +326,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def initial_build(self):
         """Does the initial build of the sequence.
 
@@ -405,7 +391,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def run_check(self):
         """Runs a check using the internal OpticsChecks instance.
 
@@ -417,7 +403,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def call_pymask_module(self, module: str):
         """Calls a pymask module using the internal Mad-X instance.
 
@@ -432,7 +418,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def cycle(self, sequences: List[str], target: str):
         """Cycles the specified sequences to start at the target element.
 
@@ -451,7 +437,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def set_input_parameter_path(self, path: str):
         """Sets the input_parameters.yaml path.
 
@@ -469,7 +455,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def build_tracker(self, verbose: bool = False):
         """Builds a SequenceTracker instance.
 
@@ -484,7 +470,7 @@ class LHCSequence:
         tracker = SequenceTracker(new_fs, self._sequence_to_track, verbose=verbose)
         return tracker
 
-    @_print_info
+    @print_info("LHCSequence")
     def crossing_save(self):
         """Saves the current crossing settings in internal Mad-X variables.
 
@@ -496,7 +482,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def set_crossing(self, crossing_on: bool):
         """Either enables or disables crossing depending on the crossing_on parameter.
 
@@ -515,7 +501,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def call_file(self, file_path: str):
         """Forwards the file_path to failsim.mad_call_file.
 
@@ -530,7 +516,7 @@ class LHCSequence:
 
         return self
 
-    @_print_info
+    @print_info("LHCSequence")
     def call_files(self, file_paths: List[str]):
         """Calls multiple files using the internal Mad-X instance.
 

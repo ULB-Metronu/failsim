@@ -3,7 +3,9 @@ This module contains classes for miscellaneous tasks that don't fit in anywhere 
 """
 
 
-from typing import ByteString
+from .globals import FSGlobals
+from typing import ByteString, Callable
+import functools
 
 
 class OutputSuppressor:
@@ -104,3 +106,28 @@ class ArrayFile:
         temp = ArrayFile()
         temp._lines = self._lines.copy()
         return temp
+
+
+def print_info(name: str):
+    """
+    Decorator to print debug information.
+
+    Args:
+        name: Name of that class to use in the printed statement.
+
+    """
+
+    def _print_info(func):
+        @functools.wraps(func)
+        def _wrapper_print_info(self, *args, **kwargs):
+            if self._verbose and FSGlobals.verbose:
+                args_repr = [repr(a) for a in args]
+                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
+                signature = ", ".join(args_repr + kwargs_repr)
+                print(f"{name} -> {func.__name__}({signature})")
+            val = func(self, *args, **kwargs)
+            return val
+
+        return _wrapper_print_info
+
+    return _print_info

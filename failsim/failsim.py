@@ -3,13 +3,12 @@ Contains the class FailSim.
 """
 
 
-from .helpers import OutputSuppressor, ArrayFile
+from .helpers import OutputSuppressor, ArrayFile, print_info
 from .globals import FSGlobals
 
 from typing import Optional, List, Union
 import numpy as np
 import pymask as pm
-import functools
 import os
 import pkg_resources
 import yaml
@@ -50,7 +49,7 @@ class FailSim:
     ):
         self._madx_verbosity = madx_verbosity
         self._extra_macro_files = extra_macro_files
-        self._failsim_verbosity = failsim_verbosity
+        self._verbose = failsim_verbosity
         self._mad = None
         self._macros_loaded = False
 
@@ -106,22 +105,7 @@ class FailSim:
             for command in command_log.copy().read():
                 self.mad_input(command)
 
-    def _print_info(func):
-        """ Decorator to print FailSim debug information """
-
-        @functools.wraps(func)
-        def wrapper_print_info(self, *args, **kwargs):
-            if self._failsim_verbosity and FSGlobals.verbose:
-                args_repr = [repr(a) for a in args]
-                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
-                signature = ", ".join(args_repr + kwargs_repr)
-                print(f"FailSim -> {func.__name__}({signature})")
-            val = func(self, *args, **kwargs)
-            return val
-
-        return wrapper_print_info
-
-    @_print_info
+    @print_info("FailSim")
     def initialize_mad(self):
         """Initializes the Mad-X instance.
         Also sets the cwd and verbosity of the instance.
@@ -140,7 +124,7 @@ class FailSim:
 
         return self
 
-    @_print_info
+    @print_info("FailSim")
     def set_mad_mute(self, is_muted: bool):
         """Enables/disables the internal OutputSuppressor.
 
@@ -155,7 +139,7 @@ class FailSim:
 
         return self
 
-    @_print_info
+    @print_info("FailSim")
     def load_macros(self):
         """Loads macro.madx into the Mad-X instance.
 
@@ -171,7 +155,7 @@ class FailSim:
 
         return self
 
-    @_print_info
+    @print_info("FailSim")
     def mad_call_file(self, path: str):
         """Method to call a file using the Mad-X instance.
         If an output directory has been specified, FailSim will move any new files or directories to the output directory.
@@ -203,7 +187,7 @@ class FailSim:
 
         return self
 
-    @_print_info
+    @print_info("FailSim")
     def mad_input(self, command: str):
         """Method to input a command into the Mad-X instance.
         If an output directory has been specified, FailSim will move any new files or directories to the output directory.
@@ -230,7 +214,7 @@ class FailSim:
 
         return self
 
-    @_print_info
+    @print_info("FailSim")
     def duplicate(self):
         """Duplicates the FailSim instance.
 
@@ -242,11 +226,11 @@ class FailSim:
             output_dir=self._output_dir,
             cwd=self._cwd,
             madx_verbosity=self._madx_verbosity,
-            failsim_verbosity=self._failsim_verbosity,
+            failsim_verbosity=self._verbose,
             command_log=self._master_mad_command_log.copy(),
         )
 
-    @_print_info
+    @print_info("FailSim")
     def use(self, seq: str):
         """Method to use a sequence in the Mad-X instance.
 
@@ -261,7 +245,7 @@ class FailSim:
 
         return self
 
-    @_print_info
+    @print_info("FailSim")
     def twiss_and_summ(self, seq: str):
         """Does a twiss with the given sequence on the Mad-X instance.
 
@@ -278,7 +262,7 @@ class FailSim:
         self._mad.twiss(sequence=seq)
         return (self._mad.table["twiss"].dframe(), self._mad.table["summ"].dframe())
 
-    @_print_info
+    @print_info("FailSim")
     def call_pymask_module(self, module: str):
         """Calls a pymask module using the Mad-X instance.
 
@@ -294,7 +278,7 @@ class FailSim:
 
         return self
 
-    @_print_info
+    @print_info("FailSim")
     def make_thin(self, beam: str):
         """Makes the given sequence thin using the myslice macro.
 

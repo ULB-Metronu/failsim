@@ -5,6 +5,7 @@ Module containing the class SequenceTracker
 from .failsim import FailSim
 from .results import TrackingResult
 from .globals import FSGlobals
+from .helpers import print_info
 
 from typing import List, Optional
 import functools
@@ -36,22 +37,7 @@ class SequenceTracker:
         self._track_flags = ["onetable"]
         self._mask_values = {}
 
-    def _print_info(func):
-        """Decorator to print SequenceTracker debug information"""
-
-        @functools.wraps(func)
-        def wrapper_print_info(self, *args, **kwargs):
-            if self._verbose and FSGlobals.verbose:
-                args_repr = [repr(a) for a in args]
-                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
-                signature = ", ".join(args_repr + kwargs_repr)
-                print(f"SequenceTracker -> {func.__name__}({signature})")
-            val = func(self, *args, **kwargs)
-            return val
-
-        return wrapper_print_info
-
-    @_print_info
+    @print_info("SequenceTracker")
     def track(self, turns: int = 40):
         """
         Does a tracking simulation using the current setup.
@@ -113,7 +99,7 @@ class SequenceTracker:
 
         return res
 
-    @_print_info
+    @print_info("SequenceTracker")
     def add_track_flags(self, flags: List[str]):
         """
         Method for adding additional flags to the Mad-X *track* command.
@@ -129,7 +115,7 @@ class SequenceTracker:
 
         return self
 
-    @_print_info
+    @print_info("SequenceTracker")
     def add_time_dependence(self, file_paths: List[str]):
         """
         Adds a list of files to be called on each iteration of the track.
@@ -151,7 +137,7 @@ class SequenceTracker:
 
         return self
 
-    @_print_info
+    @print_info("SequenceTracker")
     def add_observation_points(self, points: List[str]):
         """
         Adds observation points to the track.
@@ -167,7 +153,7 @@ class SequenceTracker:
 
         return self
 
-    @_print_info
+    @print_info("SequenceTracker")
     def add_mask_keys(
         self,
         keys: Optional[List[str]] = None,
