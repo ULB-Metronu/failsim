@@ -3,11 +3,12 @@ Module containing the class SequenceTracker
 """
 
 from .failsim import FailSim
-from .results import TrackingResult
+from .results import TrackingResult, TwissResult
 from .globals import FSGlobals
 from .helpers import print_info
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
+import pandas as pd
 import functools
 import os
 
@@ -32,10 +33,72 @@ class SequenceTracker:
         self._sequence_to_track = sequence_to_track
         self._verbose = verbose
 
-        self._time_dependencies = []
+        self._time_dependencies = set()
         self._observation_points = []
         self._track_flags = ["onetable"]
         self._mask_values = {}
+
+    @print_info("SequenceTracker")
+    def twiss(self, turns: int):
+        """TODO: Docstring for twiss.
+
+        Args:
+            turns: TODO
+
+        Returns: TODO
+
+        """
+        time_depen = []
+
+        if len(self._time_dependencies) == 0:
+            twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
+            twiss_df["turn"] = 1
+
+        else:
+            for idx, file in enumerate(self._time_dependencies):
+                # Subsistute keys for values
+                with open(file, "r") as fd:
+                    filedata = fd.read()
+                for key, value in self._mask_values.items():
+                    filedata = filedata.replace(key, value)
+                with open(f"tmp_{idx}.txt", "w") as fd:
+                    fd.write(filedata)
+
+                time_depen.append(f"tmp_{idx}.txt")
+
+            twiss_df = pd.DataFrame()
+            for i in range(turns):
+                self._failsim.mad_input(f"comp={i}")
+
+                self._failsim.mad_input(
+                    f"savebeta, label=end_{i}, place=#e, sequence={self._sequence_to_track}"
+                )
+
+                for file in time_depen:
+                    self._failsim.mad_call_file(file)
+
+                if i == 0:
+                    temp_df, summ_df = self._failsim.twiss_and_summ(
+                        seq=self._sequence_to_track
+                    )
+                else:
+                    temp_df, summ_df = self._failsim.twiss_and_summ(
+                        seq=self._sequence_to_track, flags=[f"beta0=end_{i-1}"]
+                    )
+
+                temp_df["turn"] = i + 1
+
+                twiss_df = twiss_df.append(temp_df)
+
+        for file in time_depen:
+            os.remove(file)
+
+        eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
+        nrj = self._failsim._mad.globals["nrj"]
+        run_version = self._failsim._mad.globals["ver_lhc_run"]
+        hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
+
+        return TwissResult(twiss_df, summ_df, run_version, hllhc_version, eps_n, nrj)
 
     @print_info("SequenceTracker")
     def track(self, turns: int = 40):
@@ -79,9 +142,24 @@ class SequenceTracker:
 
         flags = ", ".join(self._track_flags)
         self._failsim.mad_input(f"track, {flags}")
-        self._failsim.mad_input("start")
+
+        if self._particles is None:
+            for particle in self._particles:
+                self._failsim.mad_input(
+                    "start, "
+                    f"x = {particle[0]}"
+                    f"xn = {particle[1]}"
+                    f"y = {particle[2]}"
+                    f"yn = {particle[3]}"
+                    f"t = {particle[4]}"
+                    f"tn = {particle[5]}"
+                )
+        else:
+            self._failsim.mad_input("start")
+
         for obs in self._observation_points:
             self._failsim.mad_input(f"observe, place='{obs}'")
+
         self._failsim.mad_input(f"run, turns={turns}")
         self._failsim.mad_input("endtrack")
 
@@ -100,6 +178,19 @@ class SequenceTracker:
         return res
 
     @print_info("SequenceTracker")
+    def set_particles(
+        self, particles: List[Tuple[float, float, float, float, float, float]]
+    ):
+        """
+        Sets initial starting positions for particles.
+
+        Args:
+            particles: List of particles to track. Each entry must a list with 6 values: [x, xn, y, yn, t, tn].
+
+        """
+        self._particles = particles
+
+    @print_info("SequenceTracker")
     def add_track_flags(self, flags: List[str]):
         """
         Method for adding additional flags to the Mad-X *track* command.
@@ -111,7 +202,20 @@ class SequenceTracker:
             SequenceTracker: Returns self
 
         """
-        self._track_flags.extend(flags)
+        self._track_flags.append(flags)
+
+        return self
+
+    @print_info("SequenceTracker")
+    def clear_time_dependence(self):
+        """
+        Clears the list of time dependence files.
+
+        Returns:
+            SequenceTracker: Returns self
+
+        """
+        self._time_dependencies = set()
 
         return self
 
@@ -127,13 +231,10 @@ class SequenceTracker:
             SequenceTracker: Returns self
 
         """
-        fixed_paths = []
         for path in file_paths:
             if not path.startswith("/"):
                 path = self._failsim.path_to_cwd(path)
-            fixed_paths.append(path)
-
-        self._time_dependencies.extend(fixed_paths)
+            self._time_dependencies.add(path)
 
         return self
 

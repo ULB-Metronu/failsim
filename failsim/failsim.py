@@ -224,11 +224,12 @@ class FailSim:
         return self
 
     @print_info("FailSim")
-    def twiss_and_summ(self, seq: str):
+    def twiss_and_summ(self, seq: str, flags: List[str] = []):
         """Does a twiss with the given sequence on the Mad-X instance.
 
         Args:
             seq: Sequence to run twiss on.
+            flags: Additional flags to pass to the twiss command.
 
         Returns:
             tuple: Tuple containing:
@@ -237,7 +238,7 @@ class FailSim:
                 pandas.DataFrame: DataFrame containing the summ table
 
         """
-        self._mad.twiss(sequence=seq)
+        self.mad_input(f"{', '.join(['twiss', f'sequence={seq}'] + flags)}")
         return (self._mad.table["twiss"].dframe(), self._mad.table["summ"].dframe())
 
     @print_info("FailSim")

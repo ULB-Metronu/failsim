@@ -18,6 +18,14 @@ class Result:
     """
     Base result class containing 3 DataFrames:
 
+    Args:
+        twiss_df: DataFrame containing the twiss table.
+        summ_df: DataFrame containing the summ table.
+        run_version: The LHC run used, otherwise 0.
+        hllhc_version: The HLLHC version used, otherwise 0.
+        eps_n: The normalized emmitance.
+        nrj: Particle energy in GeV.
+
     Attributes:
         twiss_df: DataFrame containing the twiss table.
         summ_df: DataFrame containing the summ table.
@@ -30,19 +38,7 @@ class Result:
     Note:
         Either run_version or hllhc_version has to be specified. An AssertionError will be thrown if none or both are specified.
 
-
-    Args:
-        twiss_df: DataFrame containing the twiss table.
-        summ_df: DataFrame containing the summ table.
-        run_version: The LHC run used, otherwise 0.
-        hllhc_version: The HLLHC version used, otherwise 0.
-        eps_n: The normalized emmitance.
-        nrj: Particle energy in GeV.
     """
-
-    twiss_df: pd.DataFrame
-    summ_df: pd.DataFrame
-    info_df: pd.DataFrame
 
     def __init__(
         self,
@@ -324,3 +320,55 @@ class TrackingResult(Result):
         )
 
         return inst
+
+
+@dataclass
+class TwissResult(Result):
+
+    """
+    TODO
+    """
+
+    def __init__(
+        self,
+        twiss_df: pd.DataFrame,
+        summ_df: pd.DataFrame,
+        run_version: int = 0,
+        hllhc_version: float = 0.0,
+        eps_n: float = 2.5e-6,
+        nrj: float = 7000,
+    ):
+        """TODO: to be defined. """
+        Result.__init__(self, twiss_df, summ_df, run_version, hllhc_version, eps_n, nrj)
+
+    def calculate_betabeating(self):
+        """TODO: Docstring for calculate_betabeating.
+        Returns: TODO
+
+        """
+        turns = set(self.twiss_df["turn"])
+
+        reference = self.twiss_df.loc[self.twiss_df["turn"] == min(turns)]
+
+        res = pd.DataFrame()
+        for turn in turns:
+            data = self.twiss_df.loc[self.twiss_df["turn"] == turn]
+            temp_res = pd.DataFrame()
+
+            temp_res["betx"] = data["betx"] / reference["betx"]
+            temp_res["alfx"] = data["alfx"] / reference["alfx"]
+            temp_res["mux"] = data["mux"] / reference["mux"]
+
+            temp_res["bety"] = data["bety"] / reference["bety"]
+            temp_res["alfy"] = data["alfy"] / reference["alfy"]
+            temp_res["muy"] = data["muy"] / reference["muy"]
+
+            temp_res["name"] = reference["name"]
+            temp_res["s"] = reference["s"]
+            temp_res["turn"] = data["turn"]
+
+            temp_res.set_index("name", inplace=True)
+
+            res = res.append(temp_res)
+
+        return res
