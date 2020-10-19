@@ -3,7 +3,7 @@ Contains the class FailSim.
 """
 
 
-from .helpers import OutputSuppressor, ArrayFile, print_info
+from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
 from .globals import FSGlobals
 
 from typing import Optional, List, Union
@@ -167,23 +167,11 @@ class FailSim:
             FailSim: Returns self
 
         """
-        pre_files = os.listdir(self._cwd)
-
-        call_path = path
-        if not path.startswith("/"):
-            call_path = os.path.join(self._cwd, path)
-        self._mad.call(call_path)
-
-        post_files = os.listdir(self._cwd)
-
-        if self._output_dir is not None:
-            new_files = np.setdiff1d(post_files, pre_files)
-            for file in new_files:
-                if os.path.basename(file).startswith("."):
-                    pass
-                shutil.move(
-                    file, os.path.join(self._output_dir, os.path.basename(file))
-                )
+        with MoveNewFiles(self._cwd, self._output_dir):
+            call_path = path
+            if not path.startswith("/"):
+                call_path = os.path.join(self._cwd, path)
+            self._mad.call(call_path)
 
         return self
 
@@ -199,18 +187,8 @@ class FailSim:
             FailSim: Returns self
 
         """
-        pre_files = os.listdir(self._cwd)
-
-        self._mad.input(command)
-
-        post_files = os.listdir(self._cwd)
-
-        if self._output_dir is not None:
-            new_files = np.setdiff1d(post_files, pre_files)
-            for file in new_files:
-                shutil.move(
-                    file, os.path.join(self._output_dir, os.path.basename(file))
-                )
+        with MoveNewFiles(self._cwd, self._output_dir):
+            self._mad.input(command)
 
         return self
 

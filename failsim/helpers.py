@@ -6,6 +6,9 @@ This module contains classes for miscellaneous tasks that don't fit in anywhere 
 from .globals import FSGlobals
 from typing import ByteString, Callable
 import functools
+import os
+import shutil
+import numpy as np
 
 
 class OutputSuppressor:
@@ -106,6 +109,33 @@ class ArrayFile:
         temp = ArrayFile()
         temp._lines = self._lines.copy()
         return temp
+
+
+class MoveNewFiles:
+    """
+    Moves files created in source directory while in context to destination.
+
+    Args:
+        source: Path to source directory. This is the directory that is watched for new files.
+        destination: Path to destination directory. This is the directory that new files are moved to.
+
+    """
+
+    def __init__(self, source: str, destination: str):
+        self._source = source
+        self._destination = destination
+
+    def __enter__(self):
+        self._pre_files = os.listdir(self._source)
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        post_files = os.listdir(self._source)
+
+        new_files = np.setdiff1d(post_files, self._pre_files)
+        for file in new_files:
+            if os.path.basename(file).startswith("."):
+                pass
+            shutil.move(file, os.path.join(self._destination, os.path.basename(file)))
 
 
 def print_info(name: str):
