@@ -4,7 +4,7 @@ Module containing classes that contain and handle data.
 
 
 from .failsim import FailSim
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
@@ -195,7 +195,10 @@ class TrackingResult(Result):
         Plots orbit excursion either to a new figure, or adds the plot to an existing figure.
 
         Note:
-            The kwargs can be used to give layout specifications to plotly, as they are given straight to figure.update_layout().
+            The kwargs can be used to give layout/trace specifications to plotly.
+            Each key must have either "layout_" or "trace_" as suffix.
+            If a key has "layout_" as suffix, the key will be sent to update_layout(),
+            whereas a key with the suffix "trace_" will be sent to Scatter().
 
         Args:
             observation_filter: Filters tracking data indexes by each item. Can either be a list of observation points, or a single observation point.
@@ -206,6 +209,9 @@ class TrackingResult(Result):
             go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
 
         """
+        layout_kwargs = {x[7:]: kwargs[x] for x in kwargs if x.startswith("layout_")}
+        trace_kwargs = {x[6:]: kwargs[x] for x in kwargs if x.startswith("trace_")}
+
         action = self.calculate_action()
 
         x_data = self.track_df["turn"]
@@ -221,12 +227,14 @@ class TrackingResult(Result):
         if figure is None:
             figure = go.Figure()
 
-        data = go.Scatter(x=x_data, y=y_data, mode="lines+markers", name=trace_name)
+        data = go.Scatter(
+            trace_kwargs, x=x_data, y=y_data, mode="lines+markers", name=trace_name
+        )
 
         figure.add_trace(data)
 
         figure.update_layout(
-            kwargs,
+            layout_kwargs,
             xaxis_title=r"$\text{Time} [\text{LHC Turn}]$",
             yaxis_title=r"$\text{Radial orbit excursion} [\sigma_r]$",
         )
