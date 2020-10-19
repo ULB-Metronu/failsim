@@ -112,18 +112,20 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
+        self._mode_configuration = {}
+
         (
-            self._beam_to_configure,
-            self._sequences_to_check,
-            self._sequence_to_track,
-            self._generate_b4_from_b2,
-            self._track_from_b4_mad_instance,
-            self._enable_bb_python,
-            self._enable_bb_legacy,
-            self._force_disable_check_separations_at_ips,
+            self._mode_configuration["beam_to_configure"],
+            self._mode_configuration["sequences_to_check"],
+            self._mode_configuration["sequence_to_track"],
+            self._mode_configuration["generate_b4_from_b2"],
+            self._mode_configuration["track_from_b4_mad_instance"],
+            self._mode_configuration["enable_bb_python"],
+            self._mode_configuration["enable_bb_legacy"],
+            self._mode_configuration["force_disable_check_separations_at_ips"],
         ) = pm.get_pymask_configuration(self._beam_mode)
 
-        if self._force_disable_check_separations_at_ips:
+        if self._mode_configuration["force_disable_check_separations_at_ips"]:
             self._check_separations_at_ips = False
             self._check.check_separations = False
 
@@ -374,7 +376,9 @@ class LHCSequence:
             self._failsim.mad_call_file(seq)
         self._failsim.mad_call_file(self._optics_path)
 
-        self._failsim.mad_input(f"mylhcbeam = {self._beam_to_configure}")
+        self._failsim.mad_input(
+            f"mylhcbeam = {self._mode_configuration['beam_to_configure']}"
+        )
         self._failsim.mad_input(f"ver_lhc_run = {self._run_version}")
         self._failsim.mad_input(f"ver_hllhc_optics = {self._hllhc_version}")
 
@@ -383,7 +387,7 @@ class LHCSequence:
         self._load_mask_parameters(input_parameters["mask_parameters"])
         self._failsim.call_pymask_module("submodule_01a_preparation.madx")
         self._failsim.call_pymask_module("submodule_01b_beam.madx")
-        for seq in self._sequences_to_check:
+        for seq in self._mode_configuration["sequences_to_check"]:
             self._failsim.make_thin(seq[-1])
         self._load_knob_parameters(input_parameters["knob_parameters"])
 
@@ -399,7 +403,10 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
-        self._check(mad=self._failsim._mad, sequences=self._sequences_to_check)
+        self._check(
+            mad=self._failsim._mad,
+            sequences=self._mode_configuration["sequences_to_check"],
+        )
 
         return self
 
@@ -467,7 +474,9 @@ class LHCSequence:
 
         """
         new_fs = self._failsim.duplicate()
-        tracker = SequenceTracker(new_fs, self._sequence_to_track, verbose=verbose)
+        tracker = SequenceTracker(
+            new_fs, self._mode_configuration["sequence_to_track"], verbose=verbose
+        )
         return tracker
 
     @print_info("LHCSequence")
