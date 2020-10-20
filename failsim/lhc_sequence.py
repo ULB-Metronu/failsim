@@ -328,15 +328,15 @@ class LHCSequence:
             Specifically does the following:
 
             1. If a sequence key has been specified, loads the relevant sequence data.
-            1. If an optics key has been specified, loads the relevant optics data.
-            1. Calls all sequence files sequentially.
-            1. Calls optics strength file.
-            1. Inputs *mylhcbeam*, *ver_lhc_run* and *ver_hllhc_optics* into the Mad-X instance.
-            1. Loads mask_parameters.yaml.
-            1. Calls *submodule_01a_preparation.madx* and *submodule_01b_beam.madx*
+            2. If an optics key has been specified, loads the relevant optics data.
+            3. Calls all sequence files sequentially.
+            4. Calls optics strength file.
+            5. Inputs *mylhcbeam*, *ver_lhc_run* and *ver_hllhc_optics* into the Mad-X instance.
+            6. Loads mask_parameters.yaml.
+            7. Calls *submodule_01a_preparation.madx* and *submodule_01b_beam.madx*
                 - These set basic internal Mad-X variables and define the beam.
-            1. Makes all sequences thin.
-            1. Loads knob_parameters.yaml
+            8. Makes all sequences thin.
+            9. Loads knob_parameters.yaml
 
         Returns:
             LHCSequence: Returns self
@@ -382,8 +382,6 @@ class LHCSequence:
         for seq in self._mode_configuration["sequences_to_check"]:
             self._failsim.make_thin(seq[-1])
         self._load_knob_parameters(input_parameters["knob_parameters"])
-
-        return self
 
         return self
 

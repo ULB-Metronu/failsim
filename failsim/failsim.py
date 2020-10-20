@@ -2,6 +2,8 @@
 Contains the class FailSim.
 """
 
+## TODO Change to only use mad.input and mad.call instead of cpymad methods
+
 
 from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
 from .globals import FSGlobals
@@ -168,10 +170,9 @@ class FailSim:
 
         """
         with MoveNewFiles(self._cwd, self._output_dir):
-            call_path = path
             if not path.startswith("/"):
-                call_path = os.path.join(self._cwd, path)
-            self._mad.call(call_path)
+                path = os.path.join(self._cwd, path)
+            self._mad.call(path)
 
         return self
 
@@ -238,6 +239,7 @@ class FailSim:
                 pandas.DataFrame: DataFrame containing the summ table
 
         """
+        self.use(seq)
         self.mad_input(f"{', '.join(['twiss', f'sequence={seq}'] + flags)}")
         return (self._mad.table["twiss"].dframe(), self._mad.table["summ"].dframe())
 
