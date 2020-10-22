@@ -53,7 +53,6 @@ class FailSim:
         self._extra_macro_files = extra_macro_files
         self._verbose = failsim_verbosity
         self._mad = None
-        self._macros_loaded = False
 
         if command_log is None:
             self._master_mad_command_log = ArrayFile()
@@ -153,7 +152,6 @@ class FailSim:
             __name__, "data/hllhc14/" "toolkit/macro.madx"
         )
         self.mad_call_file(macro_path)
-        self._macros_loaded = True
 
         return self
 
@@ -272,18 +270,19 @@ class FailSim:
         """
         self.use(f"lhcb{beam}")
 
-        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
-        pre_len = summ_df["length"][0]
-
-        if not self._macros_loaded:
-            self.load_macros()
+        # twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
+        # pre_len = summ_df["length"][0]
 
         self.mad_input(f"use, sequence=lhcb{beam}; exec myslice")
 
-        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
-        post_len = summ_df["length"][0]
+        # twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
+        # post_len = summ_df["length"][0]
 
-        assert post_len == pre_len, "Length of sequence changed by makethin"
+        # assert post_len == pre_len, (
+        #     "Length of sequence changed by makethin\n\t"
+        #     f"Length pre: {pre_len}\n\t"
+        #     f"Length post: {post_len}\n\t"
+        # )
 
         return self
 
