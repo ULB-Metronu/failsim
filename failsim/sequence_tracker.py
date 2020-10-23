@@ -38,6 +38,8 @@ class SequenceTracker:
         self._track_flags = ["onetable"]
         self._mask_values = {}
 
+        self._particles = None
+
     @print_info("SequenceTracker")
     def twiss(self, turns: int):
         """TODO: Docstring for twiss.
@@ -143,7 +145,7 @@ class SequenceTracker:
         flags = ", ".join(self._track_flags)
         self._failsim.mad_input(f"track, {flags}")
 
-        if self._particles is None:
+        if self._particles is not None:
             for particle in self._particles:
                 self._failsim.mad_input(
                     "start, "

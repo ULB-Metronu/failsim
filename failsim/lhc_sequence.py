@@ -103,10 +103,12 @@ class LHCSequence:
             def wrapper_reset_state(self, *args, **kwargs):
                 self._built = False if build else self._built
                 self._checked = False if check else self._checked
-                val = func(self, args, kwargs)
+                val = func(self, *args, **kwargs)
                 return val
 
             return wrapper_reset_state
+
+        return inner_reset_state
 
     def _ensure_build(func):
         @functools.wraps(func)
@@ -115,7 +117,7 @@ class LHCSequence:
                 self.build()
             if not self._checked:
                 self.run_check()
-            val = func(self, args, kwargs)
+            val = func(self, *args, **kwargs)
             return val
 
         return wrapper_ensure_build
@@ -147,9 +149,9 @@ class LHCSequence:
         # Set default modules
         self._modules["01a_preparation"]["enabled"] = True
         self._modules["01b_beam"]["enabled"] = True
-        self._modules["02_lumilevel"]["enabled"] = True
-        self._modules["05d_matching"]["enabled"] = True
-        self._modules["05f_final"]["enabled"] = True
+        #self._modules["02_lumilevel"]["enabled"] = True
+        #self._modules["05d_matching"]["enabled"] = True
+        #self._modules["05f_final"]["enabled"] = True
 
     @print_info("LHCSequence")
     def _get_mode_configuration(self):
@@ -313,7 +315,7 @@ class LHCSequence:
 
         """
         if self._modules[module]["enabled"]:
-            self.call_pymask_module(self._modules[modules]["path"])
+            self.call_pymask_module(os.path.basename(self._modules[module]["path"]))
 
     @print_info("LHCSequence")
     def _load_metadata(self):
