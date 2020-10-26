@@ -2,8 +2,6 @@
 Contains the class FailSim.
 """
 
-## TODO Change to only use mad.input and mad.call instead of cpymad methods
-
 
 from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
 from .globals import FSGlobals
@@ -106,6 +104,11 @@ class FailSim:
             for command in command_log.copy().read():
                 self.mad_input(command)
 
+    @property
+    def mad(self):
+        """TODO"""
+        return self._mad
+
     @print_info("FailSim")
     def initialize_mad(self):
         """Initializes the Mad-X instance.
@@ -118,7 +121,7 @@ class FailSim:
         self._mad = pm.Madxp(
             stdout=self._madx_mute, command_log=self._command_log
         )
-        self._mad.chdir(self._cwd)
+        self.mad.chdir(self._cwd)
 
         if self._madx_verbosity != "mute":
             self.mad_input("option, " + self._madx_verbosity)
@@ -170,7 +173,7 @@ class FailSim:
         with MoveNewFiles(self._cwd, self._output_dir):
             if not path.startswith("/"):
                 path = os.path.join(self._cwd, path)
-            self._mad.call(path)
+            self.mad.call(path)
 
         return self
 
@@ -187,7 +190,7 @@ class FailSim:
 
         """
         with MoveNewFiles(self._cwd, self._output_dir):
-            self._mad.input(command)
+            self.mad.input(command + ';')
 
         return self
 
@@ -218,7 +221,7 @@ class FailSim:
             FailSim: Returns self
 
         """
-        self._mad.use(seq)
+        self.mad.use(seq)
 
         return self
 
@@ -239,7 +242,7 @@ class FailSim:
         """
         self.use(seq)
         self.mad_input(f"{', '.join(['twiss', f'sequence={seq}'] + flags)}")
-        return (self._mad.table["twiss"].dframe(), self._mad.table["summ"].dframe())
+        return (self.mad.table["twiss"].dframe(), self.mad.table["summ"].dframe())
 
     @print_info("FailSim")
     def call_pymask_module(self, module: str):
@@ -268,7 +271,7 @@ class FailSim:
             FailSim: Returns self
 
         """
-        self.use(f"lhcb{beam}")
+        #self.use(f"lhcb{beam}")
 
         # twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
         # pre_len = summ_df["length"][0]

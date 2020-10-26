@@ -106,6 +106,7 @@ class LHCSequence:
         self._optics_key = None
         self._optics_path = None
         self._cycle = None
+        self._bb_dfs = None
 
         self._built = False
         self._checked = False
@@ -152,9 +153,9 @@ class LHCSequence:
         # Set default modules
         self._modules["01a_preparation"]["enabled"] = True
         self._modules["01b_beam"]["enabled"] = True
-        #self._modules["02_lumilevel"]["enabled"] = True
-        #self._modules["05d_matching"]["enabled"] = True
-        #self._modules["05f_final"]["enabled"] = True
+        self._modules["01c_phase"]["enabled"] = True
+        self._modules["01d_crossing"]["enabled"] = True
+        self._modules["05a_MO"]["enabled"] = True
 
     def _get_mode_configuration(self):
         """Loads the mode configuration.
@@ -235,6 +236,10 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
+        if not self._mode_configuration["enable_bb_legacy"] \
+                and not self._mode_configuration["enable_bb_python"]:
+            mask_parameters["par_on_bb_switch"] = 0.
+
         pm.checks_on_parameter_dict(mask_parameters)
 
         self._failsim._mad.set_variables_from_dict(params=mask_parameters)
@@ -335,8 +340,53 @@ class LHCSequence:
 
         """
         modules = [x for x in self._modules if x.endswith(".madx")]
+        modules.sort()
         for module in modules:
             self._check_call_module(module)
+
+    def _prepare_bb_dataframes(self):
+        """ Prepares the beam-beam dataframes. """
+        if self._mode_configuration["enable_bb_python"]:
+            self._bb_dfs = pm.generate_bb_dataframes(self._failsim.mad,
+                                                     ip_names=[
+                                                         'ip1', 'ip2', 'ip5', 'ip8'],
+                                                     harmonic_number=35640,
+                                                     numberOfLRPerIRSide=[
+                                                         25, 20, 25, 20],
+                                                     bunch_spacing_buckets=10,
+                                                     numberOfHOSlices=11,
+                                                     bunch_population_ppb=None,
+                                                     sigmaz_m=None,
+                                                     z_crab_twiss=0,
+                                                     remove_dummy_lenses=True)
+
+    def _install_bb_lenses(self):
+        """ Installs the beam-beam lenses if beam-beam has been enabled by mode. """
+        ## Python approach
+        if self._mode_configuration["enable_bb_python"]:
+            if self._mode_configuration["track_from_b4_mad_instance"]:
+                bb_df_track = self._bb_dfs['b4']
+                assert(
+                    self._mode_configuration["sequence_to_track"] == 'lhcb2')
+            else:
+                bb_df_track = self._bb_dfs['b1']
+                assert(
+                    self._mode_configuration["sequence_to_track"] == 'lhcb1')
+
+            pm.install_lenses_in_sequence(
+                self._failsim.mad, bb_df_track, self._mode_configuration["sequence_to_track"])
+
+            ## Disable bb (to be activated later)
+            self._failsim.mad.globals.on_bb_charge = 0
+        else:
+            bb_df_track = None
+
+        ## Legacy bb macros
+        if self._mode_configuration["enable_bb_legacy"]:
+            assert(self._mode_configuration["beam_to_configure"] == 1)
+            assert(not(self._mode_configuration["track_from_b4_mad_instance"]))
+            assert(not(self._mode_configuration["enable_bb_python"]))
+            self._failsim.mad_call_file("modules/module_03_beambeam.madx")
 
     @reset_state(True, True)
     @print_info("LHCSequence")
@@ -352,6 +402,12 @@ class LHCSequence:
 
         """
         for module in modules:
+            assert module in self._modules.keys(), \
+                (
+                f"Module {module} is not a valid module.\n"
+                "Valid modules are:\n{}".format(
+                    '\n'.join([x for x in self._modules if x.endswith('.madx')]))
+            )
             self._modules[module]["enabled"] = enabled
 
         return self
@@ -488,8 +544,10 @@ class LHCSequence:
         self._check_call_module("01a_preparation")
         self._check_call_module("01b_beam")
 
-        for seq in self._mode_configuration["sequences_to_check"]:
-            self._failsim.make_thin(seq[-1])
+        # for seq in self._mode_configuration["sequences_to_check"]:
+        #     self._failsim.make_thin(seq[-1])
+
+        self._failsim.make_thin(self._mode_configuration["sequence_to_track"][-1])
 
         self._load_knob_parameters(input_parameters["knob_parameters"])
 
@@ -504,7 +562,11 @@ class LHCSequence:
         self._check_call_module("01e_final")
         self._check_call_module("02_lumilevel")
 
-        ## TODO Install BB
+        ## Prepare BB Dataframes
+        self._prepare_bb_dataframes()
+
+        ## Install BB lenses
+        self._install_bb_lenses()
 
         #self._check_call_module("05d_matching")
         #self._check_call_module("05f_final")

@@ -42,12 +42,15 @@ class SequenceTracker:
 
     @print_info("SequenceTracker")
     def twiss(self, turns: int):
-        """TODO: Docstring for twiss.
+        """
+        Does Twiss with current sequence.
+        If time dependencies have been defined, the method does a multi-turn twiss, calling the time dependies each iteration.
 
         Args:
-            turns: TODO
+            turns: Amount of turns to do multi-turn twiss.
 
-        Returns: TODO
+        Returns:
+            TwissResult: DataClass containing twiss data.
 
         """
         time_depen = []
