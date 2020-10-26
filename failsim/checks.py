@@ -95,7 +95,8 @@ class OpticsChecks:
                         "tol": self.tol_beta[iip],
                     }
                 )
-        pm.check_twiss_against_madvars(twiss_value_checks, twiss_df, variables_dict)
+        pm.check_twiss_against_madvars(
+            twiss_value_checks, twiss_df, variables_dict)
 
     def __call__(self, mad: pm.Madxp, sequences: List[str], twiss_name: str = "twiss"):
         """
@@ -138,7 +139,8 @@ class OpticsChecks:
         if self.beta:
             for ss in sequences:
                 tt = twiss_dfs[ss]
-                self.check_betas(beam=ss[-1], twiss_df=tt, variables_dict=var_dict)
+                self.check_betas(
+                    beam=ss[-1], twiss_df=tt, variables_dict=var_dict)
 
         if self.separation:
             twiss_df_b1 = twiss_dfs["lhcb1"]

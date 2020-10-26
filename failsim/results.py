@@ -70,7 +70,8 @@ class Result:
 
         This method is called in the constructor, since Mad-X currently adds :0 and :1 to the end of the twiss DataFrame index names, which does not match with other DataFrames.
         """
-        self.twiss_df["name"] = self.twiss_df.apply(lambda x: x["name"][:-2], axis=1)
+        self.twiss_df["name"] = self.twiss_df.apply(
+            lambda x: x["name"][:-2], axis=1)
 
 
 @dataclass
@@ -140,18 +141,22 @@ class TrackingResult(Result):
             bety = self.twiss_df.loc[obs]["bety"]
             alfy = self.twiss_df.loc[obs]["alfy"]
 
-            data["xn"] = data.apply(lambda x: x["x"] / np.sqrt(eps_g * betx), axis=1)
+            data["xn"] = data.apply(
+                lambda x: x["x"] / np.sqrt(eps_g * betx), axis=1)
 
             data["pxn"] = data.apply(
-                lambda x: (x["x"] * alfx / np.sqrt(betx) + x["px"] * np.sqrt(betx))
+                lambda x: (x["x"] * alfx / np.sqrt(betx) +
+                           x["px"] * np.sqrt(betx))
                 / np.sqrt(eps_g),
                 axis=1,
             )
 
-            data["yn"] = data.apply(lambda x: x["y"] / np.sqrt(eps_g * bety), axis=1)
+            data["yn"] = data.apply(
+                lambda x: x["y"] / np.sqrt(eps_g * bety), axis=1)
 
             data["pyn"] = data.apply(
-                lambda x: (x["y"] * alfy / np.sqrt(bety) + x["py"] * np.sqrt(bety))
+                lambda x: (x["y"] * alfy / np.sqrt(bety) +
+                           x["py"] * np.sqrt(bety))
                 / np.sqrt(eps_g),
                 axis=1,
             )
@@ -205,8 +210,10 @@ class TrackingResult(Result):
             go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
 
         """
-        layout_kwargs = {x[7:]: kwargs[x] for x in kwargs if x.startswith("layout_")}
-        trace_kwargs = {x[6:]: kwargs[x] for x in kwargs if x.startswith("trace_")}
+        layout_kwargs = {x[7:]: kwargs[x]
+                         for x in kwargs if x.startswith("layout_")}
+        trace_kwargs = {x[6:]: kwargs[x]
+                        for x in kwargs if x.startswith("trace_")}
 
         action = self.calculate_action()
 
@@ -297,10 +304,12 @@ class TrackingResult(Result):
 
         """
         # Load twiss
-        twiss_df = pd.read_parquet(os.path.join(path, suffix + "twiss.parquet"))
+        twiss_df = pd.read_parquet(
+            os.path.join(path, suffix + "twiss.parquet"))
 
         # Load track
-        track_df = pd.read_parquet(os.path.join(path, suffix + "track.parquet"))
+        track_df = pd.read_parquet(
+            os.path.join(path, suffix + "track.parquet"))
 
         # Load summ
         summ_df = pd.read_parquet(os.path.join(path, suffix + "summ.parquet"))
@@ -338,8 +347,8 @@ class TwissResult(Result):
         eps_n: float = 2.5e-6,
         nrj: float = 7000,
     ):
-        """TODO: to be defined. """
-        Result.__init__(self, twiss_df, summ_df, run_version, hllhc_version, eps_n, nrj)
+        Result.__init__(self, twiss_df, summ_df, run_version,
+                        hllhc_version, eps_n, nrj)
 
     def calculate_betabeating(self):
         """TODO: Docstring for calculate_betabeating.

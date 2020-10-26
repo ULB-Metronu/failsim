@@ -20,6 +20,37 @@ import glob
 import re
 
 
+## ===== Decorators ===== ##
+
+def reset_state(build: bool, check: bool):
+    def inner_reset_state(func):
+        @functools.wraps(func)
+        def wrapper_reset_state(self, *args, **kwargs):
+            self._built = False if build else self._built
+            self._checked = False if check else self._checked
+            val = func(self, *args, **kwargs)
+            return val
+
+        return wrapper_reset_state
+
+    return inner_reset_state
+
+
+def ensure_build(func):
+    @functools.wraps(func)
+    def wrapper_ensure_build(self, *args, **kwargs):
+        if not self._built:
+            self.build()
+        if not self._checked:
+            self.run_check()
+        val = func(self, *args, **kwargs)
+        return val
+
+    return wrapper_ensure_build
+
+## ====================== ##
+
+
 class LHCSequence:
 
     """
@@ -96,31 +127,6 @@ class LHCSequence:
 
         if optics_key is not None:
             self.select_optics(optics_key)
-
-    def _reset_state(build: bool, check: bool):
-        def inner_reset_state(func):
-            @functools.wraps(func)
-            def wrapper_reset_state(self, *args, **kwargs):
-                self._built = False if build else self._built
-                self._checked = False if check else self._checked
-                val = func(self, *args, **kwargs)
-                return val
-
-            return wrapper_reset_state
-
-        return inner_reset_state
-
-    def _ensure_build(func):
-        @functools.wraps(func)
-        def wrapper_ensure_build(self, *args, **kwargs):
-            if not self._built:
-                self.build()
-            if not self._checked:
-                self.run_check()
-            val = func(self, *args, **kwargs)
-            return val
-
-        return wrapper_ensure_build
 
     @print_info("LHCSequence")
     def _initialize_mask_dictionary(self):
@@ -315,7 +321,8 @@ class LHCSequence:
 
         """
         if self._modules[module]["enabled"]:
-            self.call_pymask_module(os.path.basename(self._modules[module]["path"]))
+            self.call_pymask_module(os.path.basename(
+                self._modules[module]["path"]))
 
     @print_info("LHCSequence")
     def _load_metadata(self):
@@ -325,12 +332,13 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
-        metadata_stream = pkg_resources.resource_stream(__name__, "data/metadata.yaml")
+        metadata_stream = pkg_resources.resource_stream(
+            __name__, "data/metadata.yaml")
         self._metadata = yaml.safe_load(metadata_stream)
 
         return self
 
-    @_reset_state(True, True)
+    @reset_state(True, True)
     @print_info("LHCSequence")
     def set_modules_enabled(self, modules: List[str], enabled: bool = True):
         """TODO: Docstring for set_modules_enabled.
@@ -345,7 +353,7 @@ class LHCSequence:
         for module in modules:
             self._modules[module]["enabled"] = enabled
 
-    @_reset_state(True, True)
+    @reset_state(True, True)
     @print_info("LHCSequence")
     def select_sequence(
         self,
@@ -387,7 +395,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(True, True)
+    @reset_state(True, True)
     @print_info("LHCSequence")
     def select_optics(self, optics: str, custom: bool = False):
         """Sets the selected optics. The selected optics can either be an optics key found in metadata.yaml by specifying a valid key, or a custom optics strength file by specifying a path.
@@ -455,7 +463,8 @@ class LHCSequence:
                 self._optics_base_path,
                 sequence_data["optics"][self._optics_key]["strength_file"],
             )
-            self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
+            self._optics_path = pkg_resources.resource_filename(
+                __name__, rel_path)
 
         for seq in self._sequence_paths:
             self._failsim.mad_call_file(seq)
@@ -516,7 +525,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def call_pymask_module(self, module: str):
         """Calls a pymask module using the internal Mad-X instance.
@@ -532,7 +541,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(True, True)
+    @reset_state(True, True)
     @print_info("LHCSequence")
     def cycle(self, sequences: List[str], target: str):
         """Cycles the specified sequences to start at the target element.
@@ -549,7 +558,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(True, True)
+    @reset_state(True, True)
     @print_info("LHCSequence")
     def set_input_parameter_path(self, path: str):
         """Sets the input_parameters.yaml path.
@@ -568,7 +577,7 @@ class LHCSequence:
 
         return self
 
-    @_ensure_build
+    @ensure_build
     @print_info("LHCSequence")
     def build_tracker(self, verbose: bool = False):
         """Builds a SequenceTracker instance.
@@ -586,7 +595,7 @@ class LHCSequence:
         )
         return tracker
 
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def crossing_save(self):
         """Saves the current crossing settings in internal Mad-X variables.
@@ -599,7 +608,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def set_crossing(self, crossing_on: bool):
         """Either enables or disables crossing depending on the crossing_on parameter.
@@ -619,7 +628,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def call_file(self, file_path: str):
         """Forwards the file_path to failsim.mad_call_file.
@@ -635,7 +644,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def call_files(self, file_paths: List[str]):
         """Calls multiple files using the internal Mad-X instance.

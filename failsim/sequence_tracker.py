@@ -53,7 +53,8 @@ class SequenceTracker:
         time_depen = []
 
         if len(self._time_dependencies) == 0:
-            twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
+            twiss_df, summ_df = self._failsim.twiss_and_summ(
+                self._sequence_to_track)
             twiss_df["turn"] = 1
 
         else:
@@ -91,6 +92,8 @@ class SequenceTracker:
                 temp_df["turn"] = i + 1
 
                 twiss_df = twiss_df.append(temp_df)
+
+                del temp_df
 
         for file in time_depen:
             os.remove(file)
@@ -138,7 +141,8 @@ class SequenceTracker:
                 f"tr$macro(turn): macro = {{comp=turn; {time_depen} }}"
             )
 
-        twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
+        twiss_df, summ_df = self._failsim.twiss_and_summ(
+            self._sequence_to_track)
         run_version = self._failsim._mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
 
