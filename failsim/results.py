@@ -73,6 +73,45 @@ class Result:
         self.twiss_df["name"] = self.twiss_df.apply(
             lambda x: x["name"][:-2], axis=1)
 
+    def calculate_betabeating(self, reference: Optional[pd.DataFrame] = None):
+        """
+        Calculates the beta beating of Twiss data
+
+        Args:
+            reference: Allows specification of a reference Twiss table. If no reference Twiss table is specified, the first turn of the internal twiss data will be used as reference.
+
+        Returns:
+            pd.DataFrame: DataFrame containing the beta beating.
+
+        """
+        turns = set(self.twiss_df["turn"])
+
+        if reference is None:
+            reference = self.twiss_df.loc[self.twiss_df["turn"] == min(turns)]
+
+        res = pd.DataFrame()
+        for turn in turns:
+            data = self.twiss_df.loc[self.twiss_df["turn"] == turn]
+            temp_res = pd.DataFrame()
+
+            temp_res["betx"] = data["betx"] / reference["betx"]
+            temp_res["alfx"] = data["alfx"] / reference["alfx"]
+            temp_res["mux"] = data["mux"] / reference["mux"]
+
+            temp_res["bety"] = data["bety"] / reference["bety"]
+            temp_res["alfy"] = data["alfy"] / reference["alfy"]
+            temp_res["muy"] = data["muy"] / reference["muy"]
+
+            temp_res["name"] = reference["name"]
+            temp_res["s"] = reference["s"]
+            temp_res["turn"] = data["turn"]
+
+            temp_res.set_index("name", inplace=True)
+
+            res = res.append(temp_res)
+
+        return res
+
 
 @dataclass
 class TrackingResult(Result):
@@ -333,51 +372,5 @@ class TrackingResult(Result):
 
 @dataclass
 class TwissResult(Result):
-
-    """
-    TODO
-    """
-
-    def __init__(
-        self,
-        twiss_df: pd.DataFrame,
-        summ_df: pd.DataFrame,
-        run_version: int = 0,
-        hllhc_version: float = 0.0,
-        eps_n: float = 2.5e-6,
-        nrj: float = 7000,
-    ):
-        Result.__init__(self, twiss_df, summ_df, run_version,
-                        hllhc_version, eps_n, nrj)
-
-    def calculate_betabeating(self):
-        """TODO: Docstring for calculate_betabeating.
-        Returns: TODO
-
-        """
-        turns = set(self.twiss_df["turn"])
-
-        reference = self.twiss_df.loc[self.twiss_df["turn"] == min(turns)]
-
-        res = pd.DataFrame()
-        for turn in turns:
-            data = self.twiss_df.loc[self.twiss_df["turn"] == turn]
-            temp_res = pd.DataFrame()
-
-            temp_res["betx"] = data["betx"] / reference["betx"]
-            temp_res["alfx"] = data["alfx"] / reference["alfx"]
-            temp_res["mux"] = data["mux"] / reference["mux"]
-
-            temp_res["bety"] = data["bety"] / reference["bety"]
-            temp_res["alfy"] = data["alfy"] / reference["alfy"]
-            temp_res["muy"] = data["muy"] / reference["muy"]
-
-            temp_res["name"] = reference["name"]
-            temp_res["s"] = reference["s"]
-            temp_res["turn"] = data["turn"]
-
-            temp_res.set_index("name", inplace=True)
-
-            res = res.append(temp_res)
-
-        return res
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
