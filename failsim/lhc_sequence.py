@@ -105,9 +105,7 @@ class LHCSequence:
         self._custom_optics = None
         self._optics_key = None
         self._optics_path = None
-        self._do_cycle = None
-        self._sequences_to_cycle = None
-        self._cycle_target = None
+        self._cycle = None
 
         self._built = False
         self._checked = False
@@ -129,10 +127,10 @@ class LHCSequence:
             self.select_optics(optics_key)
 
     def _initialize_mask_dictionary(self):
-        """TODO: Docstring for intialize_mask_dictionary.
+        """Fills the internal dictionary _modules with default values for each pymask module.
 
-        Returns: TODO
-
+        Note:
+            The dictionary is set up in such a way, that each module has 3 aliases with which the values of the given module can be accessed with. For example, the module submodule_01a_preparation.madx can be accessed with the module number "01a", the module number and name "01a_preparation" or the entire module filename "submodule_01a_preparation.madx".
         """
         module_dir = pkg_resources.resource_filename("pymask", "..")
         modules = glob.glob(os.path.join(module_dir, "*.madx"))
@@ -305,12 +303,10 @@ class LHCSequence:
         return self
 
     def _check_call_module(self, module: str):
-        """TODO: Docstring for _check_call_module.
+        """Checks whether the given module is enabled, and whether the module has already been called. If the module is enabled and hasn't been called yet, the module is called.
 
         Args:
-            module (TODO): TODO
-
-        Returns: TODO
+            module: String containing a key to the module to check.
 
         """
         if self._modules[module]["enabled"] and not self._modules[module]["called"]:
@@ -345,17 +341,20 @@ class LHCSequence:
     @reset_state(True, True)
     @print_info("LHCSequence")
     def set_modules_enabled(self, modules: List[str], enabled: bool = True):
-        """TODO: Docstring for set_modules_enabled.
+        """Either enables or disables a list of modules based upon the parameter "enabled".
 
         Args:
-            modules: TODO
-            enabled: TODO
+            modules: A list containing keys of the modules to either enable or disable.
+            enabled: Whether the modules specified by "modules" should be enabled or disabled. True enables modules, while False disables.
 
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self.
 
         """
         for module in modules:
             self._modules[module]["enabled"] = enabled
+
+        return self
 
     @reset_state(True, True)
     @print_info("LHCSequence")
@@ -429,19 +428,21 @@ class LHCSequence:
         Note:
             Specifically does the following:
 
-            # TODO Update to match reality
             1. If a sequence key has been specified, loads the relevant sequence data.
             2. If an optics key has been specified, loads the relevant optics data.
             3. Calls all sequence files sequentially.
             4. Calls optics strength file.
             5. Inputs *mylhcbeam*, *ver_lhc_run* and *ver_hllhc_optics* into the Mad-X instance.
             6. Loads mask_parameters.yaml.
-            7. Calls *submodule_01a_preparation.madx* and *submodule_01b_beam.madx*
+            7. Calls the submodules *01a_preparation* and *01b_beam* if these modules are enabled.
                 - These set basic internal Mad-X variables and define the beam.
             8. Makes all sequences thin.
             9. Loads knob_parameters.yaml
             10. Cycles sequence if specified
             11. Runs any modules that have been enabled
+            12. Calls the modules *01c_phase*, *01d_crossing*, *01e_final* and *02_lumilevel* if these modules are enabled.
+            13. Installs BB lenses, if BB lenses have been specified.
+            14. Checks each remaining module sequentially, and calls the module if it is both enabled and hasn't been called yet.
 
         Returns:
             LHCSequence: Returns self
@@ -505,8 +506,8 @@ class LHCSequence:
 
         ## TODO Install BB
 
-        self._check_call_module("05d_matching")
-        self._check_call_module("05f_final")
+        #self._check_call_module("05d_matching")
+        #self._check_call_module("05f_final")
 
         self._call_remaining_modules()
 

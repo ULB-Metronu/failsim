@@ -55,9 +55,9 @@ class FailSim:
         self._mad = None
 
         if command_log is None:
-            self._master_mad_command_log = ArrayFile()
+            self._command_log = ArrayFile()
         else:
-            self._master_mad_command_log = command_log
+            self._command_log = command_log
 
         # Setup cwd
         if cwd is None:
@@ -116,7 +116,7 @@ class FailSim:
 
         """
         self._mad = pm.Madxp(
-            stdout=self._madx_mute, command_log=self._master_mad_command_log
+            stdout=self._madx_mute, command_log=self._command_log
         )
         self._mad.chdir(self._cwd)
 
@@ -204,7 +204,7 @@ class FailSim:
             cwd=self._cwd,
             madx_verbosity=self._madx_verbosity,
             failsim_verbosity=self._verbose,
-            command_log=self._master_mad_command_log.copy(),
+            command_log=self._command_log.copy(),
         )
 
     @print_info("FailSim")
