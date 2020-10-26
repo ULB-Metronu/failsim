@@ -128,7 +128,6 @@ class LHCSequence:
         if optics_key is not None:
             self.select_optics(optics_key)
 
-    @print_info("LHCSequence")
     def _initialize_mask_dictionary(self):
         """TODO: Docstring for intialize_mask_dictionary.
 
@@ -148,7 +147,7 @@ class LHCSequence:
             self._modules.update(
                 dict.fromkeys(
                     [num, num + "_" + name, os.path.basename(module)],
-                    {"enabled": False, "path": module},
+                    {"enabled": False, "called": False, "path": module},
                 )
             )
 
@@ -159,7 +158,6 @@ class LHCSequence:
         #self._modules["05d_matching"]["enabled"] = True
         #self._modules["05f_final"]["enabled"] = True
 
-    @print_info("LHCSequence")
     def _get_mode_configuration(self):
         """Loads the mode configuration.
 
@@ -187,7 +185,6 @@ class LHCSequence:
             self._check_separations_at_ips = False
             self._check.check_separations = False
 
-    @print_info("LHCSequence")
     def _init_check(self):
         """Initializes the internal OpticsChecks instance.
 
@@ -207,7 +204,6 @@ class LHCSequence:
 
         return self
 
-    @print_info("LHCSequence")
     def _load_input_parameters(self):
         """Loads input_parameters.yaml.
 
@@ -228,7 +224,6 @@ class LHCSequence:
 
         return input_parameters
 
-    @print_info("LHCSequence")
     def _load_mask_parameters(self, mask_parameters: Dict):
         """Loads mask_parameters.yaml.
 
@@ -248,7 +243,6 @@ class LHCSequence:
 
         return self
 
-    @print_info("LHCSequence")
     def _load_knob_parameters(self, knob_parameters: Dict):
         """Loads knob_parameters.yaml.
 
@@ -310,7 +304,6 @@ class LHCSequence:
 
         return self
 
-    @print_info("LHCSequence")
     def _check_call_module(self, module: str):
         """TODO: Docstring for _check_call_module.
 
@@ -320,11 +313,11 @@ class LHCSequence:
         Returns: TODO
 
         """
-        if self._modules[module]["enabled"]:
+        if self._modules[module]["enabled"] and not self._modules[module]["called"]:
             self.call_pymask_module(os.path.basename(
                 self._modules[module]["path"]))
+            self._modules[module]["called"] = True
 
-    @print_info("LHCSequence")
     def _load_metadata(self):
         """Loads the metadata.yaml file.
 
@@ -337,6 +330,17 @@ class LHCSequence:
         self._metadata = yaml.safe_load(metadata_stream)
 
         return self
+
+    def _call_remaining_modules(self):
+        """Calls all pymask modules that have been enabled, and that haven't been called yet.
+
+        Returns:
+            LHCSequence: Returns self.
+
+        """
+        modules = [x for x in self._modules if x.endswith(".madx")]
+        for module in modules:
+            self._check_call_module(module)
 
     @reset_state(True, True)
     @print_info("LHCSequence")
@@ -503,6 +507,8 @@ class LHCSequence:
 
         self._check_call_module("05d_matching")
         self._check_call_module("05f_final")
+
+        self._call_remaining_modules()
 
         self._built = True
 
