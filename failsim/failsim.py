@@ -314,5 +314,8 @@ class FailSim:
 
         """
         if cls.output_dir is None:
-            return path
+            if FSGlobals.output_dir is None:
+                return path
+            else:
+                return os.path.join(FSGlobals.output_dir, path)
         return os.path.join(cls.output_dir, path)

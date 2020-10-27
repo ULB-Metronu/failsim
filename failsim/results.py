@@ -4,7 +4,7 @@ Module containing classes that contain and handle data.
 
 
 from .failsim import FailSim
-from typing import Optional, List, Union, Dict
+from typing import Optional, List, Union, Dict, Tuple, Callable
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
@@ -111,6 +111,142 @@ class Result:
             res = res.append(temp_res)
 
         return res
+
+    def plot_beta_beating(
+        self,
+        observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
+        trace_name: Optional[str] = None,
+        save_path: Optional[str] = None,
+        figure: Optional[go.Figure] = None,
+        center_elem: str = None,
+        width: float = None,
+        **kwargs,
+    ):
+        """
+        Plots beta beating either to a new figure, or adds the plot to an existing figure.
+
+        Note:
+            The kwargs can be used to give layout/trace specifications to plotly.
+            Each key must have either "layout_" or "trace_" as suffix.
+            If a key has "layout_" as suffix, the key will be sent to update_layout(),
+            whereas a key with the suffix "trace_" will be sent to Scatter().
+
+        Args:
+            observation_filter: Filters tracking data indexes by each item. Can either be a list of observation points, or a single observation point.
+            save_path: Path and filename of where to save the figure. If save_path is None, the plot is not saved.
+            figure: The figure to add the plot to. If figure is None, a new plotly Figure object is created.
+            center_elem: Element on which the plot will be centered. If no element is specified, the method will not center any specific element. If center_elem is specified, width must not be None.
+            width: The difference between the leftmost and rightmost points on the plot. Is meant to be used in conjuction with center_elem. If no center_elem is specified, width does nothing.
+
+        Returns:
+            go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
+
+        """
+        layout_kwargs = {x[7:]: kwargs[x]
+                         for x in kwargs if x.startswith("layout_")}
+        trace_kwargs = {x[6:]: kwargs[x]
+                        for x in kwargs if x.startswith("trace_")}
+
+        betabeating = self.calculate_betabeating()
+
+        twiss_filt = self.twiss_df.copy()
+        if observation_filter is not None:
+            twiss_filt = twiss_filt.loc[observation_filter(twiss_filt)]
+            betabeating = betabeating.loc[observation_filter(betabeating)]
+
+        x_data = twiss_filt["s"]
+        y_data = betabeating["betx"]
+
+        if figure is None:
+            figure = go.Figure()
+
+        data = go.Scatter(
+            trace_kwargs, x=x_data, y=y_data, mode="lines", name=trace_name
+        )
+
+        figure.add_trace(data)
+
+        figure.update_layout(
+            layout_kwargs
+        )
+
+        if center_elem is not None:
+            assert width is not None, "width must be specified when using center_elem"
+            elem_s = self.twiss_df.loc[center_elem]['s'].iloc[0]
+            figure.update_layout(
+                xaxis_range=(
+                    elem_s - width/2.0,
+                    elem_s + width/2.0,
+                )
+            )
+
+        if save_path is not None:
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+            if not save_path.startswith("/"):
+                save_path = FailSim.path_to_output(save_path)
+            figure.write_html(save_path)
+
+        return figure
+
+    @classmethod
+    def create_cartuche(cls, fig_range: Tuple[float, float] = None):
+        """TODO: Docstring for create_cartuche.
+
+        Args:
+            fig_range: The longitudinal range in which to draw the elements of the sequence.
+
+        Returns:
+            go.Figure: Figure with sequence objects drawn above plot.
+
+        """
+        twiss_thick = pd.read_parquet(
+            FailSim.path_to_output("twiss_pre_thin.parquet"))
+
+        twiss_thick = twiss_thick.loc[
+            ~twiss_thick["keyword"].isin(
+                ['drift', 'marker', 'placeholder', 'monitor', 'instrument'])
+        ]
+
+        if fig_range is not None:
+            twiss_thick = twiss_thick.loc[
+                (twiss_thick['s'] > fig_range[0]) &
+                (twiss_thick['s'] < fig_range[1])
+            ]
+
+        fig = go.Figure()
+
+        colors = dict(
+            quadrupole='orange',
+            sextupole='orange',
+            octupole='orange',
+            multipole='green',
+            hkicker='purple',
+            vkicker='purple',
+            tkicker='purple',
+            solenoid='red',
+            rfcavity='red',
+            rcollimator='yellow',
+            rbend='lightblue',
+            sbend='blue',
+        )
+
+        shapes = []
+        for index, row in twiss_thick.iterrows():
+            shapes.append(
+                go.layout.Shape(
+                    type='rect',
+                    yref='paper',
+                    y0=1.02, y1=1.1,
+                    x0=row['s']-row['l'], x1=row['s'],
+                    line_width=0,
+                    fillcolor=colors[row['keyword']],
+                )
+            )
+
+        fig.update_layout(shapes=shapes)
+
+        return fig
 
 
 @dataclass
@@ -284,6 +420,8 @@ class TrackingResult(Result):
         if save_path is not None:
             if not save_path.endswith(".html"):
                 save_path += ".html"
+            if not save_path.startswith("/"):
+                save_path = FailSim.path_to_output(save_path)
             figure.write_html(save_path)
 
         return figure

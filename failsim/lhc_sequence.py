@@ -492,13 +492,14 @@ class LHCSequence:
             6. Loads mask_parameters.yaml.
             7. Calls the submodules *01a_preparation* and *01b_beam* if these modules are enabled.
                 - These set basic internal Mad-X variables and define the beam.
-            8. Makes all sequences thin.
-            9. Loads knob_parameters.yaml
-            10. Cycles sequence if specified
-            11. Runs any modules that have been enabled
-            12. Calls the modules *01c_phase*, *01d_crossing*, *01e_final* and *02_lumilevel* if these modules are enabled.
-            13. Installs BB lenses, if BB lenses have been specified.
-            14. Checks each remaining module sequentially, and calls the module if it is both enabled and hasn't been called yet.
+            8. Saves twiss table to use for cartouche plots
+            9. Makes all sequences thin.
+            10. Loads knob_parameters.yaml
+            11. Cycles sequence if specified
+            12. Runs any modules that have been enabled
+            13. Calls the modules *01c_phase*, *01d_crossing*, *01e_final* and *02_lumilevel* if these modules are enabled.
+            14. Installs BB lenses, if BB lenses have been specified.
+            15. Checks each remaining module sequentially, and calls the module if it is both enabled and hasn't been called yet.
 
         Returns:
             LHCSequence: Returns self
@@ -544,8 +545,8 @@ class LHCSequence:
         self._check_call_module("01a_preparation")
         self._check_call_module("01b_beam")
 
-        # for seq in self._mode_configuration["sequences_to_check"]:
-        #     self._failsim.make_thin(seq[-1])
+        twiss_df, summ_df = self._failsim.twiss_and_summ(self._mode_configuration["sequence_to_track"])
+        twiss_df.to_parquet(FailSim.path_to_output("twiss_pre_thin.parquet"))
 
         self._failsim.make_thin(self._mode_configuration["sequence_to_track"][-1])
 

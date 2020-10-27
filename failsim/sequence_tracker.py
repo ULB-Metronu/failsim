@@ -74,14 +74,15 @@ class SequenceTracker:
 
             twiss_df = pd.DataFrame()
             for i in range(turns):
-                self._failsim.mad_input(f"comp={i}")
+                self._failsim.mad_input(f"comp={i-1}")
 
                 self._failsim.mad_input(
                     f"savebeta, label=end_{i}, place=#e, sequence={self._sequence_to_track}"
                 )
 
-                for file in time_depen:
-                    self._failsim.mad_call_file(file)
+                if i > 0:
+                    for file in time_depen:
+                        self._failsim.mad_call_file(file)
 
                 if i == 0:
                     temp_df, summ_df = self._failsim.twiss_and_summ(
