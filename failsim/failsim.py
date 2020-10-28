@@ -253,7 +253,9 @@ class FailSim:
             FailSim: Returns self
 
         """
-        path = pkg_resources.resource_filename(__name__, "data/lhcmask/" + module)
+        path = pkg_resources.resource_filename(
+            __name__, "data/lhcmask_failsim/" + module
+        )
         self.mad_call_file(path)
 
         return self
