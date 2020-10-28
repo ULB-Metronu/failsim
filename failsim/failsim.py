@@ -271,21 +271,21 @@ class FailSim:
             FailSim: Returns self
 
         """
-        #self.use(f"lhcb{beam}")
+        self.use(f"lhcb{beam}")
 
-        # twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
-        # pre_len = summ_df["length"][0]
+        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
+        pre_len = summ_df["length"][0]
 
         self.mad_input(f"use, sequence=lhcb{beam}; exec myslice")
 
-        # twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
-        # post_len = summ_df["length"][0]
+        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
+        post_len = summ_df["length"][0]
 
-        # assert post_len == pre_len, (
-        #     "Length of sequence changed by makethin\n\t"
-        #     f"Length pre: {pre_len}\n\t"
-        #     f"Length post: {post_len}\n\t"
-        # )
+        assert abs(post_len - pre_len) < 0.001, (
+            "Length of sequence changed by makethin\n\t"
+            f"Length pre: {pre_len}\n\t"
+            f"Length post: {post_len}\n\t"
+        )
 
         return self
 
