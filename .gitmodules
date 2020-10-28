@@ -13,3 +13,6 @@
 [submodule "simulations/example/lhctoolkit"]
 	path = simulations/example/lhctoolkit
 	url = https://github.com/lhcopt/lhctoolkit.git
+[submodule "simulations/example/tools"]
+	path = simulations/example/tools
+	url = https://github.com/lhcopt/lhctoolkit.git
