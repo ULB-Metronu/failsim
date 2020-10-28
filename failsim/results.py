@@ -64,14 +64,58 @@ class Result:
 
         self.fix_twiss_name()
 
+    def _plot(
+        self,
+        x_data: pd.Series,
+        y_data: pd.Series,
+        trace_name: Optional[str] = None,
+        save_path: Optional[str] = None,
+        figure: Optional[go.Figure] = None,
+        center_elem: str = None,
+        width: float = None,
+        **kwargs,
+    ):
+        """ Private method that provides basic plotting utility. """
+        layout_kwargs = {x[7:]: kwargs[x] for x in kwargs if x.startswith("layout_")}
+        trace_kwargs = {x[6:]: kwargs[x] for x in kwargs if x.startswith("trace_")}
+
+        if figure is None:
+            figure = go.Figure()
+
+        data = go.Scatter(
+            trace_kwargs, x=x_data, y=y_data, mode="lines", name=trace_name
+        )
+
+        figure.add_trace(data)
+
+        figure.update_layout(layout_kwargs)
+
+        if center_elem is not None:
+            assert width is not None, "width must be specified when using center_elem"
+            elem_s = self.twiss_df.loc[center_elem]["s"].iloc[0]
+            figure.update_layout(
+                xaxis_range=(
+                    elem_s - width / 2.0,
+                    elem_s + width / 2.0,
+                )
+            )
+
+        if save_path is not None:
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+            if not save_path.startswith("/"):
+                save_path = FailSim.path_to_output(save_path)
+            figure.write_html(save_path)
+
+        return figure
+
     def fix_twiss_name(self):
         """
         Removes last two characters from each index name in the twiss_df DataFrame.
 
         This method is called in the constructor, since Mad-X currently adds :0 and :1 to the end of the twiss DataFrame index names, which does not match with other DataFrames.
         """
-        self.twiss_df["name"] = self.twiss_df.apply(
-            lambda x: x["name"][:-2], axis=1)
+        self.twiss_df["name"] = self.twiss_df.apply(lambda x: x["name"][:-2], axis=1)
 
     def calculate_betabeating(self, reference: Optional[pd.DataFrame] = None):
         """
@@ -142,56 +186,31 @@ class Result:
             go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
 
         """
-        layout_kwargs = {x[7:]: kwargs[x]
-                         for x in kwargs if x.startswith("layout_")}
-        trace_kwargs = {x[6:]: kwargs[x]
-                        for x in kwargs if x.startswith("trace_")}
-
+        twiss = self.twiss_df.copy()
         betabeating = self.calculate_betabeating()
 
-        twiss_filt = self.twiss_df.copy()
         if observation_filter is not None:
-            twiss_filt = twiss_filt.loc[observation_filter(twiss_filt)]
+            twiss = twiss.loc[observation_filter(twiss)]
             betabeating = betabeating.loc[observation_filter(betabeating)]
 
-        x_data = twiss_filt["s"]
+        x_data = twiss["s"]
         y_data = betabeating["betx"]
 
-        if figure is None:
-            figure = go.Figure()
-
-        data = go.Scatter(
-            trace_kwargs, x=x_data, y=y_data, mode="lines", name=trace_name
+        self._plot(
+            x_data=x_data,
+            y_data=y_data,
+            observation_filter=observation_filter,
+            trace_name=trace_name,
+            save_path=save_path,
+            figure=figure,
+            center_elem=center_elem,
+            width=width,
+            kwargs=kwargs,
         )
-
-        figure.add_trace(data)
-
-        figure.update_layout(
-            layout_kwargs
-        )
-
-        if center_elem is not None:
-            assert width is not None, "width must be specified when using center_elem"
-            elem_s = self.twiss_df.loc[center_elem]['s'].iloc[0]
-            figure.update_layout(
-                xaxis_range=(
-                    elem_s - width/2.0,
-                    elem_s + width/2.0,
-                )
-            )
-
-        if save_path is not None:
-            if not save_path.endswith(".html"):
-                save_path += ".html"
-            if not save_path.startswith("/"):
-                save_path = FailSim.path_to_output(save_path)
-            figure.write_html(save_path)
-
-        return figure
 
     @classmethod
-    def create_cartuche(cls, fig_range: Tuple[float, float] = None):
-        """TODO: Docstring for create_cartuche.
+    def create_cartouche(cls, fig_range: Tuple[float, float] = None):
+        """TODO: Docstring for create_cartouche.
 
         Args:
             fig_range: The longitudinal range in which to draw the elements of the sequence.
@@ -200,47 +219,48 @@ class Result:
             go.Figure: Figure with sequence objects drawn above plot.
 
         """
-        twiss_thick = pd.read_parquet(
-            FailSim.path_to_output("twiss_pre_thin.parquet"))
+        twiss_thick = pd.read_parquet(FailSim.path_to_output("twiss_pre_thin.parquet"))
 
         twiss_thick = twiss_thick.loc[
             ~twiss_thick["keyword"].isin(
-                ['drift', 'marker', 'placeholder', 'monitor', 'instrument'])
+                ["drift", "marker", "placeholder", "monitor", "instrument"]
+            )
         ]
 
         if fig_range is not None:
             twiss_thick = twiss_thick.loc[
-                (twiss_thick['s'] > fig_range[0]) &
-                (twiss_thick['s'] < fig_range[1])
+                (twiss_thick["s"] > fig_range[0]) & (twiss_thick["s"] < fig_range[1])
             ]
 
         fig = go.Figure()
 
         colors = dict(
-            quadrupole='orange',
-            sextupole='orange',
-            octupole='orange',
-            multipole='green',
-            hkicker='purple',
-            vkicker='purple',
-            tkicker='purple',
-            solenoid='red',
-            rfcavity='red',
-            rcollimator='yellow',
-            rbend='lightblue',
-            sbend='blue',
+            quadrupole="orange",
+            sextupole="orange",
+            octupole="orange",
+            multipole="green",
+            hkicker="purple",
+            vkicker="purple",
+            tkicker="purple",
+            solenoid="red",
+            rfcavity="red",
+            rcollimator="yellow",
+            rbend="lightblue",
+            sbend="blue",
         )
 
         shapes = []
         for index, row in twiss_thick.iterrows():
             shapes.append(
                 go.layout.Shape(
-                    type='rect',
-                    yref='paper',
-                    y0=1.02, y1=1.1,
-                    x0=row['s']-row['l'], x1=row['s'],
+                    type="rect",
+                    yref="paper",
+                    y0=1.02,
+                    y1=1.1,
+                    x0=row["s"] - row["l"],
+                    x1=row["s"],
                     line_width=0,
-                    fillcolor=colors[row['keyword']],
+                    fillcolor=colors[row["keyword"]],
                 )
             )
 
@@ -316,22 +336,18 @@ class TrackingResult(Result):
             bety = self.twiss_df.loc[obs]["bety"]
             alfy = self.twiss_df.loc[obs]["alfy"]
 
-            data["xn"] = data.apply(
-                lambda x: x["x"] / np.sqrt(eps_g * betx), axis=1)
+            data["xn"] = data.apply(lambda x: x["x"] / np.sqrt(eps_g * betx), axis=1)
 
             data["pxn"] = data.apply(
-                lambda x: (x["x"] * alfx / np.sqrt(betx) +
-                           x["px"] * np.sqrt(betx))
+                lambda x: (x["x"] * alfx / np.sqrt(betx) + x["px"] * np.sqrt(betx))
                 / np.sqrt(eps_g),
                 axis=1,
             )
 
-            data["yn"] = data.apply(
-                lambda x: x["y"] / np.sqrt(eps_g * bety), axis=1)
+            data["yn"] = data.apply(lambda x: x["y"] / np.sqrt(eps_g * bety), axis=1)
 
             data["pyn"] = data.apply(
-                lambda x: (x["y"] * alfy / np.sqrt(bety) +
-                           x["py"] * np.sqrt(bety))
+                lambda x: (x["y"] * alfy / np.sqrt(bety) + x["py"] * np.sqrt(bety))
                 / np.sqrt(eps_g),
                 axis=1,
             )
@@ -340,8 +356,11 @@ class TrackingResult(Result):
 
         self.track_df = data_out
 
-    def calculate_action(self):
+    def calculate_action(self, track: Optional[pd.DataFrame] = None):
         """Calculates and returns the orbit excursion / action of the tracking data.
+
+        Args:
+            track: Set track dataframe to calculate action of. If None is specified, the internal tracking data will be used.
 
         Returns:
             Dict: Dictionary containing the following key/value pairs:
@@ -353,8 +372,11 @@ class TrackingResult(Result):
                 }
 
         """
-        actionx = np.sqrt(self.track_df["xn"] ** 2 + self.track_df["pxn"] ** 2)
-        actiony = np.sqrt(self.track_df["yn"] ** 2 + self.track_df["pyn"] ** 2)
+        if track is None:
+            track = self.track_df
+
+        actionx = np.sqrt(track["xn"] ** 2 + track["pxn"] ** 2)
+        actiony = np.sqrt(track["yn"] ** 2 + track["pyn"] ** 2)
         actionr = np.sqrt(actionx ** 2 + actiony ** 2)
 
         return {"x": actionx, "y": actiony, "r": actionr}
@@ -365,6 +387,8 @@ class TrackingResult(Result):
         trace_name: Optional[str] = None,
         save_path: Optional[str] = None,
         figure: Optional[go.Figure] = None,
+        center_elem: str = None,
+        width: float = None,
         **kwargs,
     ):
         """
@@ -380,51 +404,31 @@ class TrackingResult(Result):
             observation_filter: Filters tracking data indexes by each item. Can either be a list of observation points, or a single observation point.
             save_path: Path and filename of where to save the figure. If save_path is None, the plot is not saved.
             figure: The figure to add the plot to. If figure is None, a new plotly Figure object is created.
+            center_elem: Element on which the plot will be centered. If no element is specified, the method will not center any specific element. If center_elem is specified, width must not be None.
+            width: The difference between the leftmost and rightmost points on the plot. Is meant to be used in conjuction with center_elem. If no center_elem is specified, width does nothing.
 
         Returns:
             go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
 
         """
-        layout_kwargs = {x[7:]: kwargs[x]
-                         for x in kwargs if x.startswith("layout_")}
-        trace_kwargs = {x[6:]: kwargs[x]
-                        for x in kwargs if x.startswith("trace_")}
+        track = self.track_df.copy()
 
-        action = self.calculate_action()
+        if observation_filter is not None:
+            track = track.loc[observation_filter(track)]
 
-        x_data = self.track_df["turn"]
-        y_data = action["r"]
+        x_data = track["turn"]
+        y_data = self.calculate_action(track)["r"]
 
-        if observation_filter:
-            try:
-                x_data = x_data.loc[observation_filter]
-                y_data = y_data.loc[observation_filter]
-            except KeyError:  # Filter not in data
-                return
-
-        if figure is None:
-            figure = go.Figure()
-
-        data = go.Scatter(
-            trace_kwargs, x=x_data, y=y_data, mode="lines+markers", name=trace_name
+        self._plot(
+            x_data=x_data,
+            y_data=y_data,
+            trace_name=trace_name,
+            save_path=save_path,
+            figure=figure,
+            center_elem=center_elem,
+            width=width,
+            **kwargs,
         )
-
-        figure.add_trace(data)
-
-        figure.update_layout(
-            layout_kwargs,
-            xaxis_title=r"$\text{Time} [\text{LHC Turn}]$",
-            yaxis_title=r"$\text{Radial orbit excursion} [\sigma_r]$",
-        )
-
-        if save_path is not None:
-            if not save_path.endswith(".html"):
-                save_path += ".html"
-            if not save_path.startswith("/"):
-                save_path = FailSim.path_to_output(save_path)
-            figure.write_html(save_path)
-
-        return figure
 
     def save_data(self, path: str, suffix: str = ""):
         """
@@ -481,12 +485,10 @@ class TrackingResult(Result):
 
         """
         # Load twiss
-        twiss_df = pd.read_parquet(
-            os.path.join(path, suffix + "twiss.parquet"))
+        twiss_df = pd.read_parquet(os.path.join(path, suffix + "twiss.parquet"))
 
         # Load track
-        track_df = pd.read_parquet(
-            os.path.join(path, suffix + "track.parquet"))
+        track_df = pd.read_parquet(os.path.join(path, suffix + "track.parquet"))
 
         # Load summ
         summ_df = pd.read_parquet(os.path.join(path, suffix + "summ.parquet"))
