@@ -9,6 +9,7 @@ from .checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
 from .globals import FSGlobals
 from .helpers import print_info
+from .results import TwissResult
 
 from typing import Optional, List, Union, Dict
 import pymask as pm
@@ -21,6 +22,7 @@ import re
 
 
 ## ===== Decorators ===== ##
+
 
 def reset_state(build: bool, check: bool):
     def inner_reset_state(func):
@@ -47,6 +49,7 @@ def ensure_build(func):
         return val
 
     return wrapper_ensure_build
+
 
 ## ====================== ##
 
@@ -236,9 +239,11 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
-        if not self._mode_configuration["enable_bb_legacy"] \
-                and not self._mode_configuration["enable_bb_python"]:
-            mask_parameters["par_on_bb_switch"] = 0.
+        if (
+            not self._mode_configuration["enable_bb_legacy"]
+            and not self._mode_configuration["enable_bb_python"]
+        ):
+            mask_parameters["par_on_bb_switch"] = 0.0
 
         pm.checks_on_parameter_dict(mask_parameters)
 
@@ -315,8 +320,7 @@ class LHCSequence:
 
         """
         if self._modules[module]["enabled"] and not self._modules[module]["called"]:
-            self.call_pymask_module(os.path.basename(
-                self._modules[module]["path"]))
+            self.call_pymask_module(os.path.basename(self._modules[module]["path"]))
             self._modules[module]["called"] = True
 
     def _load_metadata(self):
@@ -326,8 +330,7 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
-        metadata_stream = pkg_resources.resource_stream(
-            __name__, "data/metadata.yaml")
+        metadata_stream = pkg_resources.resource_stream(__name__, "data/metadata.yaml")
         self._metadata = yaml.safe_load(metadata_stream)
 
         return self
@@ -347,34 +350,35 @@ class LHCSequence:
     def _prepare_bb_dataframes(self):
         """ Prepares the beam-beam dataframes. """
         if self._mode_configuration["enable_bb_python"]:
-            self._bb_dfs = pm.generate_bb_dataframes(self._failsim.mad,
-                                                     ip_names=[
-                                                         'ip1', 'ip2', 'ip5', 'ip8'],
-                                                     harmonic_number=35640,
-                                                     numberOfLRPerIRSide=[
-                                                         25, 20, 25, 20],
-                                                     bunch_spacing_buckets=10,
-                                                     numberOfHOSlices=11,
-                                                     bunch_population_ppb=None,
-                                                     sigmaz_m=None,
-                                                     z_crab_twiss=0,
-                                                     remove_dummy_lenses=True)
+            self._bb_dfs = pm.generate_bb_dataframes(
+                self._failsim.mad,
+                ip_names=["ip1", "ip2", "ip5", "ip8"],
+                harmonic_number=35640,
+                numberOfLRPerIRSide=[25, 20, 25, 20],
+                bunch_spacing_buckets=10,
+                numberOfHOSlices=11,
+                bunch_population_ppb=None,
+                sigmaz_m=None,
+                z_crab_twiss=0,
+                remove_dummy_lenses=True,
+            )
 
     def _install_bb_lenses(self):
         """ Installs the beam-beam lenses if beam-beam has been enabled by mode. """
         ## Python approach
         if self._mode_configuration["enable_bb_python"]:
             if self._mode_configuration["track_from_b4_mad_instance"]:
-                bb_df_track = self._bb_dfs['b4']
-                assert(
-                    self._mode_configuration["sequence_to_track"] == 'lhcb2')
+                bb_df_track = self._bb_dfs["b4"]
+                assert self._mode_configuration["sequence_to_track"] == "lhcb2"
             else:
-                bb_df_track = self._bb_dfs['b1']
-                assert(
-                    self._mode_configuration["sequence_to_track"] == 'lhcb1')
+                bb_df_track = self._bb_dfs["b1"]
+                assert self._mode_configuration["sequence_to_track"] == "lhcb1"
 
             pm.install_lenses_in_sequence(
-                self._failsim.mad, bb_df_track, self._mode_configuration["sequence_to_track"])
+                self._failsim.mad,
+                bb_df_track,
+                self._mode_configuration["sequence_to_track"],
+            )
 
             ## Disable bb (to be activated later)
             self._failsim.mad.globals.on_bb_charge = 0
@@ -383,9 +387,9 @@ class LHCSequence:
 
         ## Legacy bb macros
         if self._mode_configuration["enable_bb_legacy"]:
-            assert(self._mode_configuration["beam_to_configure"] == 1)
-            assert(not(self._mode_configuration["track_from_b4_mad_instance"]))
-            assert(not(self._mode_configuration["enable_bb_python"]))
+            assert self._mode_configuration["beam_to_configure"] == 1
+            assert not (self._mode_configuration["track_from_b4_mad_instance"])
+            assert not (self._mode_configuration["enable_bb_python"])
             self._failsim.mad_call_file("modules/module_03_beambeam.madx")
 
     @reset_state(True, True)
@@ -402,11 +406,11 @@ class LHCSequence:
 
         """
         for module in modules:
-            assert module in self._modules.keys(), \
-                (
+            assert module in self._modules.keys(), (
                 f"Module {module} is not a valid module.\n"
                 "Valid modules are:\n{}".format(
-                    '\n'.join([x for x in self._modules if x.endswith('.madx')]))
+                    "\n".join([x for x in self._modules if x.endswith(".madx")])
+                )
             )
             self._modules[module]["enabled"] = enabled
 
@@ -525,8 +529,7 @@ class LHCSequence:
                 self._optics_base_path,
                 sequence_data["optics"][self._optics_key]["strength_file"],
             )
-            self._optics_path = pkg_resources.resource_filename(
-                __name__, rel_path)
+            self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
 
         for seq in self._sequence_paths:
             self._failsim.mad_call_file(seq)
@@ -545,32 +548,28 @@ class LHCSequence:
         self._check_call_module("01a_preparation")
         self._check_call_module("01b_beam")
 
-        twiss_df, summ_df = self._failsim.twiss_and_summ(self._mode_configuration["sequence_to_track"])
-        twiss_df.to_parquet(FailSim.path_to_output("twiss_pre_thin.parquet"))
-
-        self._failsim.make_thin(self._mode_configuration["sequence_to_track"][-1])
-
-        self._load_knob_parameters(input_parameters["knob_parameters"])
-
         if self._cycle is not None:
             for seq in self._cycle["sequences"]:
                 self._failsim.mad_input(
                     f"seqedit, sequence={seq}; flatten; cycle, start={self._cycle['target']}; flatten; endedit"
                 )
 
+        twiss_df, _ = self._failsim.twiss_and_summ(
+            self._mode_configuration["sequence_to_track"]
+        )
+        twiss_df.to_parquet(FailSim.path_to_output("twiss_pre_thin.parquet"))
+
+        self._failsim.make_thin(self._mode_configuration["sequence_to_track"][-1])
+
+        self._load_knob_parameters(input_parameters["knob_parameters"])
+
         self._check_call_module("01c_phase")
         self._check_call_module("01d_crossing")
         self._check_call_module("01e_final")
         self._check_call_module("02_lumilevel")
 
-        ## Prepare BB Dataframes
         self._prepare_bb_dataframes()
-
-        ## Install BB lenses
         self._install_bb_lenses()
-
-        #self._check_call_module("05d_matching")
-        #self._check_call_module("05f_final")
 
         self._call_remaining_modules()
 
@@ -730,3 +729,28 @@ class LHCSequence:
             self.call_file(file)
 
         return self
+
+    def twiss(self):
+        """TODO: Docstring for twiss.
+
+        Returns:
+            TwissResult: TwissResult containing result.
+
+        """
+        twiss_df, summ_df = self._failsim.twiss_and_summ(
+            self._mode_configuration["sequence_to_track"]
+        )
+
+        eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
+        nrj = self._failsim._mad.globals["nrj"]
+        run_version = self._failsim._mad.globals["ver_lhc_run"]
+        hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
+
+        return TwissResult(
+            twiss_df=twiss_df,
+            summ_df=summ_df,
+            run_version=run_version,
+            hllhc_version=hllhc_version,
+            eps_n=eps_n,
+            nrj=nrj,
+        )

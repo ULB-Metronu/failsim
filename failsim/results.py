@@ -156,6 +156,31 @@ class Result:
 
         return res
 
+    def get_phase_advance(self, reference: str, elements: Union[str, List[str]]):
+        """Get the phase advance between reference element and other elements.
+
+        Args:
+            reference: TODO
+            elements: TODO
+
+        Returns:
+            Union[dict[str, float], List[dict[str, float]]]: Either a dictionary containing the keys 'x' and 'y', each mapping to the horizontal and vertical phase advance respectively, or a dictionary containing such dictionaries, with each element as key.
+
+        """
+        ref_mux = self.twiss_df.loc[reference]["mux"]
+        ref_muy = self.twiss_df.loc[reference]["muy"]
+
+        el_mux = self.twiss_df.loc[elements]["mux"]
+        el_muy = self.twiss_df.loc[elements]["muy"]
+
+        diff_mux = ref_mux - el_mux
+        diff_muy = ref_muy - el_muy
+
+        return {
+            "x": diff_mux,
+            "y": diff_muy,
+        }
+
     def plot_beta_beating(
         self,
         observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
@@ -205,7 +230,7 @@ class Result:
             figure=figure,
             center_elem=center_elem,
             width=width,
-            kwargs=kwargs,
+            **kwargs,
         )
 
     @classmethod
@@ -235,28 +260,45 @@ class Result:
         fig = go.Figure()
 
         colors = dict(
-            quadrupole="orange",
-            sextupole="orange",
-            octupole="orange",
-            multipole="green",
-            hkicker="purple",
-            vkicker="purple",
-            tkicker="purple",
-            solenoid="red",
-            rfcavity="red",
-            rcollimator="yellow",
+            quadrupole="red",
+            sextupole="gray",
+            octupole="gray",
+            multipole="gray",
+            hkicker="gray",
+            vkicker="gray",
+            tkicker="gray",
+            solenoid="orange",
+            rfcavity="gray",
+            rcollimator="black",
             rbend="lightblue",
             sbend="blue",
         )
 
-        shapes = []
-        for index, row in twiss_thick.iterrows():
+        shapes = [
+            go.layout.Shape(
+                type="line",
+                yref="paper",
+                y0=1.06,
+                y1=1.06,
+                x0=0,
+                x1=max(twiss_thick["s"]),
+                line_width=0.5,
+            )
+        ]
+        for _, row in twiss_thick.iterrows():
+            if row["keyword"] in ["rbend", "sbend"]:
+                y0 = 1.02
+                y1 = 1.1
+            else:
+                y0 = 1.05
+                y1 = 1.07
+
             shapes.append(
                 go.layout.Shape(
                     type="rect",
                     yref="paper",
-                    y0=1.02,
-                    y1=1.1,
+                    y0=y0,
+                    y1=y1,
                     x0=row["s"] - row["l"],
                     x1=row["s"],
                     line_width=0,

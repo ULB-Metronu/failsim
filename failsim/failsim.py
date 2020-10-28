@@ -118,9 +118,7 @@ class FailSim:
             FailSim: Returns self
 
         """
-        self._mad = pm.Madxp(
-            stdout=self._madx_mute, command_log=self._command_log
-        )
+        self._mad = pm.Madxp(stdout=self._madx_mute, command_log=self._command_log)
         self.mad.chdir(self._cwd)
 
         if self._madx_verbosity != "mute":
@@ -152,7 +150,7 @@ class FailSim:
 
         """
         macro_path = pkg_resources.resource_filename(
-            __name__, "data/hllhc14/" "toolkit/macro.madx"
+            __name__, "data/hllhc14/toolkit/macro.madx"
         )
         self.mad_call_file(macro_path)
 
@@ -190,7 +188,7 @@ class FailSim:
 
         """
         with MoveNewFiles(self._cwd, self._output_dir):
-            self.mad.input(command + ';')
+            self.mad.input(command + ";")
 
         return self
 
@@ -255,7 +253,7 @@ class FailSim:
             FailSim: Returns self
 
         """
-        path = pkg_resources.resource_filename("pymask", "../" + module)
+        path = pkg_resources.resource_filename(__name__, "data/lhcmask/" + module)
         self.mad_call_file(path)
 
         return self
