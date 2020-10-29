@@ -184,6 +184,7 @@ class Result:
     def plot_beta_beating(
         self,
         axis: str = "x",
+        element: Optional[str] = None,
         observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
         trace_name: Optional[str] = None,
         save_path: Optional[str] = None,
@@ -203,6 +204,7 @@ class Result:
 
         Args:
             axis: Can either be 'x' or 'y' to specify which axis the betabeating should be calculated from.
+            element: If element is not None, the method will plot the beating of a single element.
             observation_filter: Filters tracking data indexes by each item. Can either be a list of observation points, or a single observation point.
             save_path: Path and filename of where to save the figure. If save_path is None, the plot is not saved.
             figure: The figure to add the plot to. If figure is None, a new plotly Figure object is created.
@@ -220,10 +222,14 @@ class Result:
             twiss = twiss.loc[observation_filter(twiss)]
             betabeating = betabeating.loc[observation_filter(betabeating)]
 
-        x_data = twiss["s"]
-        y_data = betabeating[f"bet{axis}"]
+        if element is None:
+            x_data = twiss["s"]
+            y_data = betabeating[f"bet{axis}"]
+        else:
+            x_data = betabeating.loc[element]["turn"]
+            y_data = betabeating.loc[element][f"bet{axis}"]
 
-        self._plot(
+        return self._plot(
             x_data=x_data,
             y_data=y_data,
             observation_filter=observation_filter,
@@ -275,7 +281,68 @@ class Result:
         x_data = twiss["s"]
         y_data = twiss[f"bet{axis}"]
 
-        self._plot(
+        return self._plot(
+            x_data=x_data,
+            y_data=y_data,
+            observation_filter=observation_filter,
+            trace_name=trace_name,
+            save_path=save_path,
+            figure=figure,
+            center_elem=center_elem,
+            width=width,
+            **kwargs,
+        )
+
+    def plot_effective_gap(
+        self,
+        element: str,
+        aperture: float,
+        axis: str = "x",
+        observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
+        trace_name: Optional[str] = None,
+        save_path: Optional[str] = None,
+        figure: Optional[go.Figure] = None,
+        center_elem: str = None,
+        width: float = None,
+        **kwargs,
+    ):
+        """
+        Plots the effective gap of the selected element.
+
+        Args:
+            element: The element to plot.
+            aperture: The aperture of the element in metres.
+            axis: Can either be 'x' or 'y' to specify which axis to plot.
+            observation_filter: Filters tracking data indexes by each item. Can either be a list of observation points, or a single observation point.
+            save_path: Path and filename of where to save the figure. If save_path is None, the plot is not saved.
+            figure: The figure to add the plot to. If figure is None, a new plotly Figure object is created.
+            center_elem: Element on which the plot will be centered. If no element is specified, the method will not center any specific element. If center_elem is specified, width must not be None.
+            width: The difference between the leftmost and rightmost points on the plot. Is meant to be used in conjuction with center_elem. If no center_elem is specified, width does nothing.
+
+        Returns:
+            go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
+
+        """
+        twiss = self.twiss_df.copy()
+
+        if observation_filter is not None:
+            twiss = twiss.loc[observation_filter(twiss)]
+
+        gamma = self.info_df["nrj"]["info"] / 0.938
+        eps_g = self.info_df["eps_n"]["info"] / gamma
+
+        beta_elem = twiss.loc[element]
+        beta_ref = beta_elem.loc[beta_elem["turn"] == 1]
+
+        sig_elem = np.sqrt(eps_g * beta_elem[f"bet{axis}"])
+        sig_ref = np.sqrt(eps_g * beta_ref[f"bet{axis}"])
+
+        effective_gap = aperture * sig_ref / sig_elem
+
+        x_data = beta_elem["turn"]
+        y_data = effective_gap
+
+        return self._plot(
             x_data=x_data,
             y_data=y_data,
             observation_filter=observation_filter,
@@ -527,7 +594,7 @@ class TrackingResult(Result):
         x_data = track["turn"]
         y_data = self.calculate_action(track)["r"]
 
-        self._plot(
+        return self._plot(
             x_data=x_data,
             y_data=y_data,
             trace_name=trace_name,
