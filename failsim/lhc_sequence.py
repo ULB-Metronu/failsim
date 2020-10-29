@@ -13,6 +13,7 @@ from .results import TwissResult
 
 from typing import Optional, List, Union, Dict
 import pymask as pm
+import numpy as np
 import functools
 import pkg_resources
 import yaml
