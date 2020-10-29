@@ -392,6 +392,27 @@ class LHCSequence:
             assert not (self._mode_configuration["enable_bb_python"])
             self._failsim.mad_call_file("modules/module_03_beambeam.madx")
 
+    def _sigma_to_length(self, beam_sigmas: float, element: str, axis: str = "x"):
+        """
+        Takes a length defined in beam sigmas, and returns the actual length at the given element.
+
+        Args:
+            sigma: Length expressed in beam sigmas.
+            element: The element, at which the length should be calculated.
+            axis: The axis of beta function to use.
+
+        Returns:
+            float: Length expressed in metres.
+
+        """
+        twiss = self.twiss()
+
+        gamma = twiss.info_df["nrj"] / 0.938
+        eps_g = twiss.info_df["eps_n"] / gamma
+
+        sigma = np.sqrt(eps_g * twiss.twiss_df.loc[element][f"bet{axis}"])
+        return beam_sigmas * sigma
+
     @reset_state(True, True)
     @print_info("LHCSequence")
     def set_modules_enabled(self, modules: List[str], enabled: bool = True):
