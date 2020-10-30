@@ -92,7 +92,9 @@ class Result:
 
         if center_elem is not None:
             assert width is not None, "width must be specified when using center_elem"
-            elem_s = self.twiss_df.loc[center_elem]["s"].iloc[0]
+            elem_s = self.twiss_df.loc[center_elem]["s"]
+            if type(elem_s) is pd.Series:
+                elem_s = elem_s.iloc[0]
             figure.update_layout(
                 xaxis_range=(
                     elem_s - width / 2.0,
