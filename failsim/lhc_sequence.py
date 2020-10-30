@@ -11,9 +11,10 @@ from .globals import FSGlobals
 from .helpers import print_info
 from .results import TwissResult
 
-from typing import Optional, List, Union, Dict
+from typing import Optional, List, Union, Dict, Callable
 import pymask as pm
 import numpy as np
+import pandas as pd
 import functools
 import pkg_resources
 import yaml
@@ -668,24 +669,6 @@ class LHCSequence:
 
         return self
 
-    @ensure_build
-    @print_info("LHCSequence")
-    def build_tracker(self, verbose: bool = False):
-        """Builds a SequenceTracker instance.
-
-        Args:
-            verbose: Whether the generated SequenceTracker object should be verbose or not.
-
-        Returns:
-            SequenceTracker: A SequenceTracker instance containing this sequence.
-
-        """
-        new_fs = self._failsim.duplicate()
-        tracker = SequenceTracker(
-            new_fs, self._mode_configuration["sequence_to_track"], verbose=verbose
-        )
-        return tracker
-
     @reset_state(False, True)
     @print_info("LHCSequence")
     def crossing_save(self):
@@ -751,6 +734,48 @@ class LHCSequence:
             self.call_file(file)
 
         return self
+
+    @ensure_build
+    @print_info("LHCSequence")
+    def build_tracker(self, verbose: bool = False):
+        """Builds a SequenceTracker instance.
+
+        Args:
+            verbose: Whether the generated SequenceTracker object should be verbose or not.
+
+        Returns:
+            SequenceTracker: A SequenceTracker instance containing this sequence.
+
+        """
+        new_fs = self._failsim.duplicate()
+        tracker = SequenceTracker(
+            new_fs, self._mode_configuration["sequence_to_track"], verbose=verbose
+        )
+        return tracker
+
+    def get_around_element(
+        self,
+        element: str,
+        width: float,
+        dataframe_filter: Callable[[pd.DataFrame], pd.Series] = None,
+    ):
+        """Returns a DataFrame containing twiss data for elements around the given element at a specific width.
+
+        Args:
+            element: Name of element around which elements will be returned.
+            width: The longitudinal distance around the given element to filter elements by.
+            dataframe_filter: Allows specification of a function that will be passed to the .loc method of the twiss DataFrame. Can be used to filter the DataFrame.
+
+        Returns:
+            pd.DataFrame: DataFrame containing elements in the given width around the given element.
+
+        """
+        twiss = self.twiss().twiss_df
+        twiss_filt = twiss.loc[dataframe_filter(twiss)].copy()
+        return twiss_filt.loc[
+            (twiss_filt["s"] > twiss.loc[element]["s"] - width)
+            & (twiss_filt["s"] < twiss.loc[element]["s"] + width)
+        ]
 
     def twiss(self):
         """TODO: Docstring for twiss.
