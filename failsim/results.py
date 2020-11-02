@@ -444,74 +444,179 @@ class Result:
             go.Figure: Figure with sequence objects drawn above plot.
 
         """
-        twiss_thick = pd.read_parquet(FailSim.path_to_output("twiss_pre_thin.parquet"))
-
-        twiss_thick = twiss_thick.loc[
-            ~twiss_thick["keyword"].isin(
-                ["drift", "marker", "placeholder", "monitor", "instrument"]
-            )
-        ]
-
-        if fig_range is not None:
-            twiss_thick = twiss_thick.loc[
-                (twiss_thick["s"] > fig_range[0]) & (twiss_thick["s"] < fig_range[1])
-            ]
-
         fig = go.Figure()
 
         colors = dict(
             quadrupole="red",
-            sextupole="gray",
-            octupole="gray",
+            sextupole="green",
+            octupole="orange",
             multipole="gray",
             hkicker="gray",
             vkicker="gray",
             tkicker="gray",
-            solenoid="orange",
-            rfcavity="gray",
+            solenoid="brown",
+            rfcavity="purple",
             rcollimator="black",
-            rbend="lightblue",
+            rbend="yellow",
             sbend="blue",
+            instrument="coral",
         )
 
-        middle = y_start + height / 2
-
-        shapes = [
-            go.layout.Shape(
-                type="line",
-                yref="paper",
-                y0=middle,
-                y1=middle,
-                x0=0,
-                x1=max(twiss_thick["s"]),
-                line_width=0.5,
+        for ss in ["1", "2"]:
+            twiss = pd.read_parquet(
+                FailSim.path_to_output(f"twiss_pre_thin_b{ss}.parquet")
             )
-        ]
-        for _, row in twiss_thick.iterrows():
-            if row["keyword"] in ["rbend", "sbend", "rcollimator"]:
-                y0 = y_start
-                y1 = y_start + height
-            elif row["keyword"] in ["quadrupole"]:
-                y0 = middle - height / 4 + row["polarity"] * height / 4
-                y1 = middle + height / 4 + row["polarity"] * height / 4
-            else:
-                y0 = middle - height / 4
-                y1 = middle + height / 4
+            survey = pd.read_parquet(
+                FailSim.path_to_output(f"survey_pre_thin_b{ss}.parquet")
+            )
 
-            shapes.append(
-                go.layout.Shape(
-                    type="rect",
-                    yref="paper",
-                    y0=y0,
-                    y1=y1,
-                    x0=row["s"] - row["l"],
-                    x1=row["s"],
-                    line_width=0,
-                    fillcolor=colors[row["keyword"]],
+            twiss = twiss.loc[
+                ~twiss["keyword"].isin(["drift", "marker", "placeholder", "monitor"])
+            ]
+            survey = survey.loc[
+                ~survey["keyword"].isin(["drift", "marker", "placeholder", "monitor"])
+            ]
+
+            if fig_range is not None:
+                twiss = twiss.loc[
+                    (twiss["s"] > fig_range[0]) & (twiss["s"] < fig_range[1])
+                ]
+                survey = survey.loc[
+                    (survey["s"] > fig_range[0]) & (survey["s"] < fig_range[1])
+                ]
+
+            survey["beam_sep"] = survey.apply(
+                lambda x: x["mech_sep"] if x["keyword"] == "rbend" else float("nan"),
+                axis=1,
+            )
+            beam_sep = survey.set_index("s")["beam_sep"].interpolate(
+                method="index",
+                limit_direction="both",
+            )
+            beam_sep = beam_sep / max(abs(beam_sep))
+            beam_sep = beam_sep.set_axis(survey.index)
+
+            fig.data = fig.data[::-1]
+            fig.add_trace(
+                go.Scatter(
+                    x=twiss["s"],
+                    y=beam_sep,
+                    yaxis="y2",
+                    marker_color="gray",
+                    hoverinfo="skip",
+                    showlegend=False,
                 )
             )
+            fig.data = fig.data[::-1]
 
-        fig.update_layout(shapes=shapes)
+            for _, row in twiss.iterrows():
+                if beam_sep.loc[row["name"][:-2]] == 0 and ss == "2":
+                    continue
+
+                x0 = row["s"] - row["l"]
+                x1 = row["s"]
+                dy = 0.5
+                y0 = beam_sep.loc[row["name"][:-2]] - dy / 2
+
+                if row["keyword"] in ["rbend", "sbend"]:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[x0, x1, x1, x0, x0],
+                            y=[y0, y0, y0 + dy, y0 + dy, y0],
+                            yaxis="y2",
+                            showlegend=False,
+                            marker_color=colors[row["keyword"]],
+                            fillcolor=colors[row["keyword"]],
+                            mode="lines",
+                            fill="toself",
+                            name=row["name"],
+                            line_width=1 if row["l"] == 0 else 0,
+                        )
+                    )
+                elif row["keyword"] in ["rcollimator"]:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[x0, x1, x1, x0, x0],
+                            y=[y0, y0, y0 + dy / 3, y0 + dy / 3, y0],
+                            yaxis="y2",
+                            showlegend=False,
+                            marker_color=colors[row["keyword"]],
+                            fillcolor=colors[row["keyword"]],
+                            mode="lines",
+                            fill="toself",
+                            name=row["name"],
+                            line_width=1 if row["l"] == 0 else 0,
+                        )
+                    )
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[x0, x1, x1, x0, x0],
+                            y=[
+                                y0 + dy * 2 / 3,
+                                y0 + dy * 2 / 3,
+                                y0 + dy,
+                                y0 + dy,
+                                y0 + dy * 2 / 3,
+                            ],
+                            yaxis="y2",
+                            showlegend=False,
+                            marker_color=colors[row["keyword"]],
+                            fillcolor=colors[row["keyword"]],
+                            mode="lines",
+                            fill="toself",
+                            name=row["name"],
+                            line_width=1 if row["l"] == 0 else 0,
+                        )
+                    )
+                elif row["keyword"] in ["quadrupole"]:
+                    y0_pol = y0 + dy / 4 + row["polarity"] * dy / 4
+                    y1_pol = y0 + dy * 3 / 4 + row["polarity"] * dy / 4
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[x0, x1, x1, x0, x0],
+                            y=[y0_pol, y0_pol, y1_pol, y1_pol, y0_pol],
+                            yaxis="y2",
+                            showlegend=False,
+                            marker_color=colors[row["keyword"]],
+                            fillcolor=colors[row["keyword"]],
+                            mode="lines",
+                            fill="toself",
+                            name=row["name"],
+                            line_width=1 if row["l"] == 0 else 0,
+                        )
+                    )
+                else:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[x0, x1, x1, x0, x0],
+                            y=[
+                                y0 + dy / 4,
+                                y0 + dy / 4,
+                                y0 + dy * 3 / 4,
+                                y0 + dy * 3 / 4,
+                                y0 + dy / 4,
+                            ],
+                            yaxis="y2",
+                            showlegend=False,
+                            marker_color=colors[row["keyword"]],
+                            fillcolor=colors[row["keyword"]],
+                            mode="lines",
+                            fill="toself",
+                            name=row["name"],
+                            line_width=1 if row["l"] == 0 else 0,
+                        )
+                    )
+
+        fig.update_layout(
+            yaxis=dict(
+                domain=[0, 0.65],
+            ),
+            yaxis2=dict(
+                domain=[0.7, 1],
+                visible=False,
+                fixedrange=True,
+            ),
+        )
 
         return fig
 

@@ -577,10 +577,16 @@ class LHCSequence:
                     f"seqedit, sequence={seq}; flatten; cycle, start={self._cycle['target']}; flatten; endedit"
                 )
 
-        twiss_df, _ = self._failsim.twiss_and_summ(
-            self._mode_configuration["sequence_to_track"]
-        )
-        twiss_df.to_parquet(FailSim.path_to_output("twiss_pre_thin.parquet"))
+        for ss in self._mode_configuration["sequences_to_check"]:
+            twiss_df, _ = self._failsim.twiss_and_summ(ss)
+            twiss_df.to_parquet(
+                FailSim.path_to_output(f"twiss_pre_thin_b{ss[-1]}.parquet")
+            )
+
+            survey_df = self._failsim.mad.survey(sequence=ss).dframe()
+            survey_df.to_parquet(
+                FailSim.path_to_output(f"survey_pre_thin_b{ss[-1]}.parquet")
+            )
 
         self._failsim.make_thin(self._mode_configuration["sequence_to_track"][-1])
 
