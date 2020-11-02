@@ -4,7 +4,7 @@ Module containing classes that contain and handle data.
 
 
 from .failsim import FailSim
-from typing import Optional, List, Union, Dict, Tuple, Callable
+from typing import Optional, List, Union, Dict, Tuple, Callable, Type
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
@@ -64,6 +64,25 @@ class Result:
 
         self.fix_twiss_name()
 
+    @staticmethod
+    def lerp_hex_color(col1: str, col2: str, factor: float):
+        r1, g1, b1 = (
+            int(col1[1:3], 16),
+            int(col1[3:5], 16),
+            int(col1[5:], 16),
+        )
+        r2, g2, b2 = (
+            int(col2[1:3], 16),
+            int(col2[3:5], 16),
+            int(col2[5:], 16),
+        )
+
+        r3 = r1 + (r2 - r1) * factor
+        g3 = g1 + (g2 - g1) * factor
+        b3 = b1 + (b2 - b1) * factor
+
+        return f"#{int(r3):02x}{int(g3):02x}{int(b3):02x}"
+
     def _plot(
         self,
         x_data: pd.Series,
@@ -73,6 +92,7 @@ class Result:
         figure: Optional[go.Figure] = None,
         center_elem: str = None,
         width: float = None,
+        plot_type: Type = go.Scatter,
         **kwargs,
     ):
         """ Private method that provides basic plotting utility. """
@@ -82,9 +102,7 @@ class Result:
         if figure is None:
             figure = go.Figure()
 
-        data = go.Scatter(
-            trace_kwargs, x=x_data, y=y_data, mode="lines", name=trace_name
-        )
+        data = plot_type(trace_kwargs, x=x_data, y=y_data, name=trace_name)
 
         figure.add_trace(data)
 
@@ -193,6 +211,7 @@ class Result:
         figure: Optional[go.Figure] = None,
         center_elem: str = None,
         width: float = None,
+        plot_type: Type = go.Scatter,
         **kwargs,
     ):
         """
@@ -212,6 +231,7 @@ class Result:
             figure: The figure to add the plot to. If figure is None, a new plotly Figure object is created.
             center_elem: Element on which the plot will be centered. If no element is specified, the method will not center any specific element. If center_elem is specified, width must not be None.
             width: The difference between the leftmost and rightmost points on the plot. Is meant to be used in conjuction with center_elem. If no center_elem is specified, width does nothing.
+            plot_type: Allows specification of a plotly plot type. Accepts any graph_objects plotting class that takes x and y keyword arguments.
 
         Returns:
             go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
@@ -240,6 +260,7 @@ class Result:
             figure=figure,
             center_elem=center_elem,
             width=width,
+            plot_type=plot_type,
             **kwargs,
         )
 
@@ -252,6 +273,7 @@ class Result:
         figure: Optional[go.Figure] = None,
         center_elem: str = None,
         width: float = None,
+        plot_type: Type = go.Scatter,
         **kwargs,
     ):
         """
@@ -270,6 +292,7 @@ class Result:
             figure: The figure to add the plot to. If figure is None, a new plotly Figure object is created.
             center_elem: Element on which the plot will be centered. If no element is specified, the method will not center any specific element. If center_elem is specified, width must not be None.
             width: The difference between the leftmost and rightmost points on the plot. Is meant to be used in conjuction with center_elem. If no center_elem is specified, width does nothing.
+            plot_type: Allows specification of a plotly plot type. Accepts any graph_objects plotting class that takes x and y keyword arguments.
 
         Returns:
             go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
@@ -292,13 +315,14 @@ class Result:
             figure=figure,
             center_elem=center_elem,
             width=width,
+            plot_type=plot_type,
             **kwargs,
         )
 
     def plot_effective_gap(
         self,
-        element: str,
-        aperture: float,
+        elements: Union[str, List[str]],
+        apertures: Union[float, List[float]],
         axis: str = "x",
         observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
         trace_name: Optional[str] = None,
@@ -309,11 +333,11 @@ class Result:
         **kwargs,
     ):
         """
-        Plots the effective gap of the selected element.
+        Plots the effective gap of the selected elements.
 
         Args:
-            element: The element to plot.
-            aperture: The aperture of the element in metres.
+            elements: The elements to plot.
+            apertures: The apertures of the elements in metres.
             axis: Can either be 'x' or 'y' to specify which axis to plot.
             observation_filter: Filters tracking data indexes by each item. Can either be a list of observation points, or a single observation point.
             save_path: Path and filename of where to save the figure. If save_path is None, the plot is not saved.
@@ -330,31 +354,77 @@ class Result:
         if observation_filter is not None:
             twiss = twiss.loc[observation_filter(twiss)]
 
-        gamma = self.info_df["nrj"]["info"] / 0.938
-        eps_g = self.info_df["eps_n"]["info"] / gamma
+        if not isinstance(elements, list):
+            elements = [elements]
 
-        beta_elem = twiss.loc[element]
-        beta_ref = beta_elem.loc[beta_elem["turn"] == 1]
+        if not isinstance(apertures, list):
+            apertures = [apertures]
 
-        sig_elem = np.sqrt(eps_g * beta_elem[f"bet{axis}"])
-        sig_ref = np.sqrt(eps_g * beta_ref[f"bet{axis}"])
+        if figure is None:
+            figure = go.Figure()
 
-        effective_gap = aperture * sig_ref / sig_elem
+        for element, aperture in zip(elements, apertures):
+            gamma = self.info_df["nrj"]["info"] / 0.938
+            eps_g = self.info_df["eps_n"]["info"] / gamma
 
-        x_data = beta_elem["turn"]
-        y_data = effective_gap
+            beta_elem = twiss.loc[element]
+            beta_ref = beta_elem.loc[beta_elem["turn"] == 1]
 
-        return self._plot(
-            x_data=x_data,
-            y_data=y_data,
-            observation_filter=observation_filter,
-            trace_name=trace_name,
-            save_path=save_path,
-            figure=figure,
-            center_elem=center_elem,
-            width=width,
-            **kwargs,
-        )
+            sig_elem = np.sqrt(eps_g * beta_elem[f"bet{axis}"])
+            sig_ref = np.sqrt(eps_g * beta_ref[f"bet{axis}"])
+
+            effective_gap = aperture * sig_ref / sig_elem
+
+            start_col = "#000000"
+            end_col = "#ff5511"
+            if len(elements) > 1:
+                for idx, val in enumerate(effective_gap):
+                    col = Result.lerp_hex_color(
+                        start_col,
+                        end_col,
+                        idx / len(effective_gap),
+                    )
+
+                    x_data = [element]
+                    y_data = [val]
+
+                    self._plot(
+                        x_data=x_data,
+                        y_data=y_data,
+                        observation_filter=observation_filter,
+                        trace_name=element,
+                        save_path=save_path,
+                        figure=figure,
+                        center_elem=center_elem,
+                        width=width,
+                        plot_type=go.Box,
+                        trace_showlegend=False,
+                        trace_marker_color=col,
+                        layout_yaxis_title=r"$\text{Effective half-gap} \: [\sigma]$",
+                        layout_xaxis_showgrid=False,
+                        **kwargs,
+                    )
+            else:
+                x_data = beta_elem["turn"]
+                y_data = effective_gap
+
+                self._plot(
+                    x_data=x_data,
+                    y_data=y_data,
+                    observation_filter=observation_filter,
+                    trace_name=trace_name,
+                    save_path=save_path,
+                    figure=figure,
+                    center_elem=center_elem,
+                    width=width,
+                    plot_type=go.Scatter,
+                    trace_mode="lines",
+                    layout_xaxis_title=r"$\text{Time} \: [\text{LHC turn}]$",
+                    layout_yaxis_title=r"$\text{Effective half-gap} \: [\sigma]$",
+                    **kwargs,
+                )
+
+        return figure
 
     @classmethod
     def create_cartouche(
@@ -566,6 +636,7 @@ class TrackingResult(Result):
         figure: Optional[go.Figure] = None,
         center_elem: str = None,
         width: float = None,
+        plot_type: Type = go.Scatter,
         **kwargs,
     ):
         """
@@ -583,6 +654,7 @@ class TrackingResult(Result):
             figure: The figure to add the plot to. If figure is None, a new plotly Figure object is created.
             center_elem: Element on which the plot will be centered. If no element is specified, the method will not center any specific element. If center_elem is specified, width must not be None.
             width: The difference between the leftmost and rightmost points on the plot. Is meant to be used in conjuction with center_elem. If no center_elem is specified, width does nothing.
+            plot_type: Allows specification of a plotly plot type. Accepts any graph_objects plotting class that takes x and y keyword arguments.
 
         Returns:
             go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
@@ -604,6 +676,7 @@ class TrackingResult(Result):
             figure=figure,
             center_elem=center_elem,
             width=width,
+            plot_type=plot_type,
             **kwargs,
         )
 
