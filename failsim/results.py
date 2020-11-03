@@ -180,8 +180,8 @@ class Result:
         """Get the phase advance between reference element and other elements.
 
         Args:
-            reference: TODO
-            elements: TODO
+            reference: Name of element to reference as 0 mu.
+           elements: Can either be the name of a single element or a list of elements. These are the elements of which the relative phase advance will be calculated.
 
         Returns:
             Union[dict[str, float], List[dict[str, float]]]: Either a dictionary containing the keys 'x' and 'y', each mapping to the horizontal and vertical phase advance respectively, or a dictionary containing such dictionaries, with each element as key.
@@ -325,11 +325,11 @@ class Result:
         apertures: Union[float, List[float]],
         axis: str = "x",
         observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
-        trace_name: Optional[str] = None,
         save_path: Optional[str] = None,
         figure: Optional[go.Figure] = None,
         center_elem: str = None,
         width: float = None,
+        parallel: bool = False,
         **kwargs,
     ):
         """
@@ -344,6 +344,7 @@ class Result:
             figure: The figure to add the plot to. If figure is None, a new plotly Figure object is created.
             center_elem: Element on which the plot will be centered. If no element is specified, the method will not center any specific element. If center_elem is specified, width must not be None.
             width: The difference between the leftmost and rightmost points on the plot. Is meant to be used in conjuction with center_elem. If no center_elem is specified, width does nothing.
+            parallel: TODO
 
         Returns:
             go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
@@ -373,11 +374,15 @@ class Result:
             sig_elem = np.sqrt(eps_g * beta_elem[f"bet{axis}"])
             sig_ref = np.sqrt(eps_g * beta_ref[f"bet{axis}"])
 
-            effective_gap = aperture * sig_ref / sig_elem
+            xn = beta_elem["x"] / np.sqrt(eps_g * beta_ref["betx"])
+            yn = beta_elem["y"] / np.sqrt(eps_g * beta_ref["bety"])
+            excursion = np.sqrt(xn ** 2 + yn ** 2)
+
+            effective_gap = (aperture - excursion) * sig_ref / sig_elem
 
             start_col = "#000000"
             end_col = "#ff5511"
-            if len(elements) > 1:
+            if parallel:
                 for idx, val in enumerate(effective_gap):
                     col = Result.lerp_hex_color(
                         start_col,
@@ -400,6 +405,7 @@ class Result:
                         plot_type=go.Box,
                         trace_showlegend=False,
                         trace_marker_color=col,
+                        trace_hovertemplate="%{x}",
                         layout_yaxis_title=r"$\text{Effective half-gap} \: [\sigma]$",
                         layout_xaxis_showgrid=False,
                         **kwargs,
@@ -412,7 +418,7 @@ class Result:
                     x_data=x_data,
                     y_data=y_data,
                     observation_filter=observation_filter,
-                    trace_name=trace_name,
+                    trace_name=element,
                     save_path=save_path,
                     figure=figure,
                     center_elem=center_elem,
@@ -657,11 +663,17 @@ class TrackingResult(Result):
 
         self.track_df = track_df
 
-        self.normalize_track(eps_n, nrj)
+        self.track_df = self.normalize_track(eps_n, nrj, self.twiss_df, self.track_df)
 
-    def normalize_track(self, eps_n: float = 2.5e-6, nrj: float = 7000):
+    @staticmethod
+    def normalize_track(
+        twiss_df: pd.DataFrame,
+        track_df: pd.DataFrame,
+        eps_n: float = 2.5e-6,
+        nrj: float = 7000,
+    ):
         """
-        Adds 4 columns to track_df:
+        Creates and returns new DataFrame based on track_df with four columns added:
 
         - **xn**: The normalized horizontal transverse position.
         - **pxn**: The normalized horizontal transverse velocity.
@@ -672,21 +684,24 @@ class TrackingResult(Result):
             eps_n: The normalized emmitance
             nrj: Particle energy in GeV
 
+        Returns:
+            pd.DataFrame: Tracking DataFrame with normalized columns added.
+
         """
-        gamma = self.info_df["nrj"] / 0.938
-        eps_g = self.info_df["eps_n"] / gamma
+        gamma = nrj / 0.938
+        eps_g = eps_n / gamma
 
         data_out = pd.DataFrame()
 
-        for obs in set(self.track_df.index):
-            data = self.track_df.loc[obs].copy()
+        for obs in set(track_df.index):
+            data = track_df.loc[obs].copy()
             if type(data) != pd.DataFrame:
                 continue
 
-            betx = self.twiss_df.loc[obs]["betx"]
-            alfx = self.twiss_df.loc[obs]["alfx"]
-            bety = self.twiss_df.loc[obs]["bety"]
-            alfy = self.twiss_df.loc[obs]["alfy"]
+            betx = twiss_df.loc[obs]["betx"]
+            alfx = twiss_df.loc[obs]["alfx"]
+            bety = twiss_df.loc[obs]["bety"]
+            alfy = twiss_df.loc[obs]["alfy"]
 
             data["xn"] = data.apply(lambda x: x["x"] / np.sqrt(eps_g * betx), axis=1)
 
@@ -706,7 +721,7 @@ class TrackingResult(Result):
 
             data_out = data_out.append(data)
 
-        self.track_df = data_out
+        return data_out
 
     def calculate_action(self, track: Optional[pd.DataFrame] = None):
         """Calculates and returns the orbit excursion / action of the tracking data.
