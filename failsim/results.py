@@ -64,6 +64,34 @@ class Result:
 
         self.fix_twiss_name()
 
+    def save_data(self, path: str, suffix: str = ""):
+        """
+        Saves the Result data in 3 disctinct files:
+
+        - **info.parquet**: Contains miscellaneous table
+        - **summ.parquet**: Contains the summ table
+        - **twiss.parquet**: Contains the twiss table
+
+        Args:
+            path: The directory in which to save the data. Can be either absolute or relative to cwd.
+            suffix: Allows specification of a suffix. The suffix will be prepended to each of the 4 saved files.
+
+        """
+        if not path.startswith("/"):
+            path = FailSim.path_to_cwd(path)
+
+        # Save twiss
+        twiss_name = os.path.join(path, suffix + "twiss.parquet")
+        self.twiss_df.to_parquet(twiss_name)
+
+        # Save summ
+        summ_name = os.path.join(path, suffix + "summ.parquet")
+        self.summ_df.to_parquet(summ_name)
+
+        # Save extra info
+        info_name = os.path.join(path, suffix + "info.parquet")
+        self.info_df.to_parquet(info_name)
+
     @staticmethod
     def lerp_hex_color(col1: str, col2: str, factor: float):
         r1, g1, b1 = (
@@ -113,11 +141,19 @@ class Result:
             elem_s = self.twiss_df.loc[center_elem]["s"]
             if type(elem_s) is pd.Series:
                 elem_s = elem_s.iloc[0]
+            data = pd.DataFrame({"x": x_data, "y": y_data})
+            data = data.loc[
+                (data["x"] > elem_s - width / 2.0) & (data["x"] < elem_s + width / 2.0)
+            ]
             figure.update_layout(
                 xaxis_range=(
                     elem_s - width / 2.0,
                     elem_s + width / 2.0,
-                )
+                ),
+                yaxis_range=(
+                    min(data["y"]) - 0.1 * (max(data["y"]) - min(data["y"])),
+                    max(data["y"]) + 0.1 * (max(data["y"]) - min(data["y"])),
+                ),
             )
 
         if save_path is not None:
@@ -261,6 +297,8 @@ class Result:
             center_elem=center_elem,
             width=width,
             plot_type=plot_type,
+            layout_xaxis_title=r"$s \: [m]$",
+            layout_yaxis_title=r"$\text{Beta Beating}$",
             **kwargs,
         )
 
@@ -316,6 +354,8 @@ class Result:
             center_elem=center_elem,
             width=width,
             plot_type=plot_type,
+            layout_xaxis_title=r"$s \: [m]$",
+            layout_yaxis_title=r"$\beta \: [m]$",
             **kwargs,
         )
 
@@ -363,6 +403,19 @@ class Result:
 
         if figure is None:
             figure = go.Figure()
+
+        if parallel:
+            figure.add_trace(
+                go.Scatter(
+                    x=elements,
+                    y=apertures,
+                    line_shape="hvh",
+                    mode="lines",
+                    marker_color="#49d",
+                    opacity=0.5,
+                    showlegend=False,
+                )
+            )
 
         for element, aperture in zip(elements, apertures):
             gamma = self.info_df["nrj"]["info"] / 0.938
@@ -540,8 +593,12 @@ class Result:
             fig.data = fig.data[::-1]
 
             for _, row in twiss.iterrows():
-                # Skip drawing beam 2 when both beams are in same pipe
-                if beam_sep.loc[row["name"][:-2]] == 0 and ss == "2":
+                # Draw elements with no beam specifier only for beam 1
+                if (
+                    not ".b1:" in row["name"]
+                    and not ".b2:" in row["name"]
+                    and ss == "2"
+                ):
                     continue
 
                 x0 = row["s"] - (row["l"] if row["l"] != 0 else 0.5)
@@ -557,12 +614,12 @@ class Result:
                             y=[y0, y0, y0 + dy, y0 + dy, y0],
                             yaxis="y2",
                             showlegend=False,
-                            marker_color=colors[row["keyword"]],
+                            marker_color="black",
                             fillcolor=colors[row["keyword"]],
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=0,
+                            line_width=1,
                         )
                     )
                 # Draw collimators
@@ -573,12 +630,12 @@ class Result:
                             y=[y0, y0, y0 + dy / 3, y0 + dy / 3, y0],
                             yaxis="y2",
                             showlegend=False,
-                            marker_color=colors[row["keyword"]],
+                            marker_color="black",
                             fillcolor=colors[row["keyword"]],
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=0,
+                            line_width=1,
                         )
                     )
                     fig.add_trace(
@@ -593,12 +650,12 @@ class Result:
                             ],
                             yaxis="y2",
                             showlegend=False,
-                            marker_color=colors[row["keyword"]],
+                            marker_color="black",
                             fillcolor=colors[row["keyword"]],
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=0,
+                            line_width=1,
                         )
                     )
                 # Draw quadrupole
@@ -611,12 +668,12 @@ class Result:
                             y=[y0_pol, y0_pol, y1_pol, y1_pol, y0_pol],
                             yaxis="y2",
                             showlegend=False,
-                            marker_color=colors[row["keyword"]],
+                            marker_color="black",
                             fillcolor=colors[row["keyword"]],
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=0,
+                            line_width=1,
                         )
                     )
                 # Draw everything else
@@ -633,12 +690,12 @@ class Result:
                             ],
                             yaxis="y2",
                             showlegend=False,
-                            marker_color=colors[row["keyword"]],
+                            marker_color="black",
                             fillcolor=colors[row["keyword"]],
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=0,
+                            line_width=1,
                         )
                     )
 
@@ -693,7 +750,7 @@ class TrackingResult(Result):
 
         self.track_df = track_df
 
-        self.track_df = self.normalize_track(eps_n, nrj, self.twiss_df, self.track_df)
+        self.track_df = self.normalize_track(self.twiss_df, self.track_df, eps_n, nrj)
 
     @staticmethod
     def normalize_track(
@@ -848,21 +905,11 @@ class TrackingResult(Result):
         if not path.startswith("/"):
             path = FailSim.path_to_cwd(path)
 
-        # Save twiss
-        twiss_name = os.path.join(path, suffix + "twiss.parquet")
-        self.twiss_df.to_parquet(twiss_name)
+        super().save_data(path, suffix)
 
         # Save track
         track_name = os.path.join(path, suffix + "track.parquet")
         self.track_df.to_parquet(track_name)
-
-        # Save summ
-        summ_name = os.path.join(path, suffix + "summ.parquet")
-        self.summ_df.to_parquet(summ_name)
-
-        # Save extra info
-        info_name = os.path.join(path, suffix + "info.parquet")
-        self.info_df.to_parquet(info_name)
 
     @classmethod
     def load_data(cls, path: str, suffix: str = ""):
@@ -887,14 +934,14 @@ class TrackingResult(Result):
         # Load twiss
         twiss_df = pd.read_parquet(os.path.join(path, suffix + "twiss.parquet"))
 
-        # Load track
-        track_df = pd.read_parquet(os.path.join(path, suffix + "track.parquet"))
-
         # Load summ
         summ_df = pd.read_parquet(os.path.join(path, suffix + "summ.parquet"))
 
         # Load info
         info_df = pd.read_parquet(os.path.join(path, suffix + "info.parquet"))
+
+        # Load track
+        track_df = pd.read_parquet(os.path.join(path, suffix + "track.parquet"))
 
         # Create instance
         inst = TrackingResult(
