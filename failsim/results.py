@@ -181,7 +181,7 @@ class Result:
 
         Args:
             reference: Name of element to reference as 0 mu.
-           elements: Can either be the name of a single element or a list of elements. These are the elements of which the relative phase advance will be calculated.
+            elements: Can either be the name of a single element or a list of elements. These are the elements of which the relative phase advance will be calculated.
 
         Returns:
             Union[dict[str, float], List[dict[str, float]]]: Either a dictionary containing the keys 'x' and 'y', each mapping to the horizontal and vertical phase advance respectively, or a dictionary containing such dictionaries, with each element as key.
@@ -436,15 +436,15 @@ class Result:
     def create_cartouche(
         cls,
         fig_range: Tuple[float, float] = None,
-        height: float = 0.08,
-        y_start: float = 1.02,
+        center_elem: str = None,
+        width: float = None,
     ):
-        """TODO: Docstring for create_cartouche.
+        """Creates a cartouche plot.
 
         Args:
             fig_range: The longitudinal range in which to draw the elements of the sequence.
-            height: The height of the cartouche part of the plot.
-            y_start: The height at which the cartouche starts to be drawn.
+            center_elem: Name of element that should be the center of the drawn elements. If this parameter is specified, width has to be specified.
+            width: Width around center_elem that elements should be drawn. Must be specified if center_elem is specified.
 
         Returns:
             go.Figure: Figure with sequence objects drawn above plot.
@@ -469,6 +469,7 @@ class Result:
         )
 
         for ss in ["1", "2"]:
+            # Read twiss and survey data
             twiss = pd.read_parquet(
                 FailSim.path_to_output(f"twiss_pre_thin_b{ss}.parquet")
             )
@@ -476,6 +477,24 @@ class Result:
                 FailSim.path_to_output(f"survey_pre_thin_b{ss}.parquet")
             )
 
+            # Filter data around center_elem
+            if center_elem is not None:
+                assert (
+                    width is not None
+                ), "width must be specified when using center_elem"
+                elem_s = twiss.loc[center_elem]["s"]
+                if type(elem_s) is pd.Series:
+                    elem_s = elem_s.iloc[0]
+                twiss = twiss.loc[
+                    (twiss["s"] > elem_s - width / 2)
+                    & (twiss["s"] < elem_s + width / 2)
+                ]
+                survey = survey.loc[
+                    (survey["s"] > elem_s - width / 2)
+                    & (survey["s"] < elem_s + width / 2)
+                ]
+
+            # Remove drift, marker, placeholder and monitor elements from data
             twiss = twiss.loc[
                 ~twiss["keyword"].isin(["drift", "marker", "placeholder", "monitor"])
             ]
@@ -483,6 +502,7 @@ class Result:
                 ~survey["keyword"].isin(["drift", "marker", "placeholder", "monitor"])
             ]
 
+            # Filter data to fit within fig_range
             if fig_range is not None:
                 twiss = twiss.loc[
                     (twiss["s"] > fig_range[0]) & (twiss["s"] < fig_range[1])
@@ -491,6 +511,7 @@ class Result:
                     (survey["s"] > fig_range[0]) & (survey["s"] < fig_range[1])
                 ]
 
+            # Interpolate mech_sep between each rbend element
             survey["beam_sep"] = survey.apply(
                 lambda x: x["mech_sep"] if x["keyword"] == "rbend" else float("nan"),
                 axis=1,
@@ -499,9 +520,12 @@ class Result:
                 method="index",
                 limit_direction="both",
             )
+
+            # Normalize beam separation
             beam_sep = beam_sep / max(abs(beam_sep))
             beam_sep = beam_sep.set_axis(survey.index)
 
+            # Draw beam line underneath all other plots
             fig.data = fig.data[::-1]
             fig.add_trace(
                 go.Scatter(
@@ -516,14 +540,16 @@ class Result:
             fig.data = fig.data[::-1]
 
             for _, row in twiss.iterrows():
+                # Skip drawing beam 2 when both beams are in same pipe
                 if beam_sep.loc[row["name"][:-2]] == 0 and ss == "2":
                     continue
 
                 x0 = row["s"] - row["l"]
                 x1 = row["s"]
-                dy = 0.5
+                dy = 0.9
                 y0 = beam_sep.loc[row["name"][:-2]] - dy / 2
 
+                # Draw rbend and sbend
                 if row["keyword"] in ["rbend", "sbend"]:
                     fig.add_trace(
                         go.Scatter(
@@ -539,6 +565,7 @@ class Result:
                             line_width=1 if row["l"] == 0 else 0,
                         )
                     )
+                # Draw collimators
                 elif row["keyword"] in ["rcollimator"]:
                     fig.add_trace(
                         go.Scatter(
@@ -574,6 +601,7 @@ class Result:
                             line_width=1 if row["l"] == 0 else 0,
                         )
                     )
+                # Draw quadrupole
                 elif row["keyword"] in ["quadrupole"]:
                     y0_pol = y0 + dy / 4 + row["polarity"] * dy / 4
                     y1_pol = y0 + dy * 3 / 4 + row["polarity"] * dy / 4
@@ -591,6 +619,7 @@ class Result:
                             line_width=1 if row["l"] == 0 else 0,
                         )
                     )
+                # Draw everything else
                 else:
                     fig.add_trace(
                         go.Scatter(
@@ -613,12 +642,13 @@ class Result:
                         )
                     )
 
+        # Small layout specifications
         fig.update_layout(
             yaxis=dict(
-                domain=[0, 0.65],
+                domain=[0, 0.75],
             ),
             yaxis2=dict(
-                domain=[0.7, 1],
+                domain=[0.8, 1],
                 visible=False,
                 fixedrange=True,
             ),
