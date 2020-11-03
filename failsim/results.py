@@ -544,7 +544,7 @@ class Result:
                 if beam_sep.loc[row["name"][:-2]] == 0 and ss == "2":
                     continue
 
-                x0 = row["s"] - row["l"]
+                x0 = row["s"] - (row["l"] if row["l"] != 0 else 0.5)
                 x1 = row["s"]
                 dy = 0.9
                 y0 = beam_sep.loc[row["name"][:-2]] - dy / 2
@@ -562,7 +562,7 @@ class Result:
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=1 if row["l"] == 0 else 0,
+                            line_width=0,
                         )
                     )
                 # Draw collimators
@@ -578,7 +578,7 @@ class Result:
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=1 if row["l"] == 0 else 0,
+                            line_width=0,
                         )
                     )
                     fig.add_trace(
@@ -598,7 +598,7 @@ class Result:
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=1 if row["l"] == 0 else 0,
+                            line_width=0,
                         )
                     )
                 # Draw quadrupole
@@ -616,7 +616,7 @@ class Result:
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=1 if row["l"] == 0 else 0,
+                            line_width=0,
                         )
                     )
                 # Draw everything else
@@ -638,7 +638,7 @@ class Result:
                             mode="lines",
                             fill="toself",
                             name=row["name"],
-                            line_width=1 if row["l"] == 0 else 0,
+                            line_width=0,
                         )
                     )
 
