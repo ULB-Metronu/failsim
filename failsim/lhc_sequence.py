@@ -98,6 +98,7 @@ class LHCSequence:
         self._input_param_path = input_param_path
 
         self._modules = {}
+        self._pre_thin_scripts = []
 
         self._metadata = None
         self._custom_sequence = None
@@ -577,6 +578,9 @@ class LHCSequence:
                     f"seqedit, sequence={seq}; flatten; cycle, start={self._cycle['target']}; flatten; endedit"
                 )
 
+        for ff in self._pre_thin_scripts:
+            self._failsim.mad_call_file(ff)
+
         for ss in self._mode_configuration["sequences_to_check"]:
             twiss_df, _ = self._failsim.twiss_and_summ(ss)
             twiss_df.to_parquet(
@@ -603,6 +607,22 @@ class LHCSequence:
         self._call_remaining_modules()
 
         self._built = True
+
+        return self
+
+    @reset_state(True, True)
+    @print_info("LHCSequence")
+    def add_pre_thin_script(self, scripts: List[str]):
+        """Adds a list of files to be called before making the sequence thin.
+
+        Args:
+            scripts: List of files to call.
+
+        Returns:
+            LHCSequence: Returns self.
+
+        """
+        self._pre_thin_scripts += scripts
 
         return self
 
