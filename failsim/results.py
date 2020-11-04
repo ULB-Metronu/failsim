@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import pandas as pd
 import numpy as np
 import os
+import re
 
 import plotly.graph_objects as go
 
@@ -92,6 +93,47 @@ class Result:
         info_name = os.path.join(path, suffix + "info.parquet")
         self.info_df.to_parquet(info_name)
 
+    @classmethod
+    def load_data(cls, path: str, suffix: str = ""):
+        """Classmethod that loads data from the directory specified and returns a TrackingResult object.
+
+        Note:
+            The path specified by path must contain the following files:
+
+            - info.parquet
+            - summ.parquet
+            - track.parquet
+            - twiss.parquet
+
+        Args:
+            path: The directory containing data. Can be either absolute or relative to cwd.
+            suffix: Allows specification of a suffix. The method will look for the same for files, only with the specified suffix prepended.
+
+        Returns:
+            TrackingResult: A TrackingResult instance containing the loaded data.
+
+        """
+        # Load twiss
+        twiss_df = pd.read_parquet(os.path.join(path, suffix + "twiss.parquet"))
+
+        # Load summ
+        summ_df = pd.read_parquet(os.path.join(path, suffix + "summ.parquet"))
+
+        # Load info
+        info_df = pd.read_parquet(os.path.join(path, suffix + "info.parquet"))
+
+        # Create instance
+        inst = Result(
+            twiss_df=twiss_df,
+            summ_df=summ_df,
+            run_version=info_df["run_version"],
+            hllhc_version=info_df["hllhc_version"],
+            eps_n=info_df["eps_n"],
+            nrj=info_df["nrj"],
+        )
+
+        return inst
+
     @staticmethod
     def lerp_hex_color(col1: str, col2: str, factor: float):
         r1, g1, b1 = (
@@ -115,7 +157,6 @@ class Result:
         self,
         x_data: pd.Series,
         y_data: pd.Series,
-        trace_name: Optional[str] = None,
         save_path: Optional[str] = None,
         figure: Optional[go.Figure] = None,
         center_elem: str = None,
@@ -130,7 +171,7 @@ class Result:
         if figure is None:
             figure = go.Figure()
 
-        data = plot_type(trace_kwargs, x=x_data, y=y_data, name=trace_name)
+        data = plot_type(trace_kwargs, x=x_data, y=y_data)
 
         figure.add_trace(data)
 
@@ -141,18 +182,28 @@ class Result:
             elem_s = self.twiss_df.loc[center_elem]["s"]
             if type(elem_s) is pd.Series:
                 elem_s = elem_s.iloc[0]
-            data = pd.DataFrame({"x": x_data, "y": y_data})
-            data = data.loc[
-                (data["x"] > elem_s - width / 2.0) & (data["x"] < elem_s + width / 2.0)
+
+            data = {k: (x, y) for k, (x, y) in zip(x_data.index, zip(x_data, y_data))}
+            y = [
+                y
+                for x, y in data.values()
+                if (x > elem_s - width / 2.0) and (x < elem_s + width / 2.0)
             ]
+
             figure.update_layout(
                 xaxis_range=(
                     elem_s - width / 2.0,
                     elem_s + width / 2.0,
                 ),
                 yaxis_range=(
-                    min(data["y"]) - 0.1 * (max(data["y"]) - min(data["y"])),
-                    max(data["y"]) + 0.1 * (max(data["y"]) - min(data["y"])),
+                    min(y) - 0.1 * (max(y) - min(y)),
+                    max(y) + 0.1 * (max(y) - min(y)),
+                ),
+                legend=dict(
+                    yanchor="top",
+                    xanchor="right",
+                    x=0.99,
+                    y=0.75,
                 ),
             )
 
@@ -242,7 +293,6 @@ class Result:
         axis: str = "x",
         element: Optional[str] = None,
         observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
-        trace_name: Optional[str] = None,
         save_path: Optional[str] = None,
         figure: Optional[go.Figure] = None,
         center_elem: str = None,
@@ -291,7 +341,6 @@ class Result:
             x_data=x_data,
             y_data=y_data,
             observation_filter=observation_filter,
-            trace_name=trace_name,
             save_path=save_path,
             figure=figure,
             center_elem=center_elem,
@@ -306,7 +355,6 @@ class Result:
         self,
         axis: str = "x",
         observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
-        trace_name: Optional[str] = None,
         save_path: Optional[str] = None,
         figure: Optional[go.Figure] = None,
         center_elem: str = None,
@@ -348,7 +396,6 @@ class Result:
             x_data=x_data,
             y_data=y_data,
             observation_filter=observation_filter,
-            trace_name=trace_name,
             save_path=save_path,
             figure=figure,
             center_elem=center_elem,
@@ -404,20 +451,16 @@ class Result:
         if figure is None:
             figure = go.Figure()
 
-        if parallel:
-            figure.add_trace(
-                go.Scatter(
-                    x=elements,
-                    y=apertures,
-                    line_shape="hvh",
-                    mode="lines",
-                    marker_color="#49d",
-                    opacity=0.5,
-                    showlegend=False,
-                )
-            )
+        data = pd.DataFrame(apertures, index=elements, columns=["nsig"])
+        re_type = re.compile(r"^.*?(?=\.)")
+        types = [re_type.findall(x)[0] for x in elements]
+        data["type"] = types
+        data.sort_values("type", inplace=True)
 
-        for element, aperture in zip(elements, apertures):
+        for _, row in data.iterrows():
+            element = row.name
+            aperture = row["nsig"]
+
             gamma = self.info_df["nrj"]["info"] / 0.938
             eps_g = self.info_df["eps_n"]["info"] / gamma
 
@@ -432,6 +475,7 @@ class Result:
             excursion = np.sqrt(xn ** 2 + yn ** 2)
 
             effective_gap = (aperture - excursion) * sig_ref / sig_elem
+            effective_gap = effective_gap.clip(lower=0)
 
             start_col = "#000000"
             end_col = "#ff5511"
@@ -482,6 +526,206 @@ class Result:
                     layout_yaxis_title=r"$\text{Effective half-gap} \: [\sigma]$",
                     **kwargs,
                 )
+
+        figure.update_layout(
+            xaxis_categoryorder="array",
+            xaxis_categoryarray=data.index,
+        )
+
+        if parallel:
+            figure.add_trace(
+                go.Scatter(
+                    x=data.index,
+                    y=data["nsig"],
+                    line_shape="hvh",
+                    mode="lines",
+                    marker_color="#f00",
+                    line_width=4,
+                    opacity=0.4,
+                    showlegend=False,
+                )
+            )
+
+            x0 = 0
+            for idx, typ in enumerate(data["type"].drop_duplicates()):
+                dx = len(data.loc[data["type"] == typ])
+                figure.add_shape(
+                    xref="x",
+                    x0=x0 - 0.5,
+                    x1=x0 + dx - 0.5,
+                    yref="paper",
+                    y0=0,
+                    y1=1,
+                    layer="below",
+                    line_width=1,
+                    line_color="#000",
+                    fillcolor=f"hsv(0,0%,{95+5*(idx%2)}%)",
+                    opacity=1,
+                )
+                x0 += dx
+
+        return figure
+
+    def plot_aperture(
+        self,
+        observation_filter: Optional[Union[str, List[str]]] = None,
+        save_path: Optional[str] = None,
+        figure: Optional[go.Figure] = None,
+        center_elem: str = None,
+        width: float = None,
+        **kwargs,
+    ):
+        """TODO: Docstring for plot_aperture.
+
+        Note:
+            The kwargs can be used to give layout/trace specifications to plotly.
+            Each key must have either "layout_" or "trace_" as suffix.
+            If a key has "layout_" as suffix, the key will be sent to update_layout(),
+            whereas a key with the suffix "trace_" will be sent to Scatter().
+
+        Args:
+            observation_filter: Filters tracking data indexes by each item. Can either be a list of observation points, or a single observation point.
+            save_path: Path and filename of where to save the figure. If save_path is None, the plot is not saved.
+            figure: The figure to add the plot to. If figure is None, a new plotly Figure object is created.
+            center_elem: Element on which the plot will be centered. If no element is specified, the method will not center any specific element. If center_elem is specified, width must not be None.
+            width: The difference between the leftmost and rightmost points on the plot. Is meant to be used in conjuction with center_elem. If no center_elem is specified, width does nothing.
+
+        Returns:
+            go.Figure: Returns either the newly created figure if no figure was specified, or the figure the plot was added to.
+
+        """
+        twiss_thick = pd.read_parquet(
+            FailSim.path_to_output("twiss_pre_thin_b1.parquet")
+        )
+        twiss = self.twiss_df.copy()
+
+        if figure is None:
+            figure = go.Figure()
+
+        if observation_filter is not None:
+            twiss = twiss.loc[observation_filter(twiss)]
+
+        aperture_twiss = twiss_thick.copy()
+        if center_elem is not None:
+            assert width is not None, "width must be specified when using center_elem"
+            elem_s = twiss_thick.loc[center_elem]["s"]
+            if type(elem_s) is pd.Series:
+                elem_s = elem_s.iloc[0]
+            aperture_twiss = aperture_twiss.loc[
+                (aperture_twiss["s"] > elem_s - width / 2)
+                & (aperture_twiss["s"] < elem_s + width / 2)
+            ]
+
+            figure.update_layout(
+                xaxis_range=(
+                    (elem_s - width / 2) / 1000,
+                    (elem_s + width / 2) / 1000,
+                )
+            )
+
+        aperture_twiss = aperture_twiss.loc[
+            ~aperture_twiss["keyword"].isin(
+                ["drift", "marker", "placeholder", "monitor"]
+            )
+        ]
+
+        colors = dict(
+            quadrupole="red",
+            sextupole="green",
+            octupole="orange",
+            multipole="gray",
+            hkicker="gray",
+            vkicker="gray",
+            tkicker="gray",
+            solenoid="brown",
+            rfcavity="purple",
+            rcollimator="black",
+            rbend="yellow",
+            sbend="blue",
+            instrument="coral",
+        )
+
+        for _, row in aperture_twiss.iterrows():
+            x0 = (row["s"] - row["l"]) / 1000
+            x1 = row["s"] / 1000
+            y0_x = 1000 * abs(row["aper_1"])
+            y0_y = 1000 * abs(row["aper_2"])
+            y1 = 100
+
+            for pol in [-1, 1]:
+                figure.add_trace(
+                    go.Scatter(
+                        x=[x0, x1, x1, x0, x0],
+                        y=[pol * y0_x, pol * y0_x, pol * y1, pol * y1, pol * y0_x],
+                        marker_color="black",
+                        fillcolor=colors[row["keyword"]],
+                        line_width=0.2,
+                        mode="lines",
+                        fill="toself",
+                        showlegend=False,
+                        name=f"{row['name']}: {y0_x} mm",
+                        yaxis="y2",
+                    )
+                )
+                figure.add_trace(
+                    go.Scatter(
+                        x=[x0, x1, x1, x0, x0],
+                        y=[pol * y0_y, pol * y0_y, pol * y1, pol * y1, pol * y0_y],
+                        marker_color="black",
+                        fillcolor=colors[row["keyword"]],
+                        line_width=0.2,
+                        mode="lines",
+                        fill="toself",
+                        showlegend=False,
+                        name=f"{row['name']}: {y0_x} mm",
+                        yaxis="y",
+                    )
+                )
+
+        gamma = self.info_df["nrj"]["info"] / 0.938
+        eps_g = self.info_df["eps_n"]["info"] / gamma
+
+        envelopex = 1000 * np.sqrt(eps_g * twiss["betx"])
+        envelopey = 1000 * np.sqrt(eps_g * twiss["bety"])
+
+        for mag in [1, -1, 2, -2]:
+            figure.add_trace(
+                go.Scatter(
+                    x=twiss["s"] / 1000,
+                    y=mag * envelopex,
+                    showlegend=False,
+                    fill="tozeroy",
+                    line_width=0,
+                    name=f"{abs(mag)} sigma",
+                    marker_color="blue",
+                    yaxis="y2",
+                )
+            )
+            figure.add_trace(
+                go.Scatter(
+                    x=twiss["s"] / 1000,
+                    y=mag * envelopey,
+                    showlegend=False,
+                    fill="tozeroy",
+                    line_width=0,
+                    name=f"{abs(mag)} sigma",
+                    marker_color="orange",
+                    yaxis="y",
+                )
+            )
+
+        figure.update_layout(
+            yaxis2=dict(
+                domain=[0.55, 1],
+                range=(-50, 50),
+            ),
+            yaxis=dict(
+                domain=[0, 0.45],
+                range=(-50, 50),
+                title=r"$\text{Beam size} \: [mm]$",
+            ),
+            xaxis_title=r"$s \: [km]$",
+        )
 
         return figure
 
@@ -838,7 +1082,6 @@ class TrackingResult(Result):
     def plot_orbit_excursion(
         self,
         observation_filter: Optional[Union[str, List[str]]] = None,
-        trace_name: Optional[str] = None,
         save_path: Optional[str] = None,
         figure: Optional[go.Figure] = None,
         center_elem: str = None,
@@ -878,7 +1121,6 @@ class TrackingResult(Result):
         return self._plot(
             x_data=x_data,
             y_data=y_data,
-            trace_name=trace_name,
             save_path=save_path,
             figure=figure,
             center_elem=center_elem,
