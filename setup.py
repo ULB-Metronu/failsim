@@ -36,6 +36,7 @@ setup(
         "pymask",
         "pyyaml",
         "plotly",
+        "mkapi",
     ],
     package_data={"failsim": ["data"]},
 )
