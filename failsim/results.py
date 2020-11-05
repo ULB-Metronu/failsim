@@ -179,14 +179,14 @@ class Result:
 
         if center_elem is not None:
             assert width is not None, "width must be specified when using center_elem"
-            elem_s = self.twiss_df.loc[center_elem]["s"]
+            elem_s = x_data.loc[center_elem]
             if type(elem_s) is pd.Series:
                 elem_s = elem_s.iloc[0]
 
-            data = {k: (x, y) for k, (x, y) in zip(x_data.index, zip(x_data, y_data))}
+            # data = { k: (x, y) for k, (x, y) in zip(self.twiss_df.index, zip(x_data, y_data)) }
             y = [
                 y
-                for x, y in data.values()
+                for x, y in zip(x_data, y_data)
                 if (x > elem_s - width / 2.0) and (x < elem_s + width / 2.0)
             ]
 
@@ -334,7 +334,6 @@ class Result:
             x_data=x_data,
             y_data=y_data,
             observation_filter=observation_filter,
-            save_path=save_path,
             figure=figure,
             center_elem=center_elem,
             width=width,
@@ -396,7 +395,6 @@ class Result:
             x_data=x_data,
             y_data=y_data,
             observation_filter=observation_filter,
-            save_path=save_path,
             figure=figure,
             center_elem=center_elem,
             width=width,
@@ -419,6 +417,7 @@ class Result:
         self,
         elements: Union[str, List[str]],
         apertures: Union[float, List[float]],
+        use_excursion: bool = True,
         axis: str = "x",
         observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
         save_path: Optional[str] = None,
@@ -434,6 +433,7 @@ class Result:
         Args:
             elements: The elements to plot.
             apertures: The apertures of the elements in metres.
+            use_excursion: Whether or not orbit excursion should be considered in the calculation of effective gap.
             axis: Can either be 'x' or 'y' to specify which axis to plot.
             observation_filter: Filters tracking data indexes by each item. Can either be a list of observation points, or a single observation point.
             save_path: Path and filename of where to save the figure. If save_path is None, the plot is not saved.
@@ -483,11 +483,14 @@ class Result:
             yn = beta_elem["y"] / np.sqrt(eps_g * beta_ref["bety"])
             excursion = np.sqrt(xn ** 2 + yn ** 2)
 
-            effective_gap = (aperture - excursion) * sig_ref / sig_elem
+            if use_excursion:
+                effective_gap = (aperture - excursion) * sig_ref / sig_elem
+            else:
+                effective_gap = aperture * sig_ref / sig_elem
             effective_gap = effective_gap.clip(lower=0)
 
             start_col = "#000000"
-            end_col = "#ff5511"
+            end_col = "#1155ff"
             if parallel:
                 for idx, val in enumerate(effective_gap):
                     col = Result.lerp_hex_color(
@@ -504,7 +507,6 @@ class Result:
                         y_data=y_data,
                         observation_filter=observation_filter,
                         trace_name=element,
-                        save_path=save_path,
                         figure=figure,
                         center_elem=center_elem,
                         width=width,
@@ -525,7 +527,6 @@ class Result:
                     y_data=y_data,
                     observation_filter=observation_filter,
                     trace_name=element,
-                    save_path=save_path,
                     figure=figure,
                     center_elem=center_elem,
                     width=width,
@@ -542,25 +543,25 @@ class Result:
         )
 
         if parallel:
-            figure.add_trace(
-                go.Scatter(
-                    x=data.index,
-                    y=data["nsig"],
-                    line_shape="hvh",
-                    mode="lines",
-                    marker_color="#f00",
-                    line_width=4,
-                    opacity=0.4,
-                    showlegend=False,
+            for idx, aper in enumerate(data["nsig"]):
+                figure.add_shape(
+                    type="line",
+                    x0=idx - 0.5,
+                    x1=idx + 0.5,
+                    y0=aper,
+                    y1=aper,
+                    line_color="red",
+                    line_width=2,
+                    opacity=0.5,
                 )
-            )
 
             x0 = 0
-            for idx, typ in enumerate(data["type"].drop_duplicates()):
+            for idx, typ in enumerate(data["type"].drop_duplicates().iloc[:-1]):
                 dx = len(data.loc[data["type"] == typ])
                 figure.add_shape(
+                    type="line",
                     xref="x",
-                    x0=x0 - 0.5,
+                    x0=x0 + dx - 0.5,
                     x1=x0 + dx - 0.5,
                     yref="paper",
                     y0=0,
@@ -568,8 +569,6 @@ class Result:
                     layer="below",
                     line_width=1,
                     line_color="#000",
-                    fillcolor=f"hsv(0,0%,{95+5*(idx%2)}%)",
-                    opacity=1,
                 )
                 x0 += dx
 
@@ -597,7 +596,7 @@ class Result:
             The kwargs can be used to give layout/trace specifications to plotly.
             Each key must have either "layout_" or "trace_" as suffix.
             If a key has "layout_" as suffix, the key will be sent to update_layout(),
-            whereas a key with the suffix "trace_" will be sent to Scatter().
+            whereas a key with the suffix "trace_" will be sent to the plotting methods.
 
         Args:
             observation_filter: Filters tracking data indexes by each item. Can either be a list of observation points, or a single observation point.
@@ -614,6 +613,9 @@ class Result:
             FailSim.path_to_output("twiss_pre_thin_b1.parquet")
         )
         twiss = self.twiss_df.copy()
+
+        layout_kwargs = {x[7:]: kwargs[x] for x in kwargs if x.startswith("layout_")}
+        trace_kwargs = {x[6:]: kwargs[x] for x in kwargs if x.startswith("trace_")}
 
         if figure is None:
             figure = go.Figure()
@@ -645,6 +647,13 @@ class Result:
             )
         ]
 
+        for _, row in aperture_twiss.iterrows():
+            if row["aper_1"] <= 0:
+                print(row["name"])
+                print(row["keyword"])
+                print(row["aper_1"])
+                print()
+
         colors = dict(
             quadrupole="red",
             sextupole="green",
@@ -662,7 +671,7 @@ class Result:
         )
 
         for _, row in aperture_twiss.iterrows():
-            x0 = (row["s"] - row["l"]) / 1000
+            x0 = (row["s"] - (row["l"] if row["l"] != 0 else 0.5)) / 1000
             x1 = row["s"] / 1000
             y0_x = 1000 * abs(row["aper_1"])
             y0_y = 1000 * abs(row["aper_2"])
@@ -715,6 +724,7 @@ class Result:
                     name=f"{abs(mag)} sigma",
                     marker_color="blue",
                     yaxis="y2",
+                    hoverinfo="skip" if mag < 0 else None,
                 )
             )
             figure.add_trace(
@@ -727,6 +737,7 @@ class Result:
                     name=f"{abs(mag)} sigma",
                     marker_color="orange",
                     yaxis="y",
+                    hoverinfo="skip" if mag < 0 else None,
                 )
             )
 
@@ -734,6 +745,7 @@ class Result:
             yaxis2=dict(
                 domain=[0.55, 1],
                 range=(-50, 50),
+                title=r"$\text{Beam size} \: [mm]$",
             ),
             yaxis=dict(
                 domain=[0, 0.45],
@@ -742,6 +754,8 @@ class Result:
             ),
             xaxis_title=r"$s \: [km]$",
         )
+
+        figure.update_layout(layout_kwargs)
 
         if save_path is not None:
             if not save_path.endswith(".html"):
@@ -1144,7 +1158,6 @@ class TrackingResult(Result):
         figure = self._plot(
             x_data=x_data,
             y_data=y_data,
-            save_path=save_path,
             figure=figure,
             center_elem=center_elem,
             width=width,
