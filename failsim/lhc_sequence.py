@@ -9,15 +9,51 @@ from .checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
 from .globals import FSGlobals
 from .helpers import print_info
+from .results import TwissResult
 
-from typing import Optional, List, Union, Dict
+from typing import Optional, List, Union, Dict, Callable
 import pymask as pm
+import numpy as np
+import pandas as pd
 import functools
 import pkg_resources
 import yaml
 import os
 import glob
 import re
+
+
+## ===== Decorators ===== ##
+
+
+def reset_state(build: bool, check: bool):
+    def inner_reset_state(func):
+        @functools.wraps(func)
+        def wrapper_reset_state(self, *args, **kwargs):
+            self._built = False if build else self._built
+            self._checked = False if check else self._checked
+            val = func(self, *args, **kwargs)
+            return val
+
+        return wrapper_reset_state
+
+    return inner_reset_state
+
+
+def ensure_build(func):
+    @functools.wraps(func)
+    def wrapper_ensure_build(self, *args, **kwargs):
+        if not self._built:
+            self.build()
+        if not self._checked:
+            self.run_check()
+        val = func(self, *args, **kwargs)
+        return val
+
+    return wrapper_ensure_build
+
+
+## ====================== ##
 
 
 class LHCSequence:
@@ -62,6 +98,7 @@ class LHCSequence:
         self._input_param_path = input_param_path
 
         self._modules = {}
+        self._pre_thin_scripts = []
 
         self._metadata = None
         self._custom_sequence = None
@@ -74,9 +111,8 @@ class LHCSequence:
         self._custom_optics = None
         self._optics_key = None
         self._optics_path = None
-        self._do_cycle = None
-        self._sequences_to_cycle = None
-        self._cycle_target = None
+        self._cycle = None
+        self._bb_dfs = None
 
         self._built = False
         self._checked = False
@@ -97,37 +133,11 @@ class LHCSequence:
         if optics_key is not None:
             self.select_optics(optics_key)
 
-    def _reset_state(build: bool, check: bool):
-        def inner_reset_state(func):
-            @functools.wraps(func)
-            def wrapper_reset_state(self, *args, **kwargs):
-                self._built = False if build else self._built
-                self._checked = False if check else self._checked
-                val = func(self, *args, **kwargs)
-                return val
-
-            return wrapper_reset_state
-
-        return inner_reset_state
-
-    def _ensure_build(func):
-        @functools.wraps(func)
-        def wrapper_ensure_build(self, *args, **kwargs):
-            if not self._built:
-                self.build()
-            if not self._checked:
-                self.run_check()
-            val = func(self, *args, **kwargs)
-            return val
-
-        return wrapper_ensure_build
-
-    @print_info("LHCSequence")
     def _initialize_mask_dictionary(self):
-        """TODO: Docstring for intialize_mask_dictionary.
+        """Fills the internal dictionary _modules with default values for each pymask module.
 
-        Returns: TODO
-
+        Note:
+            The dictionary is set up in such a way, that each module has 3 aliases with which the values of the given module can be accessed with. For example, the module submodule_01a_preparation.madx can be accessed with the module number "01a", the module number and name "01a_preparation" or the entire module filename "submodule_01a_preparation.madx".
         """
         module_dir = pkg_resources.resource_filename("pymask", "..")
         modules = glob.glob(os.path.join(module_dir, "*.madx"))
@@ -142,18 +152,17 @@ class LHCSequence:
             self._modules.update(
                 dict.fromkeys(
                     [num, num + "_" + name, os.path.basename(module)],
-                    {"enabled": False, "path": module},
+                    {"enabled": False, "called": False, "path": module},
                 )
             )
 
         # Set default modules
         self._modules["01a_preparation"]["enabled"] = True
         self._modules["01b_beam"]["enabled"] = True
-        #self._modules["02_lumilevel"]["enabled"] = True
-        #self._modules["05d_matching"]["enabled"] = True
-        #self._modules["05f_final"]["enabled"] = True
+        self._modules["01c_phase"]["enabled"] = True
+        self._modules["01d_crossing"]["enabled"] = True
+        self._modules["05a_MO"]["enabled"] = True
 
-    @print_info("LHCSequence")
     def _get_mode_configuration(self):
         """Loads the mode configuration.
 
@@ -181,7 +190,6 @@ class LHCSequence:
             self._check_separations_at_ips = False
             self._check.check_separations = False
 
-    @print_info("LHCSequence")
     def _init_check(self):
         """Initializes the internal OpticsChecks instance.
 
@@ -201,7 +209,6 @@ class LHCSequence:
 
         return self
 
-    @print_info("LHCSequence")
     def _load_input_parameters(self):
         """Loads input_parameters.yaml.
 
@@ -222,7 +229,6 @@ class LHCSequence:
 
         return input_parameters
 
-    @print_info("LHCSequence")
     def _load_mask_parameters(self, mask_parameters: Dict):
         """Loads mask_parameters.yaml.
 
@@ -236,13 +242,18 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
+        if (
+            not self._mode_configuration["enable_bb_legacy"]
+            and not self._mode_configuration["enable_bb_python"]
+        ):
+            mask_parameters["par_on_bb_switch"] = 0.0
+
         pm.checks_on_parameter_dict(mask_parameters)
 
         self._failsim._mad.set_variables_from_dict(params=mask_parameters)
 
         return self
 
-    @print_info("LHCSequence")
     def _load_knob_parameters(self, knob_parameters: Dict):
         """Loads knob_parameters.yaml.
 
@@ -304,20 +315,17 @@ class LHCSequence:
 
         return self
 
-    @print_info("LHCSequence")
     def _check_call_module(self, module: str):
-        """TODO: Docstring for _check_call_module.
+        """Checks whether the given module is enabled, and whether the module has already been called. If the module is enabled and hasn't been called yet, the module is called.
 
         Args:
-            module (TODO): TODO
-
-        Returns: TODO
+            module: String containing a key to the module to check.
 
         """
-        if self._modules[module]["enabled"]:
+        if self._modules[module]["enabled"] and not self._modules[module]["called"]:
             self.call_pymask_module(os.path.basename(self._modules[module]["path"]))
+            self._modules[module]["called"] = True
 
-    @print_info("LHCSequence")
     def _load_metadata(self):
         """Loads the metadata.yaml file.
 
@@ -330,22 +338,109 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(True, True)
-    @print_info("LHCSequence")
-    def set_modules_enabled(self, modules: List[str], enabled: bool = True):
-        """TODO: Docstring for set_modules_enabled.
+    def _call_remaining_modules(self):
+        """Calls all pymask modules that have been enabled, and that haven't been called yet.
+
+        Returns:
+            LHCSequence: Returns self.
+
+        """
+        modules = [x for x in self._modules if x.endswith(".madx")]
+        modules.sort()
+        for module in modules:
+            self._check_call_module(module)
+
+    def _prepare_bb_dataframes(self):
+        """ Prepares the beam-beam dataframes. """
+        if self._mode_configuration["enable_bb_python"]:
+            self._bb_dfs = pm.generate_bb_dataframes(
+                self._failsim.mad,
+                ip_names=["ip1", "ip2", "ip5", "ip8"],
+                harmonic_number=35640,
+                numberOfLRPerIRSide=[25, 20, 25, 20],
+                bunch_spacing_buckets=10,
+                numberOfHOSlices=11,
+                bunch_population_ppb=None,
+                sigmaz_m=None,
+                z_crab_twiss=0,
+                remove_dummy_lenses=True,
+            )
+
+    def _install_bb_lenses(self):
+        """ Installs the beam-beam lenses if beam-beam has been enabled by mode. """
+        ## Python approach
+        if self._mode_configuration["enable_bb_python"]:
+            if self._mode_configuration["track_from_b4_mad_instance"]:
+                bb_df_track = self._bb_dfs["b4"]
+                assert self._mode_configuration["sequence_to_track"] == "lhcb2"
+            else:
+                bb_df_track = self._bb_dfs["b1"]
+                assert self._mode_configuration["sequence_to_track"] == "lhcb1"
+
+            pm.install_lenses_in_sequence(
+                self._failsim.mad,
+                bb_df_track,
+                self._mode_configuration["sequence_to_track"],
+            )
+
+            ## Disable bb (to be activated later)
+            self._failsim.mad.globals.on_bb_charge = 0
+        else:
+            bb_df_track = None
+
+        ## Legacy bb macros
+        if self._mode_configuration["enable_bb_legacy"]:
+            assert self._mode_configuration["beam_to_configure"] == 1
+            assert not (self._mode_configuration["track_from_b4_mad_instance"])
+            assert not (self._mode_configuration["enable_bb_python"])
+            self._failsim.mad_call_file("modules/module_03_beambeam.madx")
+
+    def _sigma_to_length(self, beam_sigmas: float, element: str, axis: str = "x"):
+        """
+        Takes a length defined in beam sigmas, and returns the actual length at the given element.
 
         Args:
-            modules: TODO
-            enabled: TODO
+            sigma: Length expressed in beam sigmas.
+            element: The element, at which the length should be calculated.
+            axis: The axis of beta function to use.
 
-        Returns: TODO
+        Returns:
+            float: Length expressed in metres.
+
+        """
+        twiss = self.twiss()
+
+        gamma = twiss.info_df["nrj"] / 0.938
+        eps_g = twiss.info_df["eps_n"] / gamma
+
+        sigma = np.sqrt(eps_g * twiss.twiss_df.loc[element][f"bet{axis}"])
+        return beam_sigmas * sigma
+
+    @reset_state(True, True)
+    @print_info("LHCSequence")
+    def set_modules_enabled(self, modules: List[str], enabled: bool = True):
+        """Either enables or disables a list of modules based upon the parameter "enabled".
+
+        Args:
+            modules: A list containing keys of the modules to either enable or disable.
+            enabled: Whether the modules specified by "modules" should be enabled or disabled. True enables modules, while False disables.
+
+        Returns:
+            LHCSequence: Returns self.
 
         """
         for module in modules:
+            assert module in self._modules.keys(), (
+                f"Module {module} is not a valid module.\n"
+                "Valid modules are:\n{}".format(
+                    "\n".join([x for x in self._modules if x.endswith(".madx")])
+                )
+            )
             self._modules[module]["enabled"] = enabled
 
-    @_reset_state(True, True)
+        return self
+
+    @reset_state(True, True)
     @print_info("LHCSequence")
     def select_sequence(
         self,
@@ -387,7 +482,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(True, True)
+    @reset_state(True, True)
     @print_info("LHCSequence")
     def select_optics(self, optics: str, custom: bool = False):
         """Sets the selected optics. The selected optics can either be an optics key found in metadata.yaml by specifying a valid key, or a custom optics strength file by specifying a path.
@@ -417,19 +512,22 @@ class LHCSequence:
         Note:
             Specifically does the following:
 
-            # TODO Update to match reality
             1. If a sequence key has been specified, loads the relevant sequence data.
             2. If an optics key has been specified, loads the relevant optics data.
             3. Calls all sequence files sequentially.
             4. Calls optics strength file.
             5. Inputs *mylhcbeam*, *ver_lhc_run* and *ver_hllhc_optics* into the Mad-X instance.
             6. Loads mask_parameters.yaml.
-            7. Calls *submodule_01a_preparation.madx* and *submodule_01b_beam.madx*
+            7. Calls the submodules *01a_preparation* and *01b_beam* if these modules are enabled.
                 - These set basic internal Mad-X variables and define the beam.
-            8. Makes all sequences thin.
-            9. Loads knob_parameters.yaml
-            10. Cycles sequence if specified
-            11. Runs any modules that have been enabled
+            8. Saves twiss table to use for cartouche plots
+            9. Makes all sequences thin.
+            10. Loads knob_parameters.yaml
+            11. Cycles sequence if specified
+            12. Runs any modules that have been enabled
+            13. Calls the modules *01c_phase*, *01d_crossing*, *01e_final* and *02_lumilevel* if these modules are enabled.
+            14. Installs BB lenses, if BB lenses have been specified.
+            15. Checks each remaining module sequentially, and calls the module if it is both enabled and hasn't been called yet.
 
         Returns:
             LHCSequence: Returns self
@@ -474,28 +572,57 @@ class LHCSequence:
         self._check_call_module("01a_preparation")
         self._check_call_module("01b_beam")
 
-        for seq in self._mode_configuration["sequences_to_check"]:
-            self._failsim.make_thin(seq[-1])
-
-        self._load_knob_parameters(input_parameters["knob_parameters"])
-
         if self._cycle is not None:
             for seq in self._cycle["sequences"]:
                 self._failsim.mad_input(
                     f"seqedit, sequence={seq}; flatten; cycle, start={self._cycle['target']}; flatten; endedit"
                 )
 
+        for ff in self._pre_thin_scripts:
+            self._failsim.mad_call_file(ff)
+
+        for ss in self._mode_configuration["sequences_to_check"]:
+            twiss_df, _ = self._failsim.twiss_and_summ(ss)
+            twiss_df.to_parquet(
+                FailSim.path_to_output(f"twiss_pre_thin_b{ss[-1]}.parquet")
+            )
+
+            survey_df = self._failsim.mad.survey(sequence=ss).dframe()
+            survey_df.to_parquet(
+                FailSim.path_to_output(f"survey_pre_thin_b{ss[-1]}.parquet")
+            )
+
+        self._failsim.make_thin(self._mode_configuration["sequence_to_track"][-1])
+
+        self._load_knob_parameters(input_parameters["knob_parameters"])
+
         self._check_call_module("01c_phase")
         self._check_call_module("01d_crossing")
         self._check_call_module("01e_final")
         self._check_call_module("02_lumilevel")
 
-        ## TODO Install BB
+        self._prepare_bb_dataframes()
+        self._install_bb_lenses()
 
-        self._check_call_module("05d_matching")
-        self._check_call_module("05f_final")
+        self._call_remaining_modules()
 
         self._built = True
+
+        return self
+
+    @reset_state(True, True)
+    @print_info("LHCSequence")
+    def add_pre_thin_script(self, scripts: List[str]):
+        """Adds a list of files to be called before making the sequence thin.
+
+        Args:
+            scripts: List of files to call.
+
+        Returns:
+            LHCSequence: Returns self.
+
+        """
+        self._pre_thin_scripts += scripts
 
         return self
 
@@ -516,7 +643,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def call_pymask_module(self, module: str):
         """Calls a pymask module using the internal Mad-X instance.
@@ -532,7 +659,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(True, True)
+    @reset_state(True, True)
     @print_info("LHCSequence")
     def cycle(self, sequences: List[str], target: str):
         """Cycles the specified sequences to start at the target element.
@@ -549,7 +676,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(True, True)
+    @reset_state(True, True)
     @print_info("LHCSequence")
     def set_input_parameter_path(self, path: str):
         """Sets the input_parameters.yaml path.
@@ -568,25 +695,7 @@ class LHCSequence:
 
         return self
 
-    @_ensure_build
-    @print_info("LHCSequence")
-    def build_tracker(self, verbose: bool = False):
-        """Builds a SequenceTracker instance.
-
-        Args:
-            verbose: Whether the generated SequenceTracker object should be verbose or not.
-
-        Returns:
-            SequenceTracker: A SequenceTracker instance containing this sequence.
-
-        """
-        new_fs = self._failsim.duplicate()
-        tracker = SequenceTracker(
-            new_fs, self._mode_configuration["sequence_to_track"], verbose=verbose
-        )
-        return tracker
-
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def crossing_save(self):
         """Saves the current crossing settings in internal Mad-X variables.
@@ -599,7 +708,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def set_crossing(self, crossing_on: bool):
         """Either enables or disables crossing depending on the crossing_on parameter.
@@ -619,7 +728,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def call_file(self, file_path: str):
         """Forwards the file_path to failsim.mad_call_file.
@@ -635,7 +744,7 @@ class LHCSequence:
 
         return self
 
-    @_reset_state(False, True)
+    @reset_state(False, True)
     @print_info("LHCSequence")
     def call_files(self, file_paths: List[str]):
         """Calls multiple files using the internal Mad-X instance.
@@ -651,3 +760,70 @@ class LHCSequence:
             self.call_file(file)
 
         return self
+
+    @ensure_build
+    @print_info("LHCSequence")
+    def build_tracker(self, verbose: bool = False):
+        """Builds a SequenceTracker instance.
+
+        Args:
+            verbose: Whether the generated SequenceTracker object should be verbose or not.
+
+        Returns:
+            SequenceTracker: A SequenceTracker instance containing this sequence.
+
+        """
+        new_fs = self._failsim.duplicate()
+        tracker = SequenceTracker(
+            new_fs, self._mode_configuration["sequence_to_track"], verbose=verbose
+        )
+        return tracker
+
+    def get_around_element(
+        self,
+        element: str,
+        width: float,
+        dataframe_filter: Callable[[pd.DataFrame], pd.Series] = None,
+    ):
+        """Returns a DataFrame containing twiss data for elements around the given element at a specific width.
+
+        Args:
+            element: Name of element around which elements will be returned.
+            width: The longitudinal distance around the given element to filter elements by.
+            dataframe_filter: Allows specification of a function that will be passed to the .loc method of the twiss DataFrame. Can be used to filter the DataFrame.
+
+        Returns:
+            pd.DataFrame: DataFrame containing elements in the given width around the given element.
+
+        """
+        twiss = self.twiss().twiss_df
+        twiss_filt = twiss.loc[dataframe_filter(twiss)].copy()
+        return twiss_filt.loc[
+            (twiss_filt["s"] > twiss.loc[element]["s"] - width)
+            & (twiss_filt["s"] < twiss.loc[element]["s"] + width)
+        ]
+
+    def twiss(self):
+        """TODO: Docstring for twiss.
+
+        Returns:
+            TwissResult: TwissResult containing result.
+
+        """
+        twiss_df, summ_df = self._failsim.twiss_and_summ(
+            self._mode_configuration["sequence_to_track"]
+        )
+
+        eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
+        nrj = self._failsim._mad.globals["nrj"]
+        run_version = self._failsim._mad.globals["ver_lhc_run"]
+        hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
+
+        return TwissResult(
+            twiss_df=twiss_df,
+            summ_df=summ_df,
+            run_version=run_version,
+            hllhc_version=hllhc_version,
+            eps_n=eps_n,
+            nrj=nrj,
+        )

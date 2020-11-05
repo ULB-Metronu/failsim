@@ -135,7 +135,8 @@ class MoveNewFiles:
         for file in new_files:
             if os.path.basename(file).startswith("."):
                 pass
-            shutil.move(file, os.path.join(self._destination, os.path.basename(file)))
+            shutil.move(file, os.path.join(
+                self._destination, os.path.basename(file)))
 
 
 def print_info(name: str):

@@ -8,6 +8,7 @@ from .failsim import FailSim
 from typing import List, Dict
 import pymask as pm
 import pandas as pd
+import logging
 
 
 class OpticsChecks:

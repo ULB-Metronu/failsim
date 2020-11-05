@@ -2,8 +2,6 @@
 Contains the class FailSim.
 """
 
-## TODO Change to only use mad.input and mad.call instead of cpymad methods
-
 
 from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
 from .globals import FSGlobals
@@ -55,9 +53,9 @@ class FailSim:
         self._mad = None
 
         if command_log is None:
-            self._master_mad_command_log = ArrayFile()
+            self._command_log = ArrayFile()
         else:
-            self._master_mad_command_log = command_log
+            self._command_log = command_log
 
         # Setup cwd
         if cwd is None:
@@ -106,6 +104,11 @@ class FailSim:
             for command in command_log.copy().read():
                 self.mad_input(command)
 
+    @property
+    def mad(self):
+        """TODO"""
+        return self._mad
+
     @print_info("FailSim")
     def initialize_mad(self):
         """Initializes the Mad-X instance.
@@ -115,10 +118,8 @@ class FailSim:
             FailSim: Returns self
 
         """
-        self._mad = pm.Madxp(
-            stdout=self._madx_mute, command_log=self._master_mad_command_log
-        )
-        self._mad.chdir(self._cwd)
+        self._mad = pm.Madxp(stdout=self._madx_mute, command_log=self._command_log)
+        self.mad.chdir(self._cwd)
 
         if self._madx_verbosity != "mute":
             self.mad_input("option, " + self._madx_verbosity)
@@ -149,7 +150,7 @@ class FailSim:
 
         """
         macro_path = pkg_resources.resource_filename(
-            __name__, "data/hllhc14/" "toolkit/macro.madx"
+            __name__, "data/hllhc14/toolkit/macro.madx"
         )
         self.mad_call_file(macro_path)
 
@@ -170,7 +171,7 @@ class FailSim:
         with MoveNewFiles(self._cwd, self._output_dir):
             if not path.startswith("/"):
                 path = os.path.join(self._cwd, path)
-            self._mad.call(path)
+            self.mad.call(path)
 
         return self
 
@@ -187,7 +188,7 @@ class FailSim:
 
         """
         with MoveNewFiles(self._cwd, self._output_dir):
-            self._mad.input(command)
+            self.mad.input(command + ";")
 
         return self
 
@@ -204,7 +205,7 @@ class FailSim:
             cwd=self._cwd,
             madx_verbosity=self._madx_verbosity,
             failsim_verbosity=self._verbose,
-            command_log=self._master_mad_command_log.copy(),
+            command_log=self._command_log.copy(),
         )
 
     @print_info("FailSim")
@@ -218,7 +219,7 @@ class FailSim:
             FailSim: Returns self
 
         """
-        self._mad.use(seq)
+        self.mad.use(seq)
 
         return self
 
@@ -239,7 +240,7 @@ class FailSim:
         """
         self.use(seq)
         self.mad_input(f"{', '.join(['twiss', f'sequence={seq}'] + flags)}")
-        return (self._mad.table["twiss"].dframe(), self._mad.table["summ"].dframe())
+        return (self.mad.table["twiss"].dframe(), self.mad.table["summ"].dframe())
 
     @print_info("FailSim")
     def call_pymask_module(self, module: str):
@@ -252,7 +253,9 @@ class FailSim:
             FailSim: Returns self
 
         """
-        path = pkg_resources.resource_filename("pymask", "../" + module)
+        path = pkg_resources.resource_filename(
+            __name__, "data/lhcmask_failsim/" + module
+        )
         self.mad_call_file(path)
 
         return self
@@ -270,19 +273,19 @@ class FailSim:
         """
         self.use(f"lhcb{beam}")
 
-        # twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
-        # pre_len = summ_df["length"][0]
+        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
+        pre_len = summ_df["length"][0]
 
         self.mad_input(f"use, sequence=lhcb{beam}; exec myslice")
 
-        # twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
-        # post_len = summ_df["length"][0]
+        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
+        post_len = summ_df["length"][0]
 
-        # assert post_len == pre_len, (
-        #     "Length of sequence changed by makethin\n\t"
-        #     f"Length pre: {pre_len}\n\t"
-        #     f"Length post: {post_len}\n\t"
-        # )
+        assert abs(post_len - pre_len) < 0.001, (
+            "Length of sequence changed by makethin\n\t"
+            f"Length pre: {pre_len}\n\t"
+            f"Length post: {post_len}\n\t"
+        )
 
         return self
 
@@ -311,5 +314,8 @@ class FailSim:
 
         """
         if cls.output_dir is None:
-            return path
+            if FSGlobals.output_dir is None:
+                return path
+            else:
+                return os.path.join(FSGlobals.output_dir, path)
         return os.path.join(cls.output_dir, path)

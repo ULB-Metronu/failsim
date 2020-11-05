@@ -42,18 +42,22 @@ class SequenceTracker:
 
     @print_info("SequenceTracker")
     def twiss(self, turns: int):
-        """TODO: Docstring for twiss.
+        """
+        Does Twiss with current sequence.
+        If time dependencies have been defined, the method does a multi-turn twiss, calling the time dependies each iteration.
 
         Args:
-            turns: TODO
+            turns: Amount of turns to do multi-turn twiss.
 
-        Returns: TODO
+        Returns:
+            TwissResult: DataClass containing twiss data.
 
         """
         time_depen = []
 
         if len(self._time_dependencies) == 0:
-            twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
+            twiss_df, summ_df = self._failsim.twiss_and_summ(
+                self._sequence_to_track)
             twiss_df["turn"] = 1
 
         else:
@@ -70,14 +74,15 @@ class SequenceTracker:
 
             twiss_df = pd.DataFrame()
             for i in range(turns):
-                self._failsim.mad_input(f"comp={i}")
+                self._failsim.mad_input(f"comp={i-1}")
 
                 self._failsim.mad_input(
                     f"savebeta, label=end_{i}, place=#e, sequence={self._sequence_to_track}"
                 )
 
-                for file in time_depen:
-                    self._failsim.mad_call_file(file)
+                if i > 0:
+                    for file in time_depen:
+                        self._failsim.mad_call_file(file)
 
                 if i == 0:
                     temp_df, summ_df = self._failsim.twiss_and_summ(
@@ -91,6 +96,8 @@ class SequenceTracker:
                 temp_df["turn"] = i + 1
 
                 twiss_df = twiss_df.append(temp_df)
+
+                del temp_df
 
         for file in time_depen:
             os.remove(file)
@@ -138,7 +145,8 @@ class SequenceTracker:
                 f"tr$macro(turn): macro = {{comp=turn; {time_depen} }}"
             )
 
-        twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
+        twiss_df, summ_df = self._failsim.twiss_and_summ(
+            self._sequence_to_track)
         run_version = self._failsim._mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
 
