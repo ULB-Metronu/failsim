@@ -6,4 +6,4 @@
 	url = ssh://git@gitlab.cern.ch:7999/acc-models/acc-models-lhc.git
 [submodule "failsim/data/lhcmask_failsim"]
 	path = failsim/data/lhcmask_failsim
-	url = https://gitlab.cern.ch/otuormaa/lhcmask_failsim
+	url = ssh://git@gitlab.cern.ch:7999/otuormaa/lhcmask_failsim.git
