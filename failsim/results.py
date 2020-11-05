@@ -352,7 +352,6 @@ class Result:
 
     def plot_beta_function(
         self,
-        axis: str = "x",
         observation_filter: Callable[[pd.DataFrame], pd.DataFrame] = None,
         save_path: Optional[str] = None,
         figure: Optional[go.Figure] = None,
@@ -388,21 +387,82 @@ class Result:
         if observation_filter is not None:
             twiss = twiss.loc[observation_filter(twiss)]
 
-        x_data = twiss["s"]
-        y_data = twiss[f"bet{axis}"]
+        if center_elem is not None:
+            assert width is not None, "width must be specified when using center_elem"
+            elem_s = twiss["s"].loc[center_elem]
+            if type(elem_s) is pd.Series:
+                elem_s = elem_s.iloc[0]
 
-        figure = self._plot(
-            x_data=x_data,
-            y_data=y_data,
-            observation_filter=observation_filter,
-            figure=figure,
-            center_elem=center_elem,
-            width=width,
-            plot_type=plot_type,
-            layout_xaxis_title=r"$s \: [m]$",
-            layout_yaxis_title=r"$\beta \: [m]$",
-            **kwargs,
-        )
+            twiss_centered = twiss.loc[
+                (twiss["s"] > elem_s - width / 2) & (twiss["s"] < elem_s + width / 2)
+            ]
+
+            lim = max(
+                [
+                    max(twiss_centered["betx"]),
+                    max(twiss_centered["bety"]),
+                    max(twiss_centered["dx"]),
+                    max(twiss_centered["dy"]),
+                    max(twiss_centered["x"]),
+                    max(twiss_centered["y"]),
+                ]
+            )
+
+            figure.update_layout(
+                xaxis_range=(
+                    elem_s - width / 2.0,
+                    elem_s + width / 2.0,
+                ),
+                yaxis_range=(
+                    -lim / 10,
+                    lim + lim / 10,
+                ),
+                legend=dict(
+                    font_size=8,
+                    yanchor="top",
+                    xanchor="right",
+                    x=0.99,
+                    y=0.75,
+                ),
+            )
+
+        for axis in ["x", "y"]:
+            figure.add_trace(
+                go.Scatter(
+                    x=twiss["s"],
+                    y=twiss[f"bet{axis}"],
+                    marker_color="red" if axis == "x" else "blue",
+                    name=r"$\beta \: \text{Horizontal}$"
+                    if axis == "x"
+                    else r"$\beta \: \text{Vertical}$",
+                )
+            )
+
+        for axis in ["x", "y"]:
+            figure.add_trace(
+                go.Scatter(
+                    x=twiss["s"],
+                    y=twiss[f"d{axis}"],
+                    marker_color="green" if axis == "x" else "orange",
+                    name=r"$\text{Horizotal dispersion}$"
+                    if axis == "x"
+                    else r"$\text{Vertical dispersion}$",
+                    yaxis="y3",
+                ),
+            )
+
+        for axis in ["x", "y"]:
+            figure.add_trace(
+                go.Scatter(
+                    x=twiss["s"],
+                    y=twiss[f"{axis}"],
+                    marker_color="purple" if axis == "x" else "skyblue",
+                    name=r"$\text{Horizotal orbit}$"
+                    if axis == "x"
+                    else r"$\text{Vertical orbit}$",
+                    yaxis="y4",
+                ),
+            )
 
         if save_path is not None:
             if not save_path.endswith(".html"):
@@ -410,6 +470,25 @@ class Result:
             if not save_path.startswith("/"):
                 save_path = FailSim.path_to_output(save_path)
             figure.write_html(save_path)
+
+        figure.update_layout(
+            yaxis3=dict(
+                domain=[0.4, 0.75],
+                title=r"$\text{Dispersion} \: [m]$",
+            ),
+            yaxis4=dict(
+                domain=[0.4, 0.75],
+                title=r"$\text{Orbit} \: [m]$",
+                overlaying="y3",
+                side="right",
+            ),
+            yaxis=dict(
+                domain=[0, 0.35],
+                title=r"$\beta \: [m]$",
+            ),
+            xaxis_title=r"$s \: [m]$",
+            height=800,
+        )
 
         return figure
 
