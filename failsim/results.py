@@ -207,13 +207,6 @@ class Result:
                 ),
             )
 
-        if save_path is not None:
-            if not save_path.endswith(".html"):
-                save_path += ".html"
-            if not save_path.startswith("/"):
-                save_path = FailSim.path_to_output(save_path)
-            figure.write_html(save_path)
-
         return figure
 
     def fix_twiss_name(self):
@@ -337,7 +330,7 @@ class Result:
             x_data = betabeating.loc[element]["turn"]
             y_data = betabeating.loc[element][f"bet{axis}"]
 
-        return self._plot(
+        figure = self._plot(
             x_data=x_data,
             y_data=y_data,
             observation_filter=observation_filter,
@@ -350,6 +343,13 @@ class Result:
             layout_yaxis_title=r"$\text{Beta Beating}$",
             **kwargs,
         )
+
+        if save_path is not None:
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+            if not save_path.startswith("/"):
+                save_path = FailSim.path_to_output(save_path)
+            figure.write_html(save_path)
 
     def plot_beta_function(
         self,
@@ -392,7 +392,7 @@ class Result:
         x_data = twiss["s"]
         y_data = twiss[f"bet{axis}"]
 
-        return self._plot(
+        figure = self._plot(
             x_data=x_data,
             y_data=y_data,
             observation_filter=observation_filter,
@@ -405,6 +405,15 @@ class Result:
             layout_yaxis_title=r"$\beta \: [m]$",
             **kwargs,
         )
+
+        if save_path is not None:
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+            if not save_path.startswith("/"):
+                save_path = FailSim.path_to_output(save_path)
+            figure.write_html(save_path)
+
+        return figure
 
     def plot_effective_gap(
         self,
@@ -563,6 +572,13 @@ class Result:
                     opacity=1,
                 )
                 x0 += dx
+
+        if save_path is not None:
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+            if not save_path.startswith("/"):
+                save_path = FailSim.path_to_output(save_path)
+            figure.write_html(save_path)
 
         return figure
 
@@ -726,6 +742,13 @@ class Result:
             ),
             xaxis_title=r"$s \: [km]$",
         )
+
+        if save_path is not None:
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+            if not save_path.startswith("/"):
+                save_path = FailSim.path_to_output(save_path)
+            figure.write_html(save_path)
 
         return figure
 
@@ -1118,7 +1141,7 @@ class TrackingResult(Result):
         x_data = track["turn"]
         y_data = self.calculate_action(track)["r"]
 
-        return self._plot(
+        figure = self._plot(
             x_data=x_data,
             y_data=y_data,
             save_path=save_path,
@@ -1128,6 +1151,15 @@ class TrackingResult(Result):
             plot_type=plot_type,
             **kwargs,
         )
+
+        if save_path is not None:
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+            if not save_path.startswith("/"):
+                save_path = FailSim.path_to_output(save_path)
+            figure.write_html(save_path)
+
+        return figure
 
     def save_data(self, path: str, suffix: str = ""):
         """
