@@ -3,4 +3,3 @@ pandas
 pymask
 pyyaml
 plotly
--e git://github.com/daizutabi/mkapi.git#egg=mkapi
