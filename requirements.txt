@@ -1,5 +1,1 @@
-numpy
-pandas
-plotly
-pyyaml
-git+https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/otuormaa/lhcmask_failsim.git#egg=pymask
+.
