@@ -3,7 +3,7 @@ This module contains classes for miscellaneous tasks that don't fit in anywhere 
 """
 
 
-from .globals import FSGlobals
+from .globals import FailSimGlobals
 from typing import ByteString, Callable
 import functools
 import os
@@ -151,7 +151,7 @@ def print_info(name: str):
     def _print_info(func):
         @functools.wraps(func)
         def _wrapper_print_info(self, *args, **kwargs):
-            if self._verbose and FSGlobals.verbose:
+            if self._verbose and FailSimGlobals.verbose:
                 args_repr = [repr(a) for a in args]
                 kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
                 signature = ", ".join(args_repr + kwargs_repr)

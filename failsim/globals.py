@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class FSGlobals:
+class FailSimGlobals:
 
     """
     Static dataclass that holds global variables.
@@ -16,7 +16,6 @@ class FSGlobals:
         cwd: Global working directory. Does not take priority over instance specific working directories.
         verbose: Global verbosity toggle. If False, mutes every class in the FailSim package.
     """
-
     output_dir: str = None
     cwd: str = None
     verbose: bool = True

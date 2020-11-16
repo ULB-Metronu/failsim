@@ -4,7 +4,7 @@ Module containing the class SequenceTracker
 
 from .failsim import FailSim
 from .results import TrackingResult, TwissResult
-from .globals import FSGlobals
+from .globals import FailSimGlobals
 from .helpers import print_info
 
 from typing import List, Optional, Tuple

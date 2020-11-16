@@ -4,7 +4,7 @@ Contains the class FailSim.
 
 
 from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
-from .globals import FSGlobals
+from .globals import FailSimGlobals
 
 from typing import Optional, List, Union
 import numpy as np
@@ -22,11 +22,11 @@ class FailSim:
     This class is the interface to the Mad-X instance.
 
     Note:
-        The output directory and the cwd can also be set globally by setting the static variables output_dir and cwd in the FSGlobals class.
+        The output directory and the cwd can also be set globally by setting the static variables output_dir and cwd in the FailSimGlobals class.
         If an output directory or cwd are specified in the constructor, the ones specified in the constructor will take priority.
 
     Args:
-        output_dir: Sets the desired output directory. If output_dir is None, and FSGlobals.output_dir is None, FailSim outputs all files in the cwd.
+        output_dir: Sets the desired output directory. If output_dir is None, and FailSimGlobals.output_dir is None, FailSim outputs all files in the cwd.
         cwd: Sets the desired cwd. If cwd is None, FailSim uses os.getcwd() to set the cwd.
         madx_verbosity: Sets the verbosity of Mad-X. If this parameter is "mute", FailSim will use OutputSuppressor to completely mute Mad-X output.
         failsim_verbosity: Enables or disables stdout output from FailSim.
@@ -59,19 +59,19 @@ class FailSim:
 
         # Setup cwd
         if cwd is None:
-            if FSGlobals.cwd is None:
+            if FailSimGlobals.cwd is None:
                 self._cwd = os.getcwd()
             else:
-                self._cwd = FSGlobals.cwd
+                self._cwd = FailSimGlobals.cwd
         else:
             self._cwd = cwd
 
         # Setup output directory
         if output_dir is None:
-            if FSGlobals.output_dir is None:
+            if FailSimGlobals.output_dir is None:
                 self._output_dir = self._cwd
             else:
-                self._output_dir = FSGlobals.output_dir
+                self._output_dir = FailSimGlobals.output_dir
         else:
             self._output_dir = output_dir
 
@@ -88,7 +88,7 @@ class FailSim:
         FailSim.output_dir = self._output_dir
 
         # Setup output suppressor
-        if madx_verbosity == "mute" or not FSGlobals.verbose:
+        if madx_verbosity == "mute" or not FailSimGlobals.verbose:
             self._madx_mute = OutputSuppressor(True)
         else:
             self._madx_mute = OutputSuppressor(False)
@@ -314,8 +314,8 @@ class FailSim:
 
         """
         if cls.output_dir is None:
-            if FSGlobals.output_dir is None:
+            if FailSimGlobals.output_dir is None:
                 return path
             else:
-                return os.path.join(FSGlobals.output_dir, path)
+                return os.path.join(FailSimGlobals.output_dir, path)
         return os.path.join(cls.output_dir, path)

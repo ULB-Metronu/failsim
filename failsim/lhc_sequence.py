@@ -7,7 +7,7 @@ Module containing the class LHCSequence.
 from .failsim import FailSim
 from .checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
-from .globals import FSGlobals
+from .globals import FailSimGlobals
 from .helpers import print_info
 from .results import TwissResult
 
