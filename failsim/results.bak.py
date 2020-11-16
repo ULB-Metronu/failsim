@@ -4,7 +4,6 @@ Module containing classes that contain and handle data.
 
 
 from .failsim import FailSim
-from ._artist import _Artist
 from typing import Optional, List, Union, Dict, Tuple, Callable, Type
 from dataclasses import dataclass
 import pandas as pd

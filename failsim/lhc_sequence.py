@@ -5,10 +5,10 @@ Module containing the class LHCSequence.
 # TODO Add improved garbage collection of mad instances
 
 from .failsim import FailSim
-from .checks import OpticsChecks
+from ._checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
 from .globals import FSGlobals
-from .helpers import print_info
+from ._helpers import print_info
 from .results import TwissResult
 
 from typing import Optional, List, Union, Dict, Callable

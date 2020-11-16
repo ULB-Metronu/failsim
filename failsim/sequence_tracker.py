@@ -5,7 +5,7 @@ Module containing the class SequenceTracker
 from .failsim import FailSim
 from .results import TrackingResult, TwissResult
 from .globals import FSGlobals
-from .helpers import print_info
+from ._helpers import print_info
 
 from typing import List, Optional, Tuple
 import pandas as pd
@@ -56,8 +56,7 @@ class SequenceTracker:
         time_depen = []
 
         if len(self._time_dependencies) == 0:
-            twiss_df, summ_df = self._failsim.twiss_and_summ(
-                self._sequence_to_track)
+            twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
             twiss_df["turn"] = 1
 
         else:
@@ -145,8 +144,7 @@ class SequenceTracker:
                 f"tr$macro(turn): macro = {{comp=turn; {time_depen} }}"
             )
 
-        twiss_df, summ_df = self._failsim.twiss_and_summ(
-            self._sequence_to_track)
+        twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
         run_version = self._failsim._mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
 

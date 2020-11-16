@@ -5,3 +5,4 @@ from .lhc_sequence import LHCSequence
 from .sequence_tracker import SequenceTracker
 from .results import TrackingResult
 from .globals import FSGlobals
+from ._artist import _Artist
