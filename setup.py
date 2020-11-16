@@ -33,7 +33,8 @@ setup(
     install_requires=[
         "numpy",
         "pandas",
-        "pymask @ git+https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/otuormaa/lhcmask_failsim.git#egg=pymask",
+        "cpymad",
+        f"pymask @ git+https://gitlab-ci-token:{os.environ['CI_JOB_TOKEN']}@gitlab.cern.ch/otuormaa/lhcmask_failsim.git#egg=pymask",
         "pyyaml",
         "plotly",
     ],
