@@ -83,14 +83,17 @@ class SequenceTracker:
                     for file in time_depen:
                         self._failsim.mad_call_file(file)
 
-                if i == 0:
-                    temp_df, summ_df = self._failsim.twiss_and_summ(
-                        seq=self._sequence_to_track
-                    )
-                else:
-                    temp_df, summ_df = self._failsim.twiss_and_summ(
-                        seq=self._sequence_to_track, flags=[f"beta0=end_{i-1}"]
-                    )
+                try:
+                    if i == 0:
+                        temp_df, summ_df = self._failsim.twiss_and_summ(
+                            seq=self._sequence_to_track
+                        )
+                    else:
+                        temp_df, summ_df = self._failsim.twiss_and_summ(
+                            seq=self._sequence_to_track, flags=[f"beta0=end_{i-1}"]
+                        )
+                except KeyError:
+                    break
 
                 temp_df["turn"] = i + 1
 
@@ -155,11 +158,11 @@ class SequenceTracker:
             for particle in self._particles:
                 self._failsim.mad_input(
                     "start, "
-                    f"x = {particle[0]}"
-                    f"xn = {particle[1]}"
-                    f"y = {particle[2]}"
-                    f"yn = {particle[3]}"
-                    f"t = {particle[4]}"
+                    f"x = {particle[0]},"
+                    f"xn = {particle[1]},"
+                    f"y = {particle[2]},"
+                    f"yn = {particle[3]},"
+                    f"t = {particle[4]},"
                     f"tn = {particle[5]}"
                 )
         else:
@@ -210,7 +213,8 @@ class SequenceTracker:
             SequenceTracker: Returns self
 
         """
-        self._track_flags.append(flags)
+        self._track_flags += flags
+        print(self._track_flags)
 
         return self
 
