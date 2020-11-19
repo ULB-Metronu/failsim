@@ -1,5 +1,1 @@
-numpy
-pandas
-pymask
-pyyaml
-plotly
+.

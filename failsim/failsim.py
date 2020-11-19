@@ -3,8 +3,8 @@ Contains the class FailSim.
 """
 
 
-from ._helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
-from .globals import FSGlobals
+from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
+from .globals import FailSimGlobals
 
 from typing import Optional, List, Union
 import numpy as np
@@ -17,21 +17,20 @@ import io
 
 
 class FailSim:
-
     """
     This class is the interface to the Mad-X instance.
 
     Note:
-        The output directory and the cwd can also be set globally by setting the static variables output_dir and cwd in the FSGlobals class.
+        The output directory and the cwd can also be set globally by setting the static variables output_dir and cwd in the FailSimGlobals class.
         If an output directory or cwd are specified in the constructor, the ones specified in the constructor will take priority.
 
     Args:
-        output_dir: Sets the desired output directory. If output_dir is None, and FSGlobals.output_dir is None, FailSim outputs all files in the cwd.
+        output_dir: Sets the desired output directory. If output_dir is None, and FailSimGlobals.output_dir is None, FailSim outputs all files in the cwd.
         cwd: Sets the desired cwd. If cwd is None, FailSim uses os.getcwd() to set the cwd.
         madx_verbosity: Sets the verbosity of Mad-X. If this parameter is "mute", FailSim will use OutputSuppressor to completely mute Mad-X output.
         failsim_verbosity: Enables or disables stdout output from FailSim.
         extra_macro_files: An optional list of .madx files that should be called when Mad-X is initialized.
-        command_log: Is command_log is not None, FailSim will input each of the commands in the log into the initialized Mad-X instance.
+        command_log: If command_log is not None, FailSim will input each of the commands in the log into the initialized Mad-X instance.
 
     """
 
@@ -59,19 +58,19 @@ class FailSim:
 
         # Setup cwd
         if cwd is None:
-            if FSGlobals.cwd is None:
+            if FailSimGlobals.cwd is None:
                 self._cwd = os.getcwd()
             else:
-                self._cwd = FSGlobals.cwd
+                self._cwd = FailSimGlobals.cwd
         else:
             self._cwd = cwd
 
         # Setup output directory
         if output_dir is None:
-            if FSGlobals.output_dir is None:
+            if FailSimGlobals.output_dir is None:
                 self._output_dir = self._cwd
             else:
-                self._output_dir = FSGlobals.output_dir
+                self._output_dir = FailSimGlobals.output_dir
         else:
             self._output_dir = output_dir
 
@@ -88,7 +87,7 @@ class FailSim:
         FailSim.output_dir = self._output_dir
 
         # Setup output suppressor
-        if madx_verbosity == "mute" or not FSGlobals.verbose:
+        if madx_verbosity == "mute" or not FailSimGlobals.verbose:
             self._madx_mute = OutputSuppressor(True)
         else:
             self._madx_mute = OutputSuppressor(False)
@@ -106,7 +105,7 @@ class FailSim:
 
     @property
     def mad(self):
-        """TODO"""
+        """Provides the running MAD-X instance."""
         return self._mad
 
     @print_info("FailSim")
@@ -224,8 +223,8 @@ class FailSim:
         return self
 
     @print_info("FailSim")
-    def twiss_and_summ(self, seq: str, flags: List[str] = []):
-        """Does a twiss with the given sequence on the Mad-X instance.
+    def twiss_and_summ(self, seq: str, flags: List[str] = None):
+        """Performs a Twiss with the given sequence on the Mad-X instance.
 
         Args:
             seq: Sequence to run twiss on.
@@ -238,9 +237,10 @@ class FailSim:
                 pandas.DataFrame: DataFrame containing the summ table
 
         """
+        flags = flags or []
         self.use(seq)
         self.mad_input(f"{', '.join(['twiss', f'sequence={seq}'] + flags)}")
-        return (self.mad.table["twiss"].dframe(), self.mad.table["summ"].dframe())
+        return self.mad.table["twiss"].dframe(), self.mad.table["summ"].dframe()
 
     @print_info("FailSim")
     def call_pymask_module(self, module: str):
@@ -262,7 +262,7 @@ class FailSim:
 
     @print_info("FailSim")
     def make_thin(self, beam: str):
-        """Makes the given sequence thin using the myslice macro.
+        """Makes the given sequence thin using the `myslice` macro.
 
         Args:
             beam: The lhc beam to make thin. Can be either 1, 2 or 4.
@@ -314,8 +314,8 @@ class FailSim:
 
         """
         if cls.output_dir is None:
-            if FSGlobals.output_dir is None:
+            if FailSimGlobals.output_dir is None:
                 return path
             else:
-                return os.path.join(FSGlobals.output_dir, path)
+                return os.path.join(FailSimGlobals.output_dir, path)
         return os.path.join(cls.output_dir, path)

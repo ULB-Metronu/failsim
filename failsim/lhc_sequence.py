@@ -7,8 +7,8 @@ from __future__ import annotations
 from .failsim import FailSim
 from ._checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
-from .globals import FSGlobals
 from ._helpers import print_info
+from .globals import FailSimGlobals
 from .results import TwissResult
 
 from typing import Optional, List, Union, Dict, Callable, Tuple
@@ -530,9 +530,9 @@ class LHCSequence:
             6. Loads mask_parameters.yaml.
             7. Calls the submodules *01a_preparation* and *01b_beam* if these modules are enabled.
                 - These set basic internal Mad-X variables and define the beam.
-            8. Saves twiss table to use for cartouche plots
+            8. Saves twiss table to use for cartouche plots (requires a thick Twiss table)
             9. Makes all sequences thin.
-            10. Loads knob_parameters.yaml
+            10. Loads `knob_parameters.yaml`
             11. Cycles sequence if specified
             12. Runs any modules that have been enabled
             13. Calls the modules *01c_phase*, *01d_crossing*, *01e_final* and *02_lumilevel* if these modules are enabled.

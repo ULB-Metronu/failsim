@@ -33,10 +33,13 @@ setup(
     install_requires=[
         "numpy",
         "pandas",
-        "pymask",
+        "cpymad",
+        f"pymask @ git+https://gitlab-ci-token:{os.environ['CI_JOB_TOKEN']}@gitlab.cern.ch/otuormaa/lhcmask_failsim.git#egg=pymask",
         "pyyaml",
         "plotly",
-        "mkapi",
+    ],
+    tests_require=[
+        "pytest",
     ],
     package_data={"failsim": ["data"]},
 )
