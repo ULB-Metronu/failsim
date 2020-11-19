@@ -2,16 +2,16 @@
 Module containing the class LHCSequence.
 """
 
-# TODO Add improved garbage collection of mad instances
+from __future__ import annotations
 
 from .failsim import FailSim
-from .checks import OpticsChecks
+from ._checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
+from ._helpers import print_info
 from .globals import FailSimGlobals
-from .helpers import print_info
 from .results import TwissResult
 
-from typing import Optional, List, Union, Dict, Callable
+from typing import Optional, List, Union, Dict, Callable, Tuple
 import pymask as pm
 import numpy as np
 import pandas as pd
@@ -415,6 +415,16 @@ class LHCSequence:
 
         sigma = np.sqrt(eps_g * twiss.twiss_df.loc[element][f"bet{axis}"])
         return beam_sigmas * sigma
+
+    def _project_aperture(self, aperture: Tuple[float, float], angle: float):
+        """TODO: Docstring for _project_aperture.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        ...
 
     @reset_state(True, True)
     @print_info("LHCSequence")
@@ -827,3 +837,94 @@ class LHCSequence:
             eps_n=eps_n,
             nrj=nrj,
         )
+
+    def set_collimators(self, handler: CollimatorHandler):
+        """TODO: Docstring for set_collimator.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        twiss = self.twiss()
+
+        settings = handler.compute_settings(
+            twiss.twiss_df, twiss.info_df["eps_n"], twiss.info_df["nrj"]
+        )
+
+        for _, row in settings.iterrows():
+            cmd = f"{row.name}, apertype=rectangle, aperture={{ {row['gaph']['info']}, {row['gapv']['info']}}}"
+            self._failsim.mad_input(cmd)
+
+
+class CollimatorHandler:
+
+    """TODO: Docstring for CollimatorHandler. """
+
+    def __init__(self, settings_file: str, check_against: pd.DataFrame = None):
+        with open(settings_file, "r") as fd:
+            col_settings = fd.readlines()
+        col_settings = [x.split() for x in col_settings]
+        self._collimator_df = (
+            pd.DataFrame(col_settings[1:], columns=col_settings[0])
+            .set_index("Name")
+            .drop(columns="#")
+        )
+
+        self._process_collimator_df()
+
+    def _process_collimator_df(self):
+        """TODO: Docstring for _process_collimator_df.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        self._collimator_df["nsigx"] = self._collimator_df.apply(
+            lambda x: float(x["nsig"]) / np.cos(float(x["angle[rad]"])),
+            axis=1,
+        )
+        self._collimator_df["nsigy"] = self._collimator_df.apply(
+            lambda x: float(x["nsig"]) / np.sin(float(x["angle[rad]"])),
+            axis=1,
+        )
+
+    """
+    Loads collimator settings file.
+    Handles collimator dataframe.
+    Runs collimator checks.
+    """
+
+    def compute_settings(self, twiss: pd.DataFrame, eps_n: float, nrj: float):
+        """TODO: Docstring for compute_settings.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        res = pd.DataFrame()
+        res["angle"] = self._collimator_df["angle[rad]"]
+        res["halfgap"] = self._collimator_df["halfgap[m]"]
+
+        gamma = nrj / 0.938
+        eps_g = eps_n / gamma
+
+        gaph = []
+        gapv = []
+        for _, row in self._collimator_df.iterrows():
+            twiss_data = twiss.loc[row.name.lower()]
+            gaph.append(
+                self._collimator_df.loc[row.name]["nsigx"]
+                * np.sqrt(eps_g * twiss_data["betx"])
+            )
+            gapv.append(
+                self._collimator_df.loc[row.name]["nsigy"]
+                * np.sqrt(eps_g * twiss_data["bety"])
+            )
+
+        res["gaph"] = gaph
+        res["gapv"] = gapv
+
+        return res

@@ -1,6 +1,8 @@
 """
 Contains the class FailSim.
 """
+
+
 from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
 from .globals import FailSimGlobals
 
