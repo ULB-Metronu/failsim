@@ -1,8 +1,6 @@
 """
 Contains the class FailSim.
 """
-
-
 from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
 from .globals import FailSimGlobals
 
@@ -17,7 +15,6 @@ import io
 
 
 class FailSim:
-
     """
     This class is the interface to the Mad-X instance.
 
@@ -31,7 +28,7 @@ class FailSim:
         madx_verbosity: Sets the verbosity of Mad-X. If this parameter is "mute", FailSim will use OutputSuppressor to completely mute Mad-X output.
         failsim_verbosity: Enables or disables stdout output from FailSim.
         extra_macro_files: An optional list of .madx files that should be called when Mad-X is initialized.
-        command_log: Is command_log is not None, FailSim will input each of the commands in the log into the initialized Mad-X instance.
+        command_log: If command_log is not None, FailSim will input each of the commands in the log into the initialized Mad-X instance.
 
     """
 
@@ -106,7 +103,7 @@ class FailSim:
 
     @property
     def mad(self):
-        """TODO"""
+        """Provides the running MAD-X instance."""
         return self._mad
 
     @print_info("FailSim")
@@ -224,8 +221,8 @@ class FailSim:
         return self
 
     @print_info("FailSim")
-    def twiss_and_summ(self, seq: str, flags: List[str] = []):
-        """Does a twiss with the given sequence on the Mad-X instance.
+    def twiss_and_summ(self, seq: str, flags: List[str] = None):
+        """Performs a Twiss with the given sequence on the Mad-X instance.
 
         Args:
             seq: Sequence to run twiss on.
@@ -238,9 +235,10 @@ class FailSim:
                 pandas.DataFrame: DataFrame containing the summ table
 
         """
+        flags = flags or []
         self.use(seq)
         self.mad_input(f"{', '.join(['twiss', f'sequence={seq}'] + flags)}")
-        return (self.mad.table["twiss"].dframe(), self.mad.table["summ"].dframe())
+        return self.mad.table["twiss"].dframe(), self.mad.table["summ"].dframe()
 
     @print_info("FailSim")
     def call_pymask_module(self, module: str):
@@ -262,7 +260,7 @@ class FailSim:
 
     @print_info("FailSim")
     def make_thin(self, beam: str):
-        """Makes the given sequence thin using the myslice macro.
+        """Makes the given sequence thin using the `myslice` macro.
 
         Args:
             beam: The lhc beam to make thin. Can be either 1, 2 or 4.

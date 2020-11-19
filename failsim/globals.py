@@ -1,5 +1,5 @@
 """
-Contains global settings
+Contains global settings.
 """
 
 from dataclasses import dataclass
