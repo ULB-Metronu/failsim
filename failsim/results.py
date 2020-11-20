@@ -3,19 +3,22 @@ Module containing classes that contain and handle data.
 """
 
 
-from .failsim import FailSim
+from __future__ import annotations
+
 from ._artist import _Artist
+from .failsim import FailSim
+from .lhc_sequence import CollimatorHandler
 
 from typing import Optional, List, Union, Dict, Tuple, Callable, Type
 from dataclasses import dataclass
 
 import pandas as pd
 import numpy as np
+import plotly.graph_objects as go
 
 import os
 import re
 
-import plotly.graph_objects as go
 
 
 @dataclass
@@ -84,6 +87,8 @@ class Result:
         """
         if not path.startswith("/"):
             path = FailSim.path_to_cwd(path)
+
+        os.makedirs(path, exist_ok=True)
 
         # Save twiss
         twiss_name = os.path.join(path, suffix + "twiss.parquet")
@@ -370,6 +375,8 @@ class TrackingResult(Result):
         if not path.startswith("/"):
             path = FailSim.path_to_cwd(path)
 
+        os.makedirs(path, exist_ok=True)
+
         super().save_data(path, suffix)
 
         # Save track
@@ -434,7 +441,7 @@ class _TwissArtist(_Artist):
 
     """Docstring for _TwissArtist. """
 
-    colors = dict(
+    element_colors = dict(
         quadrupole="red",
         sextupole="green",
         octupole="orange",
@@ -448,6 +455,19 @@ class _TwissArtist(_Artist):
         rbend="yellow",
         sbend="blue",
         instrument="coral",
+    )
+
+    beam_colors = dict(
+        orbitx="#00ff71",
+        orbity="#ff7100",
+    )
+
+    aper_style = dict(
+        mode="lines",
+        marker_color="black",
+        line_width=1,
+        fill="toself",
+        showlegend=False,
     )
 
     def __init__(self, parent: Result):
@@ -514,9 +534,7 @@ class _TwissArtist(_Artist):
         center_range = self._get_centered_range()
         return data[(data["s"] > center_range[0]) & (data["s"] < center_range[1])]
 
-    def twiss_column(
-        self, columns: Union[str, List[str]], col: int = 0, row: int = 0, **kwargs
-    ):
+    def twiss_column(self, columns: Union[str, List[str]], **kwargs):
         """TODO: Docstring for twiss_column.
 
         Args:
@@ -543,6 +561,7 @@ class _TwissArtist(_Artist):
 
             if self._center_elem is not None:
                 center_range = self._get_centered_range()
+                col, row = self._plot_pointer
                 self.plot_settings(
                     xaxis={
                         "range": (
@@ -552,7 +571,7 @@ class _TwissArtist(_Artist):
                     },
                 )
 
-    def cartouche(self):
+    def cartouche(self, twiss_path: Tuple[str, str] = None):
         """TODO: Docstring for cartouche.
 
         Args:
@@ -562,9 +581,15 @@ class _TwissArtist(_Artist):
         """
         for ss in ["1", "2"]:
             # Read twiss data
-            twiss = pd.read_parquet(
-                FailSim.path_to_output(f"twiss_pre_thin_b{ss}.parquet")
-            )
+            if twiss_path is None:
+                twiss = pd.read_parquet(
+                    FailSim.path_to_output(f"twiss_pre_thin_b{ss}.parquet")
+                )
+            else:
+                path = twiss_path[int(ss) - 1]
+                if not path.startswith("/"):
+                    path = FailSim.path_to_cwd(path)
+                twiss = pd.read_parquet(path)
 
             # Filter if center_elem is defined
             if self._center_elem is not None:
@@ -575,7 +600,9 @@ class _TwissArtist(_Artist):
 
             # Remove elements that shouldn't be shown in cartouche
             twiss = twiss[
-                ~twiss["keyword"].isin(["drift", "marker", "placeholder", "monitor"])
+                ~twiss["keyword"].isin(
+                    ["drift", "marker", "placeholder", "monitor", "instrument"]
+                )
             ]
 
             # Interpolate mech_sep between each rbend element
@@ -615,14 +642,9 @@ class _TwissArtist(_Artist):
                 dy = 0.9
                 y0 = beam_sep.loc[row["name"][:-2]] - dy / 2
 
-                style = dict(
-                    mode="lines",
-                    marker_color="black",
-                    line_width=1,
-                    fill="toself",
-                    fillcolor=self.colors[row["keyword"]],
-                    name=row["name"],
-                    showlegend=False,
+                style = self.aper_style.copy()
+                style.update(
+                    fillcolor=self.element_colors[row["keyword"]], name=row["name"]
                 )
 
                 # Draw rbend and sbend
@@ -672,6 +694,130 @@ class _TwissArtist(_Artist):
                         ],
                         **style,
                     )
+
+    def aperture(
+        self,
+        axis: str,
+        beam_magnitudes: List[float] = [1, 5, 10],
+        collimator_handler: CollimatorHandler = None,
+        twiss_path: str = None,
+    ):
+        """TODO: Docstring for aperture.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        if twiss_path is None:
+            twiss_thick = pd.read_parquet(
+                FailSim.path_to_output("twiss_pre_thin_b1.parquet")
+            )
+        else:
+            if not twiss_path.startswith("/"):
+                twiss_path = FailSim.path_to_cwd(twiss_path)
+            twiss_thick = pd.read_parquet(twiss_path)
+
+        twiss = self._parent.twiss_df.copy()
+
+        twiss = self._apply_observation_filter(twiss)
+
+        # Filter if center_elem is defined
+        if self._center_elem is not None:
+            center_range = self._get_centered_range()
+            twiss_thick = twiss_thick[
+                (twiss_thick["s"] > center_range[0])
+                & (twiss_thick["s"] < center_range[1])
+            ]
+            col, row = self._plot_pointer
+            self.plot_settings(
+                xaxis={
+                    "range": (
+                        center_range[0] * self._subplots[col][row]["factor"]["x"],
+                        center_range[1] * self._subplots[col][row]["factor"]["x"],
+                    )
+                },
+            )
+
+        if collimator_handler is not None:
+            settings = collimator_handler.compute_settings(
+                twiss, self._parent.info_df["eps_n"], self._parent.info_df["nrj"]
+            )
+            for _, row in settings.iterrows():
+                if row.name.lower() in twiss_thick.index:
+                    twiss_thick.at[row.name.lower(), "aper_1"] = row["gaph"]
+                    twiss_thick.at[row.name.lower(), "aper_2"] = row["gapv"]
+
+        twiss_thick = twiss_thick.loc[
+            ~twiss_thick["keyword"].isin(
+                ["drift", "marker", "placeholder", "monitor", "instrument"]
+            )
+        ]
+
+        for _, row in twiss_thick.iterrows():
+            x0 = row["s"] - (row["l"] if row["l"] != 0 else 0.5)
+            x1 = row["s"]
+            y0 = abs(row[f"aper_{1 if axis == 'x' else 2}"])
+            y1 = 100
+
+            # Move elements with 0 mm aperture to 1 cm
+            if y0 == 0:
+                y0 = 1
+
+            style = self.aper_style.copy()
+            style.update(
+                fillcolor=self.element_colors[row["keyword"]],
+                name=f"{row['name']}: {y0} mm",
+            )
+
+            for pol in [-1, 1]:
+                self.add_data(
+                    x=[x0, x1, x1, x0, x0],
+                    y=[pol * y0, pol * y0, pol * y1, pol * y1, pol * y0],
+                    **style,
+                )
+            style.update(
+                line_width=0,
+                opacity=0.1,
+            )
+            self.add_data(
+                x=[x0, x1, x1, x0, x0],
+                y=[y0, y0, -y0, -y0, y0],
+                **style,
+            )
+
+        gamma = self._parent.info_df["nrj"]["info"] / 0.938
+        eps_g = self._parent.info_df["eps_n"]["info"] / gamma
+        dpp = 1e-4
+
+        envelope = np.sqrt(
+            eps_g * twiss[f"bet{axis}"] + dpp ** 2 * twiss[f"d{axis}"] ** 2
+        )
+
+        # Get color, and convert from hex to string formatted as "r,g,b"
+        beam_color = ",".join(
+            [
+                str(int(self.beam_colors[f"orbit{axis}"][i : i + 2], 16))
+                for i in range(1, 6, 2)
+            ]
+        )
+        beam_magnitudes += [-x for x in beam_magnitudes if -x not in beam_magnitudes]
+        beam_magnitudes.sort()
+        for idx, mag in enumerate(beam_magnitudes):
+            alpha = 1 - 2 * abs(idx / len(beam_magnitudes) - 0.5)
+            self.add_data(
+                x=twiss["s"],
+                y=mag * envelope + twiss[axis],
+                line_width=0,
+                fill=None if idx == 0 else "tonexty",
+                fillcolor=f"rgba({beam_color},{alpha})",
+                marker_color=f"rgba({beam_color},{alpha})",
+                name=f"$\\text{{Orbit {axis}: {abs(mag)} }} \\sigma$",
+                hoverinfo="skip" if mag < 0 else None,
+                showlegend=True
+                if mag == min(abs(np.array(beam_magnitudes)))
+                else False,
+            )
 
 
 class _TrackArtist(_TwissArtist):

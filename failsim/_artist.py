@@ -1,9 +1,12 @@
 from typing import List, Tuple, Dict
 
 import plotly.graph_objects as go
+import plotly.offline
 
 import numpy as np
 import pandas as pd
+
+import os
 
 
 class _Artist:
@@ -14,7 +17,7 @@ class _Artist:
         self._rows = 1
         self._cols = 1
 
-        self._plot_pointer = (0, 0)
+        self._plot_pointer = [0, 0]
 
         self._global_layout = {}
         self._subplots = np.array([[0]], dtype=object)
@@ -25,7 +28,7 @@ class _Artist:
         assert (type(index) == tuple) and (
             len(index) == 2
         ), "Index must specified as follows: [x,y]"
-        self._plot_pointer = index
+        self._plot_pointer = list(index)
         return self
 
     def global_layout(
@@ -49,6 +52,11 @@ class _Artist:
 
             self._subplots.resize((self._cols, self._rows))
             self._populate_subplots()
+
+            if self._plot_pointer[0] >= self._cols:
+                self._plot_pointer[0] = self._cols - 1
+            if self._plot_pointer[1] >= self._rows:
+                self._plot_pointer[1] = self._rows - 1
 
     def plot_settings(
         self,
@@ -74,8 +82,10 @@ class _Artist:
         self._subplots[col][row][f"xaxis{str_idx}"].update(xaxis)
         self._subplots[col][row][f"yaxis{str_idx}"].update(yaxis)
 
-        self._subplots[col][row]["share"]["x"] = share_xaxis
-        self._subplots[col][row]["share"]["y"] = share_yaxis
+        if share_xaxis is not None:
+            self._subplots[col][row]["share"]["x"] = share_xaxis
+        if share_yaxis is not None:
+            self._subplots[col][row]["share"]["y"] = share_yaxis
 
         if axis_factors is not None:
             self._subplots[col][row]["factor"] = {
@@ -123,6 +133,36 @@ class _Artist:
         """
         self._subplots.fill(0)
         self._populate_subplots()
+
+    def clear_data(self):
+        """TODO: Docstring for clear_data.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        for col in range(self._cols):
+            for row in range(self._rows):
+                self._subplots[col][row]["data"] = []
+
+    def save(self, name: str):
+        """TODO: Docstring for save.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        div = plotly.offline.plot(
+            self.figure,
+            include_plotlyjs="cdn",
+            include_mathjax="cdn",
+            output_type="div",
+        )
+        os.makedirs(os.path.dirname(name), exist_ok=True)
+        with open(name, "w") as fd:
+            fd.write(div)
 
     def add_data(
         self,

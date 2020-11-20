@@ -214,7 +214,6 @@ class SequenceTracker:
 
         """
         self._track_flags += flags
-        print(self._track_flags)
 
         return self
 
