@@ -10,12 +10,10 @@ HLLHCV1.4:
   optics:
     HL_INJ:
       type: round
-      beta_ip5: 6000
       beta_star: [ 6000, 10000, 6000, 10000 ]
       strength_file: ramp/opt_inj_6000.madx
     HL_INJ_THIN:
       type: round
-      beta_ip5: 6000
       beta_star: [ 6000, 10000, 6000, 10000 ]
       strength_file: ramp/opt_inj_6000_thin.madx
     HL_RAMP:
@@ -25,32 +23,27 @@ HLLHCV1.4:
       strength_file: ramp/opt_ramp_2000_1500.madx
     HL_RAMP_END:
       type: round
-      beta_ip5: 500
       beta_star: [ 0, 0, 500, 0 ]
       strength_file: ramp/opt_endoframp_500_1500.madx
     HL_COL:
       type: round
-      beta_ip5: 150
       beta_star: [ 0, 0, 150, 0 ]
       strength_file: round/opt_round_150_1500.madx
     HL_COL_THIN:
       type: round
-      beta_ip5: 150
-      beta_star: [ 0, 0, 150, 0 ]
+      beta_star: [ 150, 0, 150, 0 ]
       strength_file: round/opt_round_150_1500_thin.madx
+      collimation: {b1: filename, b2: filename}
     HL_FLAT:
       type: flat
-      beta_ip5: 75
       beta_star: [ 0, 0, 75, 0 ]
       strength_file: flat/opt_flatvh_75_300_1500.madx
     HL_FLAT_THIN:
       type: flat
-      beta_ip5: 75
       beta_star: [ 0, 0, 75, 0 ]
       strength_file: flat/opt_flatvh_75_300_1500_thin.madx
     HL_FLAT_CC:
       type: flat
-      beta_ip5: 75
       beta_star: [ 0, 0, 75, 0 ]
       strength_file: flatcc/opt_flatvh_75_180_1500.madx
 runIII:
