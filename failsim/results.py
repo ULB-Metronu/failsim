@@ -7,9 +7,8 @@ from __future__ import annotations
 
 from ._artist import _Artist
 from .failsim import FailSim
-from .lhc_sequence import CollimatorHandler
 
-from typing import Optional, List, Union, Dict, Tuple, Callable, Type
+from typing import Optional, List, Union, Dict, Tuple, Callable, Type, TYPE_CHECKING
 from dataclasses import dataclass
 
 import pandas as pd
@@ -19,6 +18,9 @@ import plotly.graph_objects as go
 import os
 import re
 
+# Type checking imports
+if TYPE_CHECKING:
+    from .lhc_sequence import CollimatorHandler
 
 
 @dataclass
@@ -458,8 +460,8 @@ class _TwissArtist(_Artist):
     )
 
     beam_colors = dict(
-        orbitx="#00ff71",
-        orbity="#ff7100",
+        orbitx="#a100ff",
+        orbity="#ffa100",
     )
 
     aper_style = dict(
@@ -616,7 +618,8 @@ class _TwissArtist(_Artist):
             )
 
             # Normalize beam separation
-            beam_sep = beam_sep / max(abs(beam_sep))
+            if not max(abs(beam_sep)) == 0:
+                beam_sep = beam_sep / max(abs(beam_sep))
             beam_sep = beam_sep.set_axis(twiss.index)
 
             # Draw beam line
@@ -627,6 +630,7 @@ class _TwissArtist(_Artist):
                 marker_color="gray",
                 hoverinfo="skip",
                 to_bottom=True,
+                mode="lines",
             )
 
             for _, row in twiss.iterrows():
@@ -758,11 +762,11 @@ class _TwissArtist(_Artist):
             x0 = row["s"] - (row["l"] if row["l"] != 0 else 0.5)
             x1 = row["s"]
             y0 = abs(row[f"aper_{1 if axis == 'x' else 2}"])
-            y1 = 100
+            y1 = 1
 
-            # Move elements with 0 mm aperture to 1 cm
-            if y0 == 0:
-                y0 = 1
+            # Move elements with 0 mm aperture to 50 mm
+            if y0 == 0 or y0 == float("inf"):
+                y0 = 200e-3
 
             style = self.aper_style.copy()
             style.update(
@@ -777,7 +781,7 @@ class _TwissArtist(_Artist):
                     **style,
                 )
             style.update(
-                line_width=0,
+                line_width=1,
                 opacity=0.1,
             )
             self.add_data(
@@ -812,7 +816,7 @@ class _TwissArtist(_Artist):
                 fill=None if idx == 0 else "tonexty",
                 fillcolor=f"rgba({beam_color},{alpha})",
                 marker_color=f"rgba({beam_color},{alpha})",
-                name=f"$\\text{{Orbit {axis}: {abs(mag)} }} \\sigma$",
+                name=f"Orbit {axis}: {abs(mag)} sigma",
                 hoverinfo="skip" if mag < 0 else None,
                 showlegend=True
                 if mag == min(abs(np.array(beam_magnitudes)))

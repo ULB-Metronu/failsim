@@ -50,7 +50,7 @@ class _Artist:
             self._rows = rows if rows is not None else self._rows
             self._cols = cols if cols is not None else self._cols
 
-            self._subplots.resize((self._cols, self._rows))
+            self._subplots.resize((self._cols, self._rows), refcheck=False)
             self._populate_subplots()
 
             if self._plot_pointer[0] >= self._cols:
