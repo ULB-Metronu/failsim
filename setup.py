@@ -45,6 +45,7 @@ setup(
     author_email="cedric.hernalsteens@cern.ch, oskari.kristian.tuormaa@cern.ch",
     url="https://gitlab.cern.ch/machine-protection/fast-beam-failures",
     license=lic,
+    include_package_data=True,
     packages=find_packages(exclude=("tests", "docs", "examples")),
     install_requires=requirements,
     tests_require=[
