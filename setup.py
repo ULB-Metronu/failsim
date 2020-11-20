@@ -19,6 +19,22 @@ with open("README.md") as f:
 with open("LICENSE") as f:
     lic = f.read()
 
+requirements = [
+    "numpy",
+    "pandas",
+    "cpymad",
+    "pyyaml",
+    "plotly",
+]
+
+if "CI_JOB_TOKEN" in os.environ:
+    requirements.append(
+        f"pymask @ git+https://gitlab-ci-token:{os.environ['CI_JOB_TOKEN']}@gitlab.cern.ch/otuormaa/lhcmask_failsim.git#egg=pymask"
+    )
+else:
+    requirements.append(
+        "pymask @ git+https://gitlab.cern.ch/machine-protection/libs/pymask.git#egg=pymask"
+    )
 
 setup(
     name="failsim",
@@ -30,14 +46,7 @@ setup(
     url="https://gitlab.cern.ch/machine-protection/fast-beam-failures",
     license=lic,
     packages=find_packages(exclude=("tests", "docs", "examples")),
-    install_requires=[
-        "numpy",
-        "pandas",
-        "cpymad",
-        f"pymask @ git+https://gitlab-ci-token:{os.environ['CI_JOB_TOKEN']}@gitlab.cern.ch/otuormaa/lhcmask_failsim.git#egg=pymask",
-        "pyyaml",
-        "plotly",
-    ],
+    install_requires=requirements,
     tests_require=[
         "pytest",
     ],
