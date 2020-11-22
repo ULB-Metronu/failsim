@@ -4,9 +4,10 @@ This module contains classes for miscellaneous tasks that don't fit in anywhere 
 
 
 from .globals import FailSimGlobals
-from typing import ByteString, Callable
+from typing import ByteString, Callable, List
 import functools
 import os
+import re
 import shutil
 import numpy as np
 
@@ -121,6 +122,8 @@ class MoveNewFiles:
 
     """
 
+    exclude = ["^\..*", "temp"]
+
     def __init__(self, source: str, destination: str):
         self._source = source
         self._destination = destination
@@ -133,10 +136,16 @@ class MoveNewFiles:
 
         new_files = np.setdiff1d(post_files, self._pre_files)
         for file in new_files:
-            if os.path.basename(file).startswith("."):
-                pass
-            shutil.move(file, os.path.join(
-                self._destination, os.path.basename(file)))
+            new_files = self.filter_exclude(new_files)
+            shutil.move(file, os.path.join(self._destination, os.path.basename(file)))
+
+    def filter_exclude(self, files: List[str]):
+        for ex in self.exclude:
+            r = re.compile(ex)
+            res = [r.findall(x) for x in files]
+            res = [x[0] for x in res if len(x) > 0]
+            files = list(set(files) - set(res))
+        return files
 
 
 def print_info(name: str):
