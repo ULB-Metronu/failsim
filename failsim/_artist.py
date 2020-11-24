@@ -208,11 +208,11 @@ class _Artist:
         # Apply scaling factor to x and y.
         if type(x) is list:
             x = [v * self._subplots[col][row]["factor"]["x"] for v in x]
-        else:
+        elif type(x) is pd.Series:
             x = x.copy() * self._subplots[col][row]["factor"]["x"]
         if type(y) is list:
             y = [v * self._subplots[col][row]["factor"]["y"] for v in y]
-        else:
+        elif type(y) is pd.Series:
             y = y.copy() * self._subplots[col][row]["factor"]["y"]
 
         data_dict = {
