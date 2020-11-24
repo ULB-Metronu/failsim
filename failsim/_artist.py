@@ -58,7 +58,7 @@ class _Artist:
             if self._plot_pointer[1] >= self._rows:
                 self._plot_pointer[1] = self._rows - 1
 
-    def plot_settings(
+    def plot_layout(
         self,
         xaxis: Dict = {},
         yaxis: Dict = {},
@@ -67,7 +67,7 @@ class _Artist:
         axis_factors: Tuple[float, float] = None,
         data_modifiers: Dict = None,
     ):
-        """TODO: Docstring for plot_settings.
+        """TODO: Docstring for plot_layout.
 
         Args:
 

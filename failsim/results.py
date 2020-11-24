@@ -564,7 +564,7 @@ class _TwissArtist(_Artist):
             if self._center_elem is not None:
                 center_range = self._get_centered_range()
                 col, row = self._plot_pointer
-                self.plot_settings(
+                self.plot_layout(
                     xaxis={
                         "range": (
                             center_range[0] * self._subplots[col][row]["factor"]["x"],
@@ -738,7 +738,7 @@ class _TwissArtist(_Artist):
                 & (twiss_thick["s"] < center_range[1])
             ]
             col, row = self._plot_pointer
-            self.plot_settings(
+            self.plot_layout(
                 xaxis={
                     "range": (
                         center_range[0] * self._subplots[col][row]["factor"]["x"],
