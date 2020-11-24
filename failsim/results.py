@@ -467,7 +467,7 @@ class _TwissArtist(_Artist):
     aper_style = dict(
         mode="lines",
         marker_color="black",
-        line_width=1,
+        line_width=0.1,
         fill="toself",
         showlegend=False,
     )
@@ -522,8 +522,12 @@ class _TwissArtist(_Artist):
         Returns: TODO
 
         """
-        center_s = self._parent.twiss_df.loc[self._center_elem]["s"].iloc[0]
-        return (center_s - self._width / 2, center_s + self._width / 2)
+        center_s = self._parent.twiss_df.loc[self._center_elem]["s"]
+        try:
+            center_s = center_s.iloc[0]
+        except AttributeError:
+            pass
+        return center_s - self._width / 2, center_s + self._width / 2
 
     def _crop_to_centered(self, data: pd.DataFrame):
         """TODO: Docstring for _crop_to_centered.
@@ -612,7 +616,7 @@ class _TwissArtist(_Artist):
 
             # Filter if center_elem is defined
             if self._center_elem is not None:
-                center_range = self.get_centered_range()
+                center_range = self._get_centered_range()
                 twiss = twiss[
                     (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
                 ]

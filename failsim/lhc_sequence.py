@@ -81,6 +81,7 @@ class LHCSequence:
         beam_mode: str,
         sequence_key: Optional[str] = None,
         optics_key: Optional[str] = None,
+        collimation_key: Optional[str] = None,
         check_betas_at_ips: bool = True,
         check_separations_at_ips: bool = True,
         tolerances_beta: List[float] = [1e-3, 10e-2, 1e-3, 1e-2],
@@ -111,8 +112,13 @@ class LHCSequence:
         self._custom_optics = None
         self._optics_key = None
         self._optics_path = None
+        self._custom_collimation = None
+        self.collimation = None
+        self._collimation_key = None
+        self._collimation_path = None
         self._cycle = None
         self._bb_dfs = None
+        self._twiss_pre_thin_paths = {}
 
         self._built = False
         self._checked = False
@@ -132,6 +138,9 @@ class LHCSequence:
 
         if optics_key is not None:
             self.select_optics(optics_key)
+
+        if collimation_key is not None:
+            self.select_collimation(collimation_key)
 
     def _initialize_mask_dictionary(self):
         """Fills the internal dictionary _modules with default values for each pymask module.
@@ -326,6 +335,18 @@ class LHCSequence:
             self.call_pymask_module(os.path.basename(self._modules[module]["path"]))
             self._modules[module]["called"] = True
 
+    @classmethod
+    def get_metadata(cls):
+        return yaml.safe_load(pkg_resources.resource_stream(__name__, "data/metadata.yaml"))
+
+    @classmethod
+    def get_sequences(cls):
+        return list(cls.get_metadata().keys())
+
+    @classmethod
+    def get_optics(cls, sequence_key):
+        return list(cls.get_metadata()[sequence_key]['optics'].keys())
+
     def _load_metadata(self):
         """Loads the metadata.yaml file.
 
@@ -333,10 +354,29 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
-        metadata_stream = pkg_resources.resource_stream(__name__, "data/metadata.yaml")
-        self._metadata = yaml.safe_load(metadata_stream)
-
+        self._metadata = self.get_metadata()
         return self
+
+    @print_info("LHCSequence")
+    def _load_and_set_collimators(self):
+        self.collimation = CollimatorHandler(self._collimation_path)
+
+        twiss_results = self.twiss()
+        twiss_df = twiss_results.twiss_df[twiss_results.twiss_df["turn"] == 1]
+        settings = self.collimation.compute_settings(
+            twiss_df, twiss_results.info_df["eps_n"], twiss_results.info_df["nrj"]
+        )
+
+        twiss_thick = pd.read_parquet(
+            self._twiss_pre_thin_paths[self._mode_configuration['sequence_to_track']]
+        )
+        for _, row in settings.iterrows():
+            if row.name.lower() in twiss_thick.index:
+                twiss_thick.at[row.name.lower(), "aper_1"] = row["gaph"]
+                twiss_thick.at[row.name.lower(), "aper_2"] = row["gapv"]
+        twiss_thick.to_parquet(
+            self._twiss_pre_thin_paths[self._mode_configuration['sequence_to_track']]
+        )
 
     def _call_remaining_modules(self):
         """Calls all pymask modules that have been enabled, and that haven't been called yet.
@@ -515,6 +555,27 @@ class LHCSequence:
 
         return self
 
+    @reset_state(True, True)
+    @print_info("LHCSequence")
+    def select_collimation(self, collimation: str, custom: bool = False):
+        """
+        TODO
+        Args:
+            custom:
+
+        Returns:
+
+        """
+        self._custom_collimation = custom
+        if custom:
+            if not collimation.startswith("/"):
+                 collimation = self._failsim.path_to_cwd(collimation)
+            self._collimation_path = collimation
+        else:
+            self._collimation_key = collimation
+
+        return self
+
     @print_info("LHCSequence")
     def build(self):
         """Does the build of the sequence.
@@ -565,6 +626,17 @@ class LHCSequence:
             )
             self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
 
+        if not self._custom_collimation:
+            assert (
+                not self._custom_sequence
+            ), "You can't use non-custom collimation with custom sequence"
+
+            rel_path = os.path.join(
+                sequence_data['collimation_base_path'],
+                sequence_data["collimation"][self._collimation_key],
+            )
+            self._collimation_path = pkg_resources.resource_filename(__name__, rel_path)
+
         for seq in self._sequence_paths:
             self._failsim.mad_call_file(seq)
         self._failsim.mad_call_file(self._optics_path)
@@ -593,13 +665,16 @@ class LHCSequence:
 
         for ss in self._mode_configuration["sequences_to_check"]:
             twiss_df, _ = self._failsim.twiss_and_summ(ss)
+            self._twiss_pre_thin_paths[ss] = FailSim.path_to_output(
+                f"twiss_pre_thin_{ss}.parquet"
+            )
             twiss_df.to_parquet(
-                FailSim.path_to_output(f"twiss_pre_thin_b{ss[-1]}.parquet")
+                self._twiss_pre_thin_paths[ss]
             )
 
             survey_df = self._failsim.mad.survey(sequence=ss).dframe()
             survey_df.to_parquet(
-                FailSim.path_to_output(f"survey_pre_thin_b{ss[-1]}.parquet")
+                FailSim.path_to_output(f"survey_pre_thin_{ss}.parquet")
             )
 
         self._failsim.make_thin(self._mode_configuration["sequence_to_track"][-1])
@@ -615,6 +690,9 @@ class LHCSequence:
         self._install_bb_lenses()
 
         self._call_remaining_modules()
+
+        if self._collimation_path is not None:
+            self._load_and_set_collimators()
 
         self._built = True
 
@@ -931,3 +1009,11 @@ class CollimatorHandler:
         res["gapv"] = gapv
 
         return res
+
+
+class HLLHCSequence(LHCSequence):
+    def __init__(self, *args, **kwargs):
+        if kwargs.get('sequence_key') and kwargs['sequence_key'] != 'HLLHCV1.4':
+            raise Exception("Invalid sequence key")
+        kwargs.update(sequence_key='HLLHCV1.4')
+        super().__init__(*args, **kwargs)

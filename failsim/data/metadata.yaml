@@ -6,6 +6,9 @@ HLLHCV1.4:
   sequence_filenames: ['data/acc-models-lhc/lhc.seq', 'data/hllhc14/hllhc_sequence.madx']
   run: 0
   version: 1.4
+  collimation_base_path: data/collimation
+  collimation:
+    HLV1.3_7TEV_2.5_B1: collgaps_HLv1p3_7TeV_2p5_B1.dat
   optics_base_path: data/hllhc14/
   optics:
     HL_INJ:
