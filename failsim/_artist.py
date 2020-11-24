@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 
 import plotly.graph_objects as go
 import plotly.offline
@@ -20,6 +20,7 @@ class _Artist:
         self._plot_pointer = [0, 0]
 
         self._global_layout = {}
+        self._frames = []
         self._subplots = np.array([[0]], dtype=object)
 
         self._populate_subplots()
@@ -30,6 +31,25 @@ class _Artist:
         ), "Index must specified as follows: [x,y]"
         self._plot_pointer = list(index)
         return self
+
+    @staticmethod
+    def lerp_hex_color(col1: str, col2: str, factor: float):
+        r1, g1, b1 = (
+            int(col1[1:3], 16),
+            int(col1[3:5], 16),
+            int(col1[5:], 16),
+        )
+        r2, g2, b2 = (
+            int(col2[1:3], 16),
+            int(col2[3:5], 16),
+            int(col2[5:], 16),
+        )
+
+        r3 = r1 + (r2 - r1) * factor
+        g3 = g1 + (g2 - g1) * factor
+        b3 = b1 + (b2 - b1) * factor
+
+        return f"#{int(r3):02x}{int(g3):02x}{int(b3):02x}"
 
     def global_layout(
         self,
@@ -131,6 +151,8 @@ class _Artist:
         Returns: TODO
 
         """
+        self.global_layout(1, 1)
+        self._global_layout = {}
         self._subplots.fill(0)
         self._populate_subplots()
 
@@ -145,6 +167,7 @@ class _Artist:
         for col in range(self._cols):
             for row in range(self._rows):
                 self._subplots[col][row]["data"] = []
+                self._frames = []
 
     def save(self, name: str):
         """TODO: Docstring for save.
@@ -160,9 +183,69 @@ class _Artist:
             include_mathjax="cdn",
             output_type="div",
         )
-        os.makedirs(os.path.dirname(name), exist_ok=True)
+        file_dir = os.path.dirname(name)
+        if file_dir != "":
+            os.makedirs(file_dir, exist_ok=True)
         with open(name, "w") as fd:
             fd.write(div)
+
+    def _process_data(
+        self, x: pd.Series, y: pd.Series, xaxis: Dict = {}, yaxis: Dict = {}, **kwargs
+    ):
+        """TODO: Docstring for _process_data.
+
+        Args:
+        function (TODO): TODO
+
+        Returns: TODO
+
+        """
+        col, row = self._plot_pointer
+
+        idx = col + row * self._cols
+        str_idx = "" if (idx + 1) == 1 else str(idx + 1)
+
+        # Apply scaling factor to x and y.
+        if type(x) is list:
+            x = [v * self._subplots[col][row]["factor"]["x"] for v in x]
+        else:
+            x = x.copy() * self._subplots[col][row]["factor"]["x"]
+        if type(y) is list:
+            y = [v * self._subplots[col][row]["factor"]["y"] for v in y]
+        else:
+            y = y.copy() * self._subplots[col][row]["factor"]["y"]
+
+        data_dict = {
+            "x": x,
+            "y": y,
+            "xaxis": f"x{str_idx}",
+            "yaxis": f"y{str_idx}",
+            "mode": "markers+lines",
+        }
+
+        # Specify shared axis for x.
+        share_xaxis = self._subplots[col][row]["share"]["x"]
+        if share_xaxis is not None:
+            l_idx = share_xaxis[0] + share_xaxis[1] * self._cols
+            l_str_idx = "" if (l_idx + 1) == 1 else str(l_idx + 1)
+            data_dict["xaxis"] = f"x{l_str_idx}"
+            self._subplots[col][row][f"yaxis{str_idx}"]["anchor"] = f"x{l_str_idx}"
+
+        # Specify shared axis for y.
+        share_yaxis = self._subplots[col][row]["share"]["y"]
+        if share_yaxis is not None:
+            l_idx = share_yaxis[0] + share_yaxis[1] * self._cols
+            l_str_idx = "" if (l_idx + 1) == 1 else str(l_idx + 1)
+            data_dict["yaxis"] = f"y{l_str_idx}"
+            self._subplots[col][row][f"xaxis{str_idx}"]["anchor"] = f"y{l_str_idx}"
+
+        # Add subplot specific axis layout options.
+        self._subplots[col][row][f"xaxis{str_idx}"].update(xaxis)
+        self._subplots[col][row][f"yaxis{str_idx}"].update(yaxis)
+
+        data_dict.update(kwargs)
+
+        return data_dict
 
     def add_data(
         self,
@@ -182,48 +265,123 @@ class _Artist:
         """
         col, row = self._plot_pointer
 
+        data_dict = self._process_data(**kwargs, x=x, y=y, xaxis=xaxis, yaxis=yaxis)
+
+        if to_bottom:
+            self._subplots[col][row]["data"].insert(0, data_dict)
+
+            # Increment each trace in each frame
+            for frame in self._frames:
+                frame["traces"] = [x + 1 for x in frame["traces"]]
+
+        else:
+            self._subplots[col][row]["data"].append(data_dict)
+
+    def add_frame(
+        self,
+        x: pd.Series,
+        y: pd.Series,
+        frame_name: str,
+        frame_trace: int,
+        xaxis: Dict = {},
+        yaxis: Dict = {},
+        **kwargs,
+    ):
+        """TODO: Docstring for add_frame.
+
+        Args:
+        function (TODO): TODO
+
+        Returns: TODO
+
+        """
+        col, row = self._plot_pointer
+
+        data_dict = self._process_data(**kwargs, x=x, y=y, xaxis=xaxis, yaxis=yaxis)
+
+        # Make sure lines arent simplified.
+        # This makes sure animations don't jump around strangely.
+        if "line" in data_dict:
+            data_dict["line"].update(simplify=False)
+        else:
+            data_dict.update(line={"simplify": False})
+
+        # Loop through all frames to see if frame with
+        # frame_name already exists. If one already exists,
+        # add the data to this frame instead of creating a
+        # new one.
+        frame_found = False
+        for frame in self._frames:
+            if frame["name"] == frame_name:
+                frame["data"].append(data_dict)
+                frame["traces"].append(frame_trace)
+                frame_found = True
+        if not frame_found:
+            frame = {
+                "name": frame_name,
+                "data": [data_dict],
+                "traces": [frame_trace],
+            }
+            self._frames.append(frame)
+
+        # If "sliders" key doesn't exist in global_layout,
+        # add this key to global_layout with default values.
+        if "sliders" not in self._global_layout:
+            self._global_layout["sliders"] = [{"active": 0, "steps": []}]
+
+        # Loop through all steps in global slider to see
+        # if step for given frame_name already exists.
+        # If it doesn't already, append new step with
+        # given frame_name to steps. If it exists, do nothing.
+        step_found = False
+        for step in self._global_layout["sliders"][0]["steps"]:
+            if step["args"][0][0] == frame_name:
+                step_found = True
+                break
+        if not step_found:
+            step = {
+                "args": [
+                    [frame_name],
+                    {"frame": {"duration": 100, "redraw": True}},
+                ],
+                "label": frame_name,
+                "method": "animate",
+            }
+            self._global_layout["sliders"][0]["steps"].append(step)
+
+    def set_yrange_for_xrange(self, xrange: [Tuple[float, float]]):
+        """TODO: Docstring for set_yrange_for_xrange.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        col, row = self._plot_pointer
+        plot = self._subplots[col, row]
+        factor = plot["factor"]
+
+        val_min = float("inf")
+        val_max = -float("inf")
+        for data in plot["data"]:
+            range_check = [
+                xrange[1] * factor["x"] > x > xrange[0] * factor["x"] for x in data["x"]
+            ]
+            range_data = [
+                data["y"][i] for i in range(len(data["x"])) if range_check[i] == True
+            ]
+            if len(range_data) == 0:
+                continue
+            val_min = val_min if min(range_data) > val_min else min(range_data)
+            val_max = val_max if max(range_data) < val_max else max(range_data)
+
+        val_min -= (val_max - val_min) * 0.1
+        val_max += (val_max - val_min) * 0.1
+
         idx = col + row * self._cols
         str_idx = "" if (idx + 1) == 1 else str(idx + 1)
 
-        # Apply factor
-        if type(x) is list:
-            x = [v * self._subplots[col][row]["factor"]["x"] for v in x]
-        else:
-            x = x.copy() * self._subplots[col][row]["factor"]["x"]
-        if type(y) is list:
-            y = [v * self._subplots[col][row]["factor"]["y"] for v in y]
-        else:
-            y = y.copy() * self._subplots[col][row]["factor"]["y"]
-
-        data_dict = {
-            "x": x,
-            "y": y,
-            "xaxis": f"x{str_idx}",
-            "yaxis": f"y{str_idx}",
-        }
-
-        share_xaxis = self._subplots[col][row]["share"]["x"]
-        if share_xaxis is not None:
-            l_idx = share_xaxis[0] + share_xaxis[1] * self._cols
-            l_str_idx = "" if (l_idx + 1) == 1 else str(l_idx + 1)
-            data_dict["xaxis"] = f"x{l_str_idx}"
-            self._subplots[col][row][f"yaxis{str_idx}"]["anchor"] = f"x{l_str_idx}"
-
-        share_yaxis = self._subplots[col][row]["share"]["y"]
-        if share_yaxis is not None:
-            l_idx = share_yaxis[0] + share_yaxis[1] * self._cols
-            l_str_idx = "" if (l_idx + 1) == 1 else str(l_idx + 1)
-            data_dict["yaxis"] = f"y{l_str_idx}"
-            self._subplots[col][row][f"xaxis{str_idx}"]["anchor"] = f"y{l_str_idx}"
-
-        self._subplots[col][row][f"xaxis{str_idx}"].update(xaxis)
-        self._subplots[col][row][f"yaxis{str_idx}"].update(yaxis)
-
-        data_dict.update(kwargs)
-        if to_bottom:
-            self._subplots[col][row]["data"].insert(0, data_dict)
-        else:
-            self._subplots[col][row]["data"].append(data_dict)
+        self._subplots[col][row][f"yaxis{str_idx}"].update(range=(val_min, val_max))
 
     @property
     def figure(
@@ -236,16 +394,22 @@ class _Artist:
         Returns: TODO
 
         """
-        fig = go.Figure()
+        fig = {}
+        fig["data"] = []
+        fig["frames"] = []
+        fig["layout"] = {}
 
-        fig.update_layout(self._global_layout)
+        fig["layout"].update(self._global_layout)
 
         for plot in self._subplots.reshape(1, -1)[0]:
-            fig.update_layout({k: v for k, v in plot.items() if "axis" in k})
+            fig["layout"].update({k: v for k, v in plot.items() if "axis" in k})
             for data in plot["data"]:
-                fig.add_trace(data)
+                fig["data"].append(data)
 
-        return fig
+        for frame in self._frames:
+            fig["frames"].append(frame)
+
+        return go.Figure(fig)
 
     def external_figure(self, figure: go.Figure):
         """TODO: Docstring for external_figure.

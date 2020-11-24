@@ -72,7 +72,8 @@ class Result:
             index=["info"],
         )
 
-        self.fix_twiss_name()
+        if twiss_df["name"].iloc[0].endswith(":1"):
+            self.fix_twiss_name()
 
     def save_data(self, path: str, suffix: str = ""):
         """
@@ -143,25 +144,6 @@ class Result:
         )
 
         return inst
-
-    @staticmethod
-    def lerp_hex_color(col1: str, col2: str, factor: float):
-        r1, g1, b1 = (
-            int(col1[1:3], 16),
-            int(col1[3:5], 16),
-            int(col1[5:], 16),
-        )
-        r2, g2, b2 = (
-            int(col2[1:3], 16),
-            int(col2[3:5], 16),
-            int(col2[5:], 16),
-        )
-
-        r3 = r1 + (r2 - r1) * factor
-        g3 = g1 + (g2 - g1) * factor
-        b3 = b1 + (b2 - b1) * factor
-
-        return f"#{int(r3):02x}{int(g3):02x}{int(b3):02x}"
 
     def fix_twiss_name(self):
         """
@@ -467,7 +449,7 @@ class _TwissArtist(_Artist):
     aper_style = dict(
         mode="lines",
         marker_color="black",
-        line_width=0.1,
+        line_width=0,
         fill="toself",
         showlegend=False,
     )
@@ -514,8 +496,8 @@ class _TwissArtist(_Artist):
             return data
         return data.loc[self._filter(data)]
 
-    def _get_centered_range(self):
-        """TODO: Docstring for _get_centered_range.
+    def get_centered_range(self):
+        """TODO: Docstring for get_centered_range.
 
         Args:
 
@@ -537,10 +519,16 @@ class _TwissArtist(_Artist):
         Returns: TODO
 
         """
-        center_range = self._get_centered_range()
+        center_range = self.get_centered_range()
         return data[(data["s"] > center_range[0]) & (data["s"] < center_range[1])]
 
-    def twiss_column(self, columns: Union[str, List[str]], **kwargs):
+    def twiss_column(
+        self,
+        columns: Union[str, List[str]],
+        xaxis_column: str = "s",
+        animate_column: Optional[str] = None,
+        **kwargs,
+    ):
         """TODO: Docstring for twiss_column.
 
         Args:
@@ -555,18 +543,43 @@ class _TwissArtist(_Artist):
         twiss = self._apply_observation_filter(self._parent.twiss_df)
 
         for column in columns:
-            x_data = twiss["s"]
+            x_data = twiss[xaxis_column]
             y_data = twiss[column]
 
-            self.add_data(
-                **kwargs,
-                x=x_data,
-                y=y_data,
-                name=column,
-            )
+            if animate_column is not None:
+                col, row = self._plot_pointer
+                frame_trace = 0
+                for _col in range(self._cols):
+                    for _row in range(self._rows):
+                        frame_trace += len(self._subplots[_col][_row]["data"])
+                for idx, (x, split) in enumerate(
+                    dict(tuple(twiss.groupby(animate_column))).items()
+                ):
+                    if idx == 0:
+                        self.add_data(
+                            **kwargs,
+                            x=split[xaxis_column],
+                            y=split[column],
+                            name=column,
+                        )
+
+                    self.add_frame(
+                        **kwargs,
+                        x=split[xaxis_column],
+                        y=split[column],
+                        frame_name=x,
+                        frame_trace=frame_trace,
+                    )
+            else:
+                self.add_data(
+                    **kwargs,
+                    x=x_data,
+                    y=y_data,
+                    name=column,
+                )
 
             if self._center_elem is not None:
-                center_range = self._get_centered_range()
+                center_range = self.get_centered_range()
                 col, row = self._plot_pointer
                 self.plot_layout(
                     xaxis={
@@ -577,7 +590,7 @@ class _TwissArtist(_Artist):
                     },
                 )
 
-    def cartouche(self, twiss_path: Tuple[str, str] = None):
+    def cartouche(self, twiss_path: Optional[Tuple[str, str]] = None):
         """TODO: Docstring for cartouche.
 
         Args:
@@ -649,7 +662,7 @@ class _TwissArtist(_Artist):
                 ):
                     continue
 
-                x0 = row["s"] - (row["l"] if row["l"] != 0 else 0.5)
+                x0 = row["s"] - (row["l"] if row["l"] != 0 else 0.1)
                 x1 = row["s"]
                 dy = 0.9
                 y0 = beam_sep.loc[row["name"][:-2]] - dy / 2
@@ -710,9 +723,9 @@ class _TwissArtist(_Artist):
     def aperture(
         self,
         axis: str,
-        beam_magnitudes: List[float] = [1, 5, 10],
-        collimator_handler: CollimatorHandler = None,
-        twiss_path: str = None,
+        beam_magnitudes: List[float] = [1, 4.7, 6.7],
+        twiss_path: Optional[str] = None,
+        **kwargs,
     ):
         """TODO: Docstring for aperture.
 
@@ -736,7 +749,7 @@ class _TwissArtist(_Artist):
 
         # Filter if center_elem is defined
         if self._center_elem is not None:
-            center_range = self._get_centered_range()
+            center_range = self.get_centered_range()
             twiss_thick = twiss_thick[
                 (twiss_thick["s"] > center_range[0])
                 & (twiss_thick["s"] < center_range[1])
@@ -766,7 +779,7 @@ class _TwissArtist(_Artist):
             y0 = abs(row[f"aper_{1 if axis == 'x' else 2}"])
             y1 = 1
 
-            # Move elements with 0 mm aperture to 50 mm
+            # Move elements with 0 mm or infinite aperture to 200 mm
             if y0 == 0 or y0 == float("inf"):
                 y0 = 200e-3
 
@@ -774,6 +787,7 @@ class _TwissArtist(_Artist):
             style.update(
                 fillcolor=self.element_colors[row["keyword"]],
                 name=f"{row['name']}: {y0} mm",
+                mode="lines",
             )
 
             for pol in [-1, 1]:
@@ -783,8 +797,9 @@ class _TwissArtist(_Artist):
                     **style,
                 )
             style.update(
-                line_width=1,
+                line_width=0,
                 opacity=0.1,
+                mode="lines",
             )
             self.add_data(
                 x=[x0, x1, x1, x0, x0],
@@ -812,6 +827,7 @@ class _TwissArtist(_Artist):
         for idx, mag in enumerate(beam_magnitudes):
             alpha = 1 - 2 * abs(idx / len(beam_magnitudes) - 0.5)
             self.add_data(
+                **kwargs,
                 x=twiss["s"],
                 y=mag * envelope + twiss[axis],
                 line_width=0,
@@ -824,6 +840,145 @@ class _TwissArtist(_Artist):
                 if mag == min(abs(np.array(beam_magnitudes)))
                 else False,
             )
+
+    def twiss_beating(
+        self,
+        column: str,
+        reference: Optional[pd.DataFrame] = None,
+        start_col: str = "#000000",
+        end_col: str = "#ff0000",
+        **kwargs,
+    ):
+        """TODO: Docstring for twiss_beating.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        twiss = self._parent.twiss_df.copy()
+
+        if self._center_elem is not None:
+            center_range = self.get_centered_range()
+            col, row = self._plot_pointer
+            self.plot_layout(
+                xaxis={
+                    "range": (
+                        center_range[0] * self._subplots[col][row]["factor"]["x"],
+                        center_range[1] * self._subplots[col][row]["factor"]["x"],
+                    )
+                },
+            )
+
+        # Calculate beating
+        if reference is None:
+            reference = twiss[twiss["turn"] == min(twiss["turn"])]
+
+        for idx, turn in enumerate(set(twiss["turn"])):
+            data = twiss[twiss["turn"] == turn]
+            res = data[column] / reference[column]
+
+            col = _Artist.lerp_hex_color(
+                start_col, end_col, idx / len(set(twiss["turn"]))
+            )
+
+            self.add_data(
+                **kwargs,
+                x=data["s"],
+                y=res,
+                name=f"Turn {turn}",
+                marker_color=col,
+            )
+
+    def effective_half_gap(
+        self,
+        elements: List[str],
+        axis: str,
+        twiss_path: str = "output/twiss_pre_thin_b1.parquet",
+        collimator_handler: Optional[CollimatorHandler] = None,
+        use_excursion: bool = True,
+        suffix: str = None,
+        parallel: bool = True,
+        **kwargs,
+    ):
+        """TODO: Docstring for effective_half_gap.
+
+        Args:
+        function (TODO): TODO
+
+        Returns: TODO
+
+        """
+        if not twiss_path.startswith("/"):
+            twiss_path = FailSim.path_to_cwd(twiss_path)
+
+        twiss_thick = pd.read_parquet(twiss_path)
+        twiss_df = self._parent.twiss_df.copy()
+
+        gamma = self._parent.info_df["nrj"]["info"] / 0.938
+        eps_g = self._parent.info_df["eps_n"]["info"] / gamma
+
+        if collimator_handler is not None:
+            settings = collimator_handler.compute_settings(
+                twiss_df[twiss_df["turn"] == 1],
+                self._parent.info_df["eps_n"],
+                self._parent.info_df["nrj"],
+            )
+
+            for _, row in settings.iterrows():
+                if row.name.lower() in twiss_thick.index:
+                    twiss_thick.at[row.name.lower(), "aper_1"] = row["gaph"]
+                    twiss_thick.at[row.name.lower(), "aper_2"] = row["gapv"]
+
+        for element in elements:
+            data_thick = twiss_thick.loc[element]
+
+            aper = data_thick[f"aper_{1 if axis == 'x' else 2}"]
+
+            data = twiss_df.loc[element]
+
+            sig_elem = np.sqrt(eps_g * data[f"bet{axis}"])
+
+            xn = data["x"] / np.sqrt(eps_g * data["betx"])
+            yn = data["y"] / np.sqrt(eps_g * data["bety"])
+            excursion = np.sqrt(xn ** 2 + yn ** 2)
+
+            if use_excursion:
+                effective_gap = aper / sig_elem - excursion
+            else:
+                effective_gap = aper / sig_elem
+            effective_gap = effective_gap.clip(lower=0)
+
+            if parallel:
+                elem_name = element if suffix is None else suffix + element
+
+                self.add_data(x=data["turn"], y=effective_gap, name=elem_name, **kwargs)
+            else:
+                ...
+                # TODO
+
+        """TODO: Docstring for clear_figure.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        super().clear_figure()
+        self._center_elem = None
+
+    @property
+    def figure(self):
+        """TODO: Docstring for figure.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        fig = super().figure
+
+        return fig
 
 
 class _TrackArtist(_TwissArtist):
