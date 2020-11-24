@@ -829,7 +829,7 @@ class LHCSequence:
         run_version = self._failsim._mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
 
-        twiss_df['turn'] = 1
+        twiss_df["turn"] = 1
 
         return TwissResult(
             twiss_df=twiss_df,
