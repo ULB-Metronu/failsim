@@ -883,12 +883,13 @@ class CollimatorHandler:
         Returns: TODO
 
         """
+        np.seterr(divide="ignore")
         self._collimator_df["nsigx"] = self._collimator_df.apply(
-            lambda x: float(x["nsig"]) / np.cos(float(x["angle[rad]"])),
+            lambda x: float(x["nsig"]) / abs(np.cos(float(x["angle[rad]"]))),
             axis=1,
         )
         self._collimator_df["nsigy"] = self._collimator_df.apply(
-            lambda x: float(x["nsig"]) / np.sin(float(x["angle[rad]"])),
+            lambda x: float(x["nsig"]) / abs(np.sin(float(x["angle[rad]"]))),
             axis=1,
         )
 
