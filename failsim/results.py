@@ -593,13 +593,6 @@ class _TwissArtist(_Artist):
                     path = FailSim.path_to_cwd(path)
                 twiss = pd.read_parquet(path)
 
-            # Filter if center_elem is defined
-            if self._center_elem is not None:
-                center_range = self._get_centered_range()
-                twiss = twiss[
-                    (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
-                ]
-
             # Remove elements that shouldn't be shown in cartouche
             twiss = twiss[
                 ~twiss["keyword"].isin(
@@ -616,6 +609,17 @@ class _TwissArtist(_Artist):
                 method="index",
                 limit_direction="both",
             )
+
+            # Filter if center_elem is defined
+            if self._center_elem is not None:
+                center_range = self.get_centered_range()
+                twiss = twiss[
+                    (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
+                ]
+                beam_sep = beam_sep[
+                    (beam_sep.index > center_range[0])
+                    & (beam_sep.index < center_range[1])
+                ]
 
             # Normalize beam separation
             if not max(abs(beam_sep)) == 0:
