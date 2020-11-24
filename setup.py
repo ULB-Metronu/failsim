@@ -20,11 +20,12 @@ with open("LICENSE") as f:
     lic = f.read()
 
 requirements = [
+    "cpymad",
     "numpy",
     "pandas",
-    "cpymad",
-    "pyyaml",
     "plotly",
+    "pyarrow",
+    "pyyaml",
 ]
 
 if "CI_JOB_TOKEN" in os.environ:

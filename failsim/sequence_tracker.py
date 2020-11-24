@@ -41,7 +41,7 @@ class SequenceTracker:
         self._particles = None
 
     @print_info("SequenceTracker")
-    def twiss(self, turns: int):
+    def twiss(self, turns: Optional[int] = None):
         """
         Does Twiss with current sequence.
         If time dependencies have been defined, the method does a multi-turn twiss, calling the time dependies each iteration.
@@ -55,7 +55,7 @@ class SequenceTracker:
         """
         time_depen = []
 
-        if len(self._time_dependencies) == 0:
+        if len(self._time_dependencies) == 0 or turns is None:
             twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
             twiss_df["turn"] = 1
 
