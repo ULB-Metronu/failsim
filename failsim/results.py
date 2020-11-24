@@ -751,15 +751,6 @@ class _TwissArtist(_Artist):
                 },
             )
 
-        if collimator_handler is not None:
-            settings = collimator_handler.compute_settings(
-                twiss, self._parent.info_df["eps_n"], self._parent.info_df["nrj"]
-            )
-            for _, row in settings.iterrows():
-                if row.name.lower() in twiss_thick.index:
-                    twiss_thick.at[row.name.lower(), "aper_1"] = row["gaph"]
-                    twiss_thick.at[row.name.lower(), "aper_2"] = row["gapv"]
-
         twiss_thick = twiss_thick.loc[
             ~twiss_thick["keyword"].isin(
                 ["drift", "marker", "placeholder", "monitor", "instrument"]
@@ -767,7 +758,10 @@ class _TwissArtist(_Artist):
         ]
 
         for _, row in twiss_thick.iterrows():
-            x0 = row["s"] - (row["l"] if row["l"] != 0 else 0.5)
+            if "aper_1" not in row.index:
+                continue
+
+            x0 = row["s"] - (row["l"] if row["l"] != 0 else 0.1)
             x1 = row["s"]
             y0 = abs(row[f"aper_{1 if axis == 'x' else 2}"])
             y1 = 1
