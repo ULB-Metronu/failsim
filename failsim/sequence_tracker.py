@@ -159,10 +159,10 @@ class SequenceTracker:
                 self._failsim.mad_input(
                     "start, "
                     f"x = {particle[0]},"
-                    f"xn = {particle[1]},"
+                    f"px = {particle[1]},"
                     f"y = {particle[2]},"
-                    f"yn = {particle[3]},"
-                    f"t = {particle[4]},"
+                    f"py = {particle[3]},"
+                    f"pt= {particle[4]},"
                     f"tn = {particle[5]}"
                 )
         else:
@@ -196,7 +196,7 @@ class SequenceTracker:
         Sets initial starting positions for particles.
 
         Args:
-            particles: List of particles to track. Each entry must a list with 6 values: [x, xn, y, yn, t, tn].
+            particles: List of particles to track. Each entry must a list with 6 values: [x, px, y, py, t, pt].
 
         """
         self._particles = particles
