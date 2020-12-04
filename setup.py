@@ -21,6 +21,7 @@ with open("LICENSE") as f:
 
 requirements = [
     "cpymad",
+    "dataclasses",
     "numpy",
     "pandas",
     "plotly",
@@ -30,7 +31,7 @@ requirements = [
 
 if "CI_JOB_TOKEN" in os.environ:
     requirements.append(
-        f"pymask @ git+https://gitlab-ci-token:{os.environ['CI_JOB_TOKEN']}@gitlab.cern.ch/otuormaa/lhcmask_failsim.git#egg=pymask"
+        f"pymask @ git+https://gitlab-ci-token:{os.environ['CI_JOB_TOKEN']}@gitlab.cern.ch/machine-protection/libs/pymask.git#egg=pymask"
     )
 else:
     requirements.append(

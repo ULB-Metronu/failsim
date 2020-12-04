@@ -895,7 +895,6 @@ class _TwissArtist(_Artist):
         elements: List[str],
         axis: str,
         twiss_path: str = "output/twiss_pre_thin_b1.parquet",
-        collimator_handler: Optional[CollimatorHandler] = None,
         use_excursion: bool = True,
         suffix: str = None,
         parallel: bool = True,
@@ -918,19 +917,7 @@ class _TwissArtist(_Artist):
         gamma = self._parent.info_df["nrj"]["info"] / 0.938
         eps_g = self._parent.info_df["eps_n"]["info"] / gamma
 
-        if collimator_handler is not None:
-            settings = collimator_handler.compute_settings(
-                twiss_df[twiss_df["turn"] == 1],
-                self._parent.info_df["eps_n"],
-                self._parent.info_df["nrj"],
-            )
-
-            for _, row in settings.iterrows():
-                if row.name.lower() in twiss_thick.index:
-                    twiss_thick.at[row.name.lower(), "aper_1"] = row["gaph"]
-                    twiss_thick.at[row.name.lower(), "aper_2"] = row["gapv"]
-
-        for element in elements:
+        for idx, element in enumerate(elements):
             data_thick = twiss_thick.loc[element]
 
             aper = data_thick[f"aper_{1 if axis == 'x' else 2}"]
@@ -950,13 +937,35 @@ class _TwissArtist(_Artist):
             effective_gap = effective_gap.clip(lower=0)
 
             if parallel:
+                start_col = "#000000"
+                end_col = "#ff0000"
+                x = idx
+                for idx, gap in enumerate(effective_gap):
+                    col = _Artist.lerp_hex_color(
+                        start_col, end_col, idx / len(effective_gap)
+                    )
+                    self.add_data(
+                        x=[x - 0.25, x, x + 0.25],
+                        y=[gap] * 3,
+                        mode="lines",
+                        marker_color=col,
+                        showlegend=False,
+                        name=f"Turn {idx}",
+                    )
+
+                    self.plot_layout(
+                        xaxis={
+                            "tickmode": "array",
+                            "tickvals": list(range(len(elements))),
+                            "ticktext": elements,
+                        }
+                    )
+            else:
                 elem_name = element if suffix is None else suffix + element
 
                 self.add_data(x=data["turn"], y=effective_gap, name=elem_name, **kwargs)
-            else:
-                ...
-                # TODO
 
+    def clear_figure(self):
         """TODO: Docstring for clear_figure.
 
         Args:
