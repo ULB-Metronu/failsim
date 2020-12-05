@@ -55,8 +55,8 @@ class OutputSuppressor:
             print(string.decode("utf-8"))
 
         if self._log_file is not None:
-            with open(self._log_file, "w") as fd:
-                fd.append(string.decode("utf-8"))
+            with open(self._log_file, "a") as fd:
+                fd.write(string.decode("utf-8"))
 
     def read(self):
         """Returns what's currently in the buffer.
