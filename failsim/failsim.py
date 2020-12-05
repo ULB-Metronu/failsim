@@ -31,6 +31,7 @@ class FailSim:
         failsim_verbosity: Enables or disables stdout output from FailSim.
         extra_macro_files: An optional list of .madx files that should be called when Mad-X is initialized.
         command_log: If command_log is not None, FailSim will input each of the commands in the log into the initialized Mad-X instance.
+        log_file: TODO.
 
     """
 
@@ -45,6 +46,7 @@ class FailSim:
         failsim_verbosity: bool = False,
         extra_macro_files: Optional[List[str]] = None,
         command_log: Optional[ArrayFile] = None,
+        log_file: Optional[str] = None,
     ):
         self._madx_verbosity = madx_verbosity
         self._extra_macro_files = extra_macro_files
@@ -88,9 +90,9 @@ class FailSim:
 
         # Setup output suppressor
         if madx_verbosity == "mute" or not FailSimGlobals.verbose:
-            self._madx_mute = OutputSuppressor(True)
+            self._madx_mute = OutputSuppressor(True, log_file=log_file)
         else:
-            self._madx_mute = OutputSuppressor(False)
+            self._madx_mute = OutputSuppressor(False, log_file=log_file)
 
         self.initialize_mad()
         self.load_macros()
