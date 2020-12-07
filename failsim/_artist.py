@@ -1,6 +1,7 @@
 from typing import List, Tuple, Dict, Optional
 
 import plotly.graph_objects as go
+import plotly.io as pio
 import plotly.offline
 
 import numpy as np
@@ -13,6 +14,46 @@ class _Artist:
 
     """Docstring for _Artist. """
 
+    default_layout = dict(
+        title=dict(
+            xanchor="center",
+            yanchor="top",
+            x=0.5,
+            y=0.98,
+        ),
+        margin=dict(
+            l=50,
+            r=50,
+            t=50,
+            b=50,
+        ),
+        font_size=10,
+        legend=dict(
+            xanchor="right",
+            yanchor="middle",
+            x=0.95,
+            y=0.5,
+            bordercolor="black",
+            borderwidth=1,
+        ),
+        xaxis=dict(
+            showgrid=True,
+            showline=True,
+            zeroline=False,
+            mirror="all",
+            ticks="inside",
+            exponentformat="E",
+        ),
+        yaxis=dict(
+            showgrid=True,
+            showline=True,
+            zeroline=False,
+            mirror="all",
+            ticks="inside",
+            exponentformat="E",
+        ),
+    )
+
     def __init__(self):
         self._rows = 1
         self._cols = 1
@@ -24,6 +65,10 @@ class _Artist:
         self._subplots = np.array([[0]], dtype=object)
 
         self._populate_subplots()
+
+        failsim_template = dict(layout=go.Layout(self.default_layout))
+        pio.templates["failsim"] = failsim_template
+        pio.templates.default = "failsim"
 
     def __getitem__(self, index):
         assert (type(index) == tuple) and (
@@ -220,7 +265,6 @@ class _Artist:
             "y": y,
             "xaxis": f"x{str_idx}",
             "yaxis": f"y{str_idx}",
-            "mode": "markers+lines",
         }
 
         # Specify shared axis for x.
@@ -402,7 +446,11 @@ class _Artist:
         fig["layout"].update(self._global_layout)
 
         for plot in self._subplots.reshape(1, -1)[0]:
-            fig["layout"].update({k: v for k, v in plot.items() if "axis" in k})
+            for axis, values in {k: v for k, v in plot.items() if "axis" in k}.items():
+                if axis in fig["layout"].keys():
+                    fig["layout"][axis].update(values)
+                else:
+                    fig["layout"].update({axis: values})
             for data in plot["data"]:
                 fig["data"].append(data)
 
@@ -425,5 +473,15 @@ class _Artist:
             figure.update_layout({k: v for k, v in plot.items() if "axis" in k})
             for data in plot["data"]:
                 figure.add_trace(data)
+
+        for frame_self in self._frames:
+            frame_found = False
+            for frame in figure.frames:
+                if str(frame["name"]) == str(frame_self["name"]):
+                    frame["data"] = list(frame["data"]) + frame_self["data"]
+                    frame["traces"] = list(frame["traces"]) + frame_self["traces"]
+                    frame_found = True
+            if not frame_found:
+                figure.frames = list(figure.frames) + [frame_self]
 
         return figure

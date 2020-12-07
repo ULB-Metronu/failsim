@@ -14,6 +14,7 @@ import pkg_resources
 import yaml
 import shutil
 import io
+import copy
 
 
 class FailSim:

@@ -21,6 +21,7 @@ import yaml
 import os
 import glob
 import re
+import copy
 
 
 ## ===== Decorators ===== ##
@@ -170,6 +171,8 @@ class LHCSequence:
         self._modules["01b_beam"]["enabled"] = True
         self._modules["01c_phase"]["enabled"] = True
         self._modules["01d_crossing"]["enabled"] = True
+        self._modules["01e_final"]["enabled"] = True
+        self._modules["02_lumilevel"]["enabled"] = True
         self._modules["05a_MO"]["enabled"] = True
 
     def _get_mode_configuration(self):
@@ -337,7 +340,9 @@ class LHCSequence:
 
     @classmethod
     def get_metadata(cls):
-        return yaml.safe_load(pkg_resources.resource_stream(__name__, "data/metadata.yaml"))
+        return yaml.safe_load(
+            pkg_resources.resource_stream(__name__, "data/metadata.yaml")
+        )
 
     @classmethod
     def get_sequences(cls):
@@ -345,7 +350,7 @@ class LHCSequence:
 
     @classmethod
     def get_optics(cls, sequence_key):
-        return list(cls.get_metadata()[sequence_key]['optics'].keys())
+        return list(cls.get_metadata()[sequence_key]["optics"].keys())
 
     def _load_metadata(self):
         """Loads the metadata.yaml file.
@@ -368,14 +373,21 @@ class LHCSequence:
         )
 
         twiss_thick = pd.read_parquet(
-            self._twiss_pre_thin_paths[self._mode_configuration['sequence_to_track']]
+            self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
         )
         for _, row in settings.iterrows():
+            gaph = np.clip(row["gaph"]["info"], 0, 10)
+            gapv = np.clip(row["gapv"]["info"], 0, 10)
+
             if row.name.lower() in twiss_thick.index:
-                twiss_thick.at[row.name.lower(), "aper_1"] = row["gaph"]
-                twiss_thick.at[row.name.lower(), "aper_2"] = row["gapv"]
+                twiss_thick.at[row.name.lower(), "aper_1"] = gaph
+                twiss_thick.at[row.name.lower(), "aper_2"] = gapv
+
+            self._failsim.mad_input(
+                f"{row.name}, APERTYPE=RECTANGLE, APERTURE={{ {gaph}, {gapv} }}"
+            )
         twiss_thick.to_parquet(
-            self._twiss_pre_thin_paths[self._mode_configuration['sequence_to_track']]
+            self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
         )
 
     def _call_remaining_modules(self):
@@ -569,7 +581,7 @@ class LHCSequence:
         self._custom_collimation = custom
         if custom:
             if not collimation.startswith("/"):
-                 collimation = self._failsim.path_to_cwd(collimation)
+                collimation = self._failsim.path_to_cwd(collimation)
             self._collimation_path = collimation
         else:
             self._collimation_key = collimation
@@ -626,13 +638,13 @@ class LHCSequence:
             )
             self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
 
-        if not self._custom_collimation:
+        if not self._custom_collimation and self._collimation_key is not None:
             assert (
                 not self._custom_sequence
             ), "You can't use non-custom collimation with custom sequence"
 
             rel_path = os.path.join(
-                sequence_data['collimation_base_path'],
+                sequence_data["collimation_base_path"],
                 sequence_data["collimation"][self._collimation_key],
             )
             self._collimation_path = pkg_resources.resource_filename(__name__, rel_path)
@@ -668,9 +680,7 @@ class LHCSequence:
             self._twiss_pre_thin_paths[ss] = FailSim.path_to_output(
                 f"twiss_pre_thin_{ss}.parquet"
             )
-            twiss_df.to_parquet(
-                self._twiss_pre_thin_paths[ss]
-            )
+            twiss_df.to_parquet(self._twiss_pre_thin_paths[ss])
 
             survey_df = self._failsim.mad.survey(sequence=ss).dframe()
             survey_df.to_parquet(
@@ -1015,7 +1025,7 @@ class CollimatorHandler:
 
 class HLLHCSequence(LHCSequence):
     def __init__(self, *args, **kwargs):
-        if kwargs.get('sequence_key') and kwargs['sequence_key'] != 'HLLHCV1.4':
+        if kwargs.get("sequence_key") and kwargs["sequence_key"] != "HLLHCV1.4":
             raise Exception("Invalid sequence key")
-        kwargs.update(sequence_key='HLLHCV1.4')
+        kwargs.update(sequence_key="HLLHCV1.4")
         super().__init__(*args, **kwargs)

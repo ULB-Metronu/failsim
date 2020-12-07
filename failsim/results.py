@@ -121,7 +121,7 @@ class Result:
             suffix: Allows specification of a suffix. The method will look for the same for files, only with the specified suffix prepended.
 
         Returns:
-            TrackingResult: A TrackingResult instance containing the loaded data.
+            Result: A Result instance containing the loaded data.
 
         """
         # Load twiss
@@ -249,22 +249,18 @@ class TrackingResult(Result):
         hllhc_version: float = 0.0,
         eps_n: float = 2.5e-6,
         nrj: float = 7000,
+        loss_df: Optional[pd.DataFrame] = None,
     ):
-        Result.__init__(self, twiss_df, summ_df, run_version, hllhc_version)
+        super().__init__(
+            twiss_df, summ_df, run_version, hllhc_version, eps_n=eps_n, nrj=nrj
+        )
 
         self.track_df = track_df
-
-        self.track_df = self.normalize_track(self.twiss_df, self.track_df, eps_n, nrj)
+        self.loss_df = loss_df
 
         self.plot = _TrackArtist(self)
 
-    @staticmethod
-    def normalize_track(
-        twiss_df: pd.DataFrame,
-        track_df: pd.DataFrame,
-        eps_n: float = 2.5e-6,
-        nrj: float = 7000,
-    ):
+    def normalize_track(self):
         """
         Creates and returns new DataFrame based on track_df with four columns added:
 
@@ -281,8 +277,11 @@ class TrackingResult(Result):
             pd.DataFrame: Tracking DataFrame with normalized columns added.
 
         """
-        gamma = nrj / 0.938
-        eps_g = eps_n / gamma
+        twiss_df = self.twiss_df
+        track_df = self.track_df
+
+        gamma = self.info_df["nrj"]["info"] / 0.938
+        eps_g = self.info_df["eps_n"]["info"] / gamma
 
         data_out = pd.DataFrame()
 
@@ -314,7 +313,7 @@ class TrackingResult(Result):
 
             data_out = data_out.append(data)
 
-        return data_out
+        self.track_df = data_out
 
     def calculate_action(self, track: Optional[pd.DataFrame] = None):
         """Calculates and returns the orbit excursion / action of the tracking data.
@@ -367,6 +366,11 @@ class TrackingResult(Result):
         track_name = os.path.join(path, suffix + "track.parquet")
         self.track_df.to_parquet(track_name)
 
+        # Save loss if it is not None
+        if self.loss_df is not None:
+            loss_name = os.path.join(path, suffix + "loss.parquet")
+            self.loss_df.to_parquet(loss_name)
+
     @classmethod
     def load_data(cls, path: str, suffix: str = ""):
         """Classmethod that loads data from the directory specified and returns a TrackingResult object.
@@ -399,11 +403,17 @@ class TrackingResult(Result):
         # Load track
         track_df = pd.read_parquet(os.path.join(path, suffix + "track.parquet"))
 
+        # Load loss
+        loss_df = None
+        if os.path.exists(os.path.join(path, suffix + "loss.parquet")):
+            loss_df = pd.read_parquet(os.path.join(path, suffix + "loss.parquet"))
+
         # Create instance
         inst = TrackingResult(
             twiss_df=twiss_df,
             summ_df=summ_df,
             track_df=track_df,
+            loss_df=loss_df,
             run_version=info_df["run_version"],
             hllhc_version=info_df["hllhc_version"],
             eps_n=info_df["eps_n"],
@@ -598,11 +608,11 @@ class _TwissArtist(_Artist):
         Returns: TODO
 
         """
-        for ss in ["1", "2"]:
+        for ss in [f"lhcb{i}" for i in range(1, 3)]:
             # Read twiss data
             if twiss_path is None:
                 twiss = pd.read_parquet(
-                    FailSim.path_to_output(f"twiss_pre_thin_b{ss}.parquet")
+                    FailSim.path_to_output(f"twiss_pre_thin_{ss}.parquet")
                 )
             else:
                 path = twiss_path[int(ss) - 1]
@@ -629,7 +639,7 @@ class _TwissArtist(_Artist):
 
             # Filter if center_elem is defined
             if self._center_elem is not None:
-                center_range = self._get_centered_range()
+                center_range = self.get_centered_range()
                 twiss = twiss[
                     (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
                 ]
@@ -723,7 +733,6 @@ class _TwissArtist(_Artist):
     def aperture(
         self,
         axis: str,
-        beam_magnitudes: List[float] = [1, 4.7, 6.7],
         twiss_path: Optional[str] = None,
         **kwargs,
     ):
@@ -736,16 +745,12 @@ class _TwissArtist(_Artist):
         """
         if twiss_path is None:
             twiss_thick = pd.read_parquet(
-                FailSim.path_to_output("twiss_pre_thin_b1.parquet")
+                FailSim.path_to_output("twiss_pre_thin_lhcb1.parquet")
             )
         else:
             if not twiss_path.startswith("/"):
                 twiss_path = FailSim.path_to_cwd(twiss_path)
             twiss_thick = pd.read_parquet(twiss_path)
-
-        twiss = self._parent.twiss_df.copy()
-
-        twiss = self._apply_observation_filter(twiss)
 
         # Filter if center_elem is defined
         if self._center_elem is not None:
@@ -754,15 +759,6 @@ class _TwissArtist(_Artist):
                 (twiss_thick["s"] > center_range[0])
                 & (twiss_thick["s"] < center_range[1])
             ]
-            col, row = self._plot_pointer
-            self.plot_layout(
-                xaxis={
-                    "range": (
-                        center_range[0] * self._subplots[col][row]["factor"]["x"],
-                        center_range[1] * self._subplots[col][row]["factor"]["x"],
-                    )
-                },
-            )
 
         twiss_thick = twiss_thick.loc[
             ~twiss_thick["keyword"].isin(
@@ -805,6 +801,29 @@ class _TwissArtist(_Artist):
                 x=[x0, x1, x1, x0, x0],
                 y=[y0, y0, -y0, -y0, y0],
                 **style,
+            )
+
+    def orbit(self, axis: str, beam_magnitudes: List[float] = [1, 4.7, 6.7], **kwargs):
+        """TODO: Docstring for orbit.
+
+        Args:
+
+        Returns: TODO
+
+        """
+        twiss = self._parent.twiss_df.copy()
+        twiss = self._apply_observation_filter(twiss)
+
+        if self._center_elem is not None:
+            center_range = self.get_centered_range()
+            col, row = self._plot_pointer
+            self.plot_layout(
+                xaxis={
+                    "range": (
+                        center_range[0] * self._subplots[col][row]["factor"]["x"],
+                        center_range[1] * self._subplots[col][row]["factor"]["x"],
+                    )
+                },
             )
 
         gamma = self._parent.info_df["nrj"]["info"] / 0.938
@@ -894,7 +913,7 @@ class _TwissArtist(_Artist):
         self,
         elements: List[str],
         axis: str,
-        twiss_path: str = "output/twiss_pre_thin_b1.parquet",
+        twiss_path: str = "output/twiss_pre_thin_lhcb1.parquet",
         use_excursion: bool = True,
         suffix: str = None,
         parallel: bool = True,
@@ -934,7 +953,7 @@ class _TwissArtist(_Artist):
                 effective_gap = aper / sig_elem - excursion
             else:
                 effective_gap = aper / sig_elem
-            effective_gap = effective_gap.clip(lower=0)
+            effective_gap = effective_gap.clip(min=0)
 
             if parallel:
                 start_col = "#000000"
@@ -1011,3 +1030,53 @@ class _TrackArtist(_TwissArtist):
         y_data = self._parent.calculate_action(track)["r"]
 
         self.add_data(**kwargs, x=x_data, y=y_data)
+
+    def loss_histogram(self, mode: str = "stacked", by_group: bool = True, **kwargs):
+        """TODO: Docstring for loss_histogram.
+
+        Args:
+        function (TODO): TODO
+
+        Returns: TODO
+
+        """
+        loss = self._parent.loss_df
+
+        if by_group:
+            re_group = re.compile(r"^.*?(?=\.)")
+            loss["group"] = loss.apply(
+                lambda x: re_group.findall(x["element"])[0], axis=1
+            )
+
+        if mode == "parallel":
+            start_col = "#000000"
+            end_col = "#ff0000"
+
+            for turn, data in loss.groupby("turn"):
+                col = _Artist.lerp_hex_color(
+                    start_col, end_col, turn / max(loss["turn"])
+                )
+                if by_group:
+                    count = data.value_counts("group", sort=False)
+                else:
+                    count = data.value_counts("element", sort=False)
+
+                count /= max(loss["number"])
+
+                self.add_data(
+                    x=count.index,
+                    y=count,
+                    name=f"Turn {int(turn)}",
+                    marker_color=col,
+                    type="bar",
+                    showlegend=False,
+                    xaxis={"tickson": "boundaries"},
+                )
+        if mode == "stacked":
+            for k, v in loss.groupby("group" if by_group else "element", sort=False):
+                data = v.value_counts("turn", sort=False)
+                data = data.sort_index()
+                data = 100 * data / max(loss["number"])
+                self.add_data(x=data.index, y=data, name=k, type="bar")
+
+            self._global_layout.update(barmode="stack")

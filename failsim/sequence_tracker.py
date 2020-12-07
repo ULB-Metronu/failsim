@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple
 import pandas as pd
 import functools
 import os
+import gc
 
 
 class SequenceTracker:
@@ -35,7 +36,7 @@ class SequenceTracker:
 
         self._time_dependencies = set()
         self._observation_points = []
-        self._track_flags = ["onetable"]
+        self._track_flags = []
         self._mask_values = {}
 
         self._particles = None
@@ -100,6 +101,7 @@ class SequenceTracker:
                 twiss_df = twiss_df.append(temp_df)
 
                 del temp_df
+                gc.collect()
 
         for file in time_depen:
             os.remove(file)
@@ -151,6 +153,7 @@ class SequenceTracker:
         run_version = self._failsim._mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
 
+        self._track_flags.append("onetable")
         flags = ", ".join(self._track_flags)
         self._failsim.mad_input(f"track, {flags}")
 
@@ -162,8 +165,8 @@ class SequenceTracker:
                     f"px = {particle[1]},"
                     f"y = {particle[2]},"
                     f"py = {particle[3]},"
-                    f"pt= {particle[4]},"
-                    f"tn = {particle[5]}"
+                    f"t= {particle[4]},"
+                    f"pt = {particle[5]}"
                 )
         else:
             self._failsim.mad_input("start")
@@ -179,8 +182,22 @@ class SequenceTracker:
         eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
         nrj = self._failsim._mad.globals["nrj"]
 
+        loss_df = None
+        if "trackloss" in self._failsim.mad.table.keys():
+            try:
+                loss_df = self._failsim.mad.table["trackloss"].dframe()
+            except KeyError:
+                pass
+
         res = TrackingResult(
-            twiss_df, summ_df, track_df, run_version, hllhc_version, eps_n, nrj
+            twiss_df,
+            summ_df,
+            track_df,
+            run_version,
+            hllhc_version,
+            eps_n,
+            nrj,
+            loss_df=loss_df,
         )
 
         for file in tmp_files:
@@ -202,7 +219,7 @@ class SequenceTracker:
         self._particles = particles
 
     @print_info("SequenceTracker")
-    def add_track_flags(self, flags: List[str]):
+    def set_track_flags(self, flags: List[str]):
         """
         Method for adding additional flags to the Mad-X *track* command.
 
@@ -213,7 +230,7 @@ class SequenceTracker:
             SequenceTracker: Returns self
 
         """
-        self._track_flags += flags
+        self._track_flags = flags
 
         return self
 
@@ -250,7 +267,7 @@ class SequenceTracker:
         return self
 
     @print_info("SequenceTracker")
-    def add_observation_points(self, points: List[str]):
+    def set_observation_points(self, points: List[str]):
         """
         Adds observation points to the track.
 
@@ -261,7 +278,7 @@ class SequenceTracker:
             SequenceTracker: Returns self
 
         """
-        self._observation_points.extend(points)
+        self._observation_points = points
 
         return self
 
