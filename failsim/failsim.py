@@ -202,9 +202,9 @@ class FailSim:
 
         """
         return FailSim(
-            output_dir=self._output_dir,
-            cwd=self._cwd,
-            madx_verbosity=self._madx_verbosity,
+            output_dir=self._output_dir.copy(),
+            cwd=self._cwd.copy(),
+            madx_verbosity=self._madx_verbosity.copy(),
             failsim_verbosity=self._verbose,
             command_log=self._command_log.copy(),
         )
