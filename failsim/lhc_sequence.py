@@ -864,7 +864,7 @@ class LHCSequence:
         new_fs = self._failsim.duplicate()
         tracker = SequenceTracker(
             new_fs,
-            self._mode_configuration["sequence_to_track"].copy(),
+            copy.copy(self._mode_configuration["sequence_to_track"]),
             verbose=verbose,
         )
         return tracker

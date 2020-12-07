@@ -202,11 +202,11 @@ class FailSim:
 
         """
         return FailSim(
-            output_dir=self._output_dir.copy(),
-            cwd=self._cwd.copy(),
-            madx_verbosity=self._madx_verbosity.copy(),
+            output_dir=copy.copy(self._output_dir),
+            cwd=copy.copy(self._cwd),
+            madx_verbosity=copy.copy(self._madx_verbosity),
             failsim_verbosity=self._verbose,
-            command_log=self._command_log.copy(),
+            command_log=copy.copy(self._command_log),
         )
 
     @print_info("FailSim")
