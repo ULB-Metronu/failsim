@@ -206,6 +206,35 @@ class SequenceTracker:
         return res
 
     @print_info("SequenceTracker")
+    def save_values(self, regex: str):
+        """TODO: Docstring for save_values.
+
+        Args:
+            regex: TODO
+
+        Returns: TODO
+
+        """
+        reg = re.compile(regex)
+        mad_vars = self._failsim.mad.get_variables_dicts()["all_variables_val"]
+        el_vars = {x: mad_vars[x] for x in mad_vars.keys() if len(reg.findall(x)) != 0}
+        return el_vars
+
+    @print_info("SequenceTracker")
+    def restore_values(self, val_dict: dict):
+        """TODO: Docstring for restore_values.
+
+        Args:
+            val_dict: TODO
+
+        Returns:
+            SequenceTracker: Returns self
+
+        """
+        for var, val in val_dict.items():
+            self._failsim.mad_input(f"{var} = {val}")
+
+    @print_info("SequenceTracker")
     def set_particles(
         self, particles: List[Tuple[float, float, float, float, float, float]]
     ):
