@@ -214,7 +214,7 @@ class _Artist:
                 self._subplots[col][row]["data"] = []
                 self._frames = []
 
-    def save(self, name: str):
+    def save(self, name: str, ext_figure: Optional[go.Figure] = None):
         """TODO: Docstring for save.
 
         Args:
@@ -223,7 +223,7 @@ class _Artist:
 
         """
         div = plotly.offline.plot(
-            self.figure,
+            self.figure if ext_figure is None else ext_figure,
             include_plotlyjs="cdn",
             include_mathjax="cdn",
             output_type="div",
@@ -315,8 +315,8 @@ class _Artist:
             self._subplots[col][row]["data"].insert(0, data_dict)
 
             # Increment each trace in each frame
-            for frame in self._frames:
-                frame["traces"] = [x + 1 for x in frame["traces"]]
+            # for frame in self._frames:
+            #     frame["traces"] = [x + 1 for x in frame["traces"]]
 
         else:
             self._subplots[col][row]["data"].append(data_dict)
@@ -339,8 +339,6 @@ class _Artist:
         Returns: TODO
 
         """
-        col, row = self._plot_pointer
-
         data_dict = self._process_data(**kwargs, x=x, y=y, xaxis=xaxis, yaxis=yaxis)
 
         # Make sure lines arent simplified.

@@ -537,6 +537,8 @@ class _TwissArtist(_Artist):
         columns: Union[str, List[str]],
         xaxis_column: str = "s",
         animate_column: Optional[str] = None,
+        crop_data: bool = False,
+        reference: Optional[pd.DataFrame] = None,
         **kwargs,
     ):
         """TODO: Docstring for twiss_column.
@@ -552,9 +554,23 @@ class _TwissArtist(_Artist):
 
         twiss = self._apply_observation_filter(self._parent.twiss_df)
 
+        if self._center_elem is not None:
+            center_range = self.get_centered_range()
+            col, row = self._plot_pointer
+            self.plot_layout(
+                xaxis={
+                    "range": (
+                        center_range[0] * self._subplots[col][row]["factor"]["x"],
+                        center_range[1] * self._subplots[col][row]["factor"]["x"],
+                    )
+                },
+            )
+            if crop_data:
+                twiss = twiss[
+                    (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
+                ]
+
         for column in columns:
-            x_data = twiss[xaxis_column]
-            y_data = twiss[column]
 
             if animate_column is not None:
                 col, row = self._plot_pointer
@@ -565,39 +581,41 @@ class _TwissArtist(_Artist):
                 for idx, (x, split) in enumerate(
                     dict(tuple(twiss.groupby(animate_column))).items()
                 ):
+                    x_data = split[xaxis_column]
+                    y_data = split[column]
+
+                    if reference is not None:
+                        # y_data = (y_data / reference[column]).dropna()
+                        temp = y_data / reference[column]
+                        y_data = temp.loc[y_data.index]
+
                     if idx == 0:
                         self.add_data(
                             **kwargs,
-                            x=split[xaxis_column],
-                            y=split[column],
+                            x=x_data,
+                            y=y_data,
                             name=column,
                         )
 
                     self.add_frame(
                         **kwargs,
-                        x=split[xaxis_column],
-                        y=split[column],
+                        x=x_data,
+                        y=y_data,
                         frame_name=x,
                         frame_trace=frame_trace,
                     )
             else:
+                x_data = twiss[xaxis_column]
+                y_data = twiss[column]
+
+                if reference is not None:
+                    y_data = (y_data / reference[column]).dropna()
+
                 self.add_data(
                     **kwargs,
                     x=x_data,
                     y=y_data,
                     name=column,
-                )
-
-            if self._center_elem is not None:
-                center_range = self.get_centered_range()
-                col, row = self._plot_pointer
-                self.plot_layout(
-                    xaxis={
-                        "range": (
-                            center_range[0] * self._subplots[col][row]["factor"]["x"],
-                            center_range[1] * self._subplots[col][row]["factor"]["x"],
-                        )
-                    },
                 )
 
     def cartouche(self, twiss_path: Optional[Tuple[str, str]] = None):
@@ -615,7 +633,7 @@ class _TwissArtist(_Artist):
                     FailSim.path_to_output(f"twiss_pre_thin_{ss}.parquet")
                 )
             else:
-                path = twiss_path[int(ss) - 1]
+                path = twiss_path[int(ss[-1]) - 1]
                 if not path.startswith("/"):
                     path = FailSim.path_to_cwd(path)
                 twiss = pd.read_parquet(path)
@@ -866,6 +884,7 @@ class _TwissArtist(_Artist):
         reference: Optional[pd.DataFrame] = None,
         start_col: str = "#000000",
         end_col: str = "#ff0000",
+        crop_data: bool = False,
         **kwargs,
     ):
         """TODO: Docstring for twiss_beating.
@@ -888,6 +907,10 @@ class _TwissArtist(_Artist):
                     )
                 },
             )
+            if crop_data:
+                twiss = twiss[
+                    (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
+                ]
 
         # Calculate beating
         if reference is None:
@@ -1016,10 +1039,11 @@ class _TrackArtist(_TwissArtist):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def orbit_excursion(self, **kwargs):
+    def orbit_excursion(self, axis: str = "r", **kwargs):
         """TODO: Docstring for orbit_excursion.
 
         Args:
+            axis: TODO
 
         Returns: TODO
 
@@ -1027,7 +1051,7 @@ class _TrackArtist(_TwissArtist):
         track = self._apply_observation_filter(self._parent.track_df.copy())
 
         x_data = track["turn"]
-        y_data = self._parent.calculate_action(track)["r"]
+        y_data = self._parent.calculate_action(track)[axis]
 
         self.add_data(**kwargs, x=x_data, y=y_data)
 

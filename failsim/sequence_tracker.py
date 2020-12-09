@@ -107,8 +107,11 @@ class SequenceTracker:
         for file in time_depen:
             os.remove(file)
 
-        eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
-        nrj = self._failsim._mad.globals["nrj"]
+        try:
+            eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
+            nrj = self._failsim._mad.globals["nrj"]
+        except KeyError:
+            ...
         run_version = self._failsim._mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
 
@@ -180,7 +183,10 @@ class SequenceTracker:
 
         track_df = self._failsim._mad.table["trackone"].dframe()
 
-        eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
+        try:
+            eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
+        except KeyError:
+            eps_n = 2.5e-6
         nrj = self._failsim._mad.globals["nrj"]
 
         loss_df = None

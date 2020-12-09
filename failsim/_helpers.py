@@ -128,7 +128,7 @@ class MoveNewFiles:
 
     """
 
-    exclude = ["^\..*", "temp"]
+    exclude = [r"^\..*", "temp"]
 
     def __init__(self, source: str, destination: str):
         self._source = source
@@ -141,8 +141,8 @@ class MoveNewFiles:
         post_files = os.listdir(self._source)
 
         new_files = np.setdiff1d(post_files, self._pre_files)
+        new_files = self.filter_exclude(new_files)
         for file in new_files:
-            new_files = self.filter_exclude(new_files)
             shutil.move(file, os.path.join(self._destination, os.path.basename(file)))
 
     def filter_exclude(self, files: List[str]):
