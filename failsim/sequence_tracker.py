@@ -12,6 +12,7 @@ import pandas as pd
 import functools
 import os
 import gc
+import re
 
 
 class SequenceTracker:
