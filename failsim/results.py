@@ -882,6 +882,7 @@ class _TwissArtist(_Artist):
         self,
         column: str,
         reference: Optional[pd.DataFrame] = None,
+        elements: Optional[List[str]] = None,
         start_col: str = "#000000",
         end_col: str = "#ff0000",
         crop_data: bool = False,
@@ -916,21 +917,33 @@ class _TwissArtist(_Artist):
         if reference is None:
             reference = twiss[twiss["turn"] == min(twiss["turn"])]
 
-        for idx, turn in enumerate(set(twiss["turn"])):
-            data = twiss[twiss["turn"] == turn]
-            res = data[column] / reference[column]
+        if elements is None:
+            for idx, turn in enumerate(set(twiss["turn"])):
+                data = twiss[twiss["turn"] == turn]
+                res = data[column] / reference[column]
 
-            col = _Artist.lerp_hex_color(
-                start_col, end_col, idx / len(set(twiss["turn"]))
-            )
+                col = _Artist.lerp_hex_color(
+                    start_col, end_col, idx / len(set(twiss["turn"]))
+                )
 
-            self.add_data(
-                **kwargs,
-                x=data["s"],
-                y=res,
-                name=f"Turn {turn}",
-                marker_color=col,
-            )
+                self.add_data(
+                    **kwargs,
+                    x=data["s"],
+                    y=res,
+                    name=f"Turn {turn}",
+                    marker_color=col,
+                )
+        else:
+            for element in elements:
+                data = twiss.loc[element]
+                res = data[column] / reference.loc[element][column]
+
+                self.add_data(
+                    **kwargs,
+                    x=data["turn"],
+                    y=res,
+                    name=element,
+                )
 
     def effective_half_gap(
         self,
