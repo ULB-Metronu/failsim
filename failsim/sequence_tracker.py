@@ -284,9 +284,9 @@ class SequenceTracker:
         return self
 
     @print_info("SequenceTracker")
-    def add_time_dependence(self, file_paths: List[str]):
+    def set_time_dependence(self, file_paths: List[str]):
         """
-        Adds a list of files to be called on each iteration of the track.
+        Sets a list of files to be called on each iteration of the track.
 
         Args:
             file_paths: List of files to call each iteration. Paths can be either absolute or relative.
@@ -295,10 +295,11 @@ class SequenceTracker:
             SequenceTracker: Returns self
 
         """
+        self._time_dependencies = []
         for path in file_paths:
             if not path.startswith("/"):
                 path = self._failsim.path_to_cwd(path)
-            self._time_dependencies.add(path)
+            self._time_dependencies.append(path)
 
         return self
 

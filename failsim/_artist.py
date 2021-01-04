@@ -62,6 +62,7 @@ class _Artist:
 
         self._global_layout = {}
         self._frames = []
+        self._annotations = []
         self._subplots = np.array([[0]], dtype=object)
 
         self._populate_subplots()
@@ -291,6 +292,17 @@ class _Artist:
 
         return data_dict
 
+    def add_annotation(self, **kwargs):
+        """TODO: Docstring for add_annotation.
+
+        Args:
+        function (TODO): TODO
+
+        Returns: TODO
+
+        """
+        self._annotations.append(kwargs)
+
     def add_data(
         self,
         x: pd.Series,
@@ -452,8 +464,8 @@ class _Artist:
             for data in plot["data"]:
                 fig["data"].append(data)
 
-        for frame in self._frames:
-            fig["frames"].append(frame)
+        fig["frames"] = self._frames
+        fig["annotations"] = self._annotations
 
         return go.Figure(fig)
 

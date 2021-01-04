@@ -459,7 +459,7 @@ class _TwissArtist(_Artist):
     aper_style = dict(
         mode="lines",
         marker_color="black",
-        line_width=0,
+        line_width=1,
         fill="toself",
         showlegend=False,
     )
@@ -575,8 +575,10 @@ class _TwissArtist(_Artist):
             if animate_column is not None:
                 col, row = self._plot_pointer
                 frame_trace = 0
-                for _col in range(self._cols):
-                    for _row in range(self._rows):
+                for _row in range(self._rows):
+                    for _col in range(self._cols):
+                        if _row * self._cols + _col > col * self._cols + col:
+                            continue
                         frame_trace += len(self._subplots[_col][_row]["data"])
                 for idx, (x, split) in enumerate(
                     dict(tuple(twiss.groupby(animate_column))).items()
@@ -586,7 +588,7 @@ class _TwissArtist(_Artist):
 
                     if reference is not None:
                         # y_data = (y_data / reference[column]).dropna()
-                        temp = y_data / reference[column]
+                        temp = 100 * y_data / reference[column]
                         y_data = temp.loc[y_data.index]
 
                     if idx == 0:
@@ -609,7 +611,7 @@ class _TwissArtist(_Artist):
                 y_data = twiss[column]
 
                 if reference is not None:
-                    y_data = (y_data / reference[column]).dropna()
+                    y_data = 100 * (y_data / reference[column]).dropna()
 
                 self.add_data(
                     **kwargs,
@@ -678,7 +680,7 @@ class _TwissArtist(_Artist):
                 showlegend=False,
                 marker_color="gray",
                 hoverinfo="skip",
-                to_bottom=True,
+                to_bottom=False,
                 mode="lines",
             )
 
@@ -821,7 +823,14 @@ class _TwissArtist(_Artist):
                 **style,
             )
 
-    def orbit(self, axis: str, beam_magnitudes: List[float] = [1, 4.7, 6.7], **kwargs):
+    def orbit(
+        self,
+        axis: str,
+        beam_magnitudes: List[float] = [1, 4.7, 6.7],
+        animate_column: Optional[str] = None,
+        crop_data: bool = False,
+        **kwargs,
+    ):
         """TODO: Docstring for orbit.
 
         Args:
@@ -843,12 +852,16 @@ class _TwissArtist(_Artist):
                     )
                 },
             )
+            if crop_data:
+                twiss = twiss[
+                    (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
+                ]
 
         gamma = self._parent.info_df["nrj"]["info"] / 0.938
         eps_g = self._parent.info_df["eps_n"]["info"] / gamma
         dpp = 1e-4
 
-        envelope = np.sqrt(
+        twiss["envelope"] = np.sqrt(
             eps_g * twiss[f"bet{axis}"] + dpp ** 2 * twiss[f"d{axis}"] ** 2
         )
 
@@ -862,21 +875,55 @@ class _TwissArtist(_Artist):
         beam_magnitudes += [-x for x in beam_magnitudes if -x not in beam_magnitudes]
         beam_magnitudes.sort()
         for idx, mag in enumerate(beam_magnitudes):
-            alpha = 1 - 2 * abs(idx / len(beam_magnitudes) - 0.5)
-            self.add_data(
-                **kwargs,
-                x=twiss["s"],
-                y=mag * envelope + twiss[axis],
-                line_width=0,
-                fill=None if idx == 0 else "tonexty",
-                fillcolor=f"rgba({beam_color},{alpha})",
-                marker_color=f"rgba({beam_color},{alpha})",
-                name=f"Orbit {axis}: {abs(mag)} sigma",
-                hoverinfo="skip" if mag < 0 else None,
-                showlegend=True
-                if mag == min(abs(np.array(beam_magnitudes)))
-                else False,
-            )
+            alpha = 0.75 * (1 - 2 * abs(idx / len(beam_magnitudes) - 0.5))
+            if animate_column is None:
+                self.add_data(
+                    **kwargs,
+                    x=twiss["s"],
+                    y=mag * twiss["envelope"] + twiss[axis],
+                    line_width=0,
+                    fill=None if idx == 0 else "tonexty",
+                    fillcolor=f"rgba({beam_color},{alpha})",
+                    marker_color=f"rgba({beam_color},{alpha})",
+                    name=f"Orbit {axis}: {abs(mag)} sigma",
+                    hoverinfo="skip" if mag < 0 else None,
+                    showlegend=True
+                    if mag == min(abs(np.array(beam_magnitudes)))
+                    else False,
+                )
+            else:
+                frame_trace = 0
+                for _col in range(self._cols):
+                    for _row in range(self._rows):
+                        frame_trace += len(self._subplots[_col][_row]["data"])
+
+                for idx2, (col_val, data) in enumerate(twiss.groupby(animate_column)):
+                    style = dict(
+                        line_width=0,
+                        fill=None if idx == 0 else "tonexty",
+                        fillcolor=f"rgba({beam_color},{alpha})",
+                        marker_color=f"rgba({beam_color},{alpha})",
+                        name=f"Orbit {axis}: {abs(mag)} sigma",
+                        hoverinfo="skip" if mag < 0 else None,
+                        showlegend=True
+                        if mag == min(abs(np.array(beam_magnitudes)))
+                        else False,
+                    )
+                    if idx2 == 0:
+                        self.add_data(
+                            **kwargs,
+                            x=data["s"],
+                            y=mag * data["envelope"] + data[axis],
+                            **style,
+                        )
+                    self.add_frame(
+                        **kwargs,
+                        x=data["s"],
+                        y=mag * data["envelope"] + data[axis],
+                        frame_name=col_val,
+                        frame_trace=frame_trace,
+                        **style,
+                    )
 
     def twiss_beating(
         self,
@@ -920,7 +967,7 @@ class _TwissArtist(_Artist):
         if elements is None:
             for idx, turn in enumerate(set(twiss["turn"])):
                 data = twiss[twiss["turn"] == turn]
-                res = data[column] / reference[column]
+                res = 100 * data[column] / reference[column]
 
                 col = _Artist.lerp_hex_color(
                     start_col, end_col, idx / len(set(twiss["turn"]))
@@ -936,7 +983,7 @@ class _TwissArtist(_Artist):
         else:
             for element in elements:
                 data = twiss.loc[element]
-                res = data[column] / reference.loc[element][column]
+                res = 100 * data[column] / reference.loc[element][column]
 
                 self.add_data(
                     **kwargs,
@@ -951,8 +998,11 @@ class _TwissArtist(_Artist):
         axis: str,
         twiss_path: str = "output/twiss_pre_thin_lhcb1.parquet",
         use_excursion: bool = True,
-        suffix: str = None,
-        parallel: bool = True,
+        suffix: Optional[str] = None,
+        parallel: bool = False,
+        trace_kwargs: Optional[List[dict]] = None,
+        only_worst: bool = False,
+        collimator_handler: Optional[CollimatorHandler] = None,
         **kwargs,
     ):
         """TODO: Docstring for effective_half_gap.
@@ -972,40 +1022,75 @@ class _TwissArtist(_Artist):
         gamma = self._parent.info_df["nrj"]["info"] / 0.938
         eps_g = self._parent.info_df["eps_n"]["info"] / gamma
 
+        if only_worst:
+            collect = pd.DataFrame()
+
+        if collimator_handler is not None:
+            collimators = collimator_handler.compute_settings(
+                twiss_df[twiss_df["turn"] == 1],
+                self._parent.info_df["eps_n"],
+                self._parent.info_df["nrj"],
+            )
+
         for idx, element in enumerate(elements):
             data_thick = twiss_thick.loc[element]
-
-            aper = data_thick[f"aper_{1 if axis == 'x' else 2}"]
-
             data = twiss_df.loc[element]
 
-            sig_elem = np.sqrt(eps_g * data[f"bet{axis}"])
+            if (
+                collimator_handler is not None
+                and element.lower() in collimators.index.str.lower()
+            ):
+                el_col_data = collimators.loc[element.lower()]
+                angle = float(el_col_data["angle"])
+                halfgap = float(el_col_data["half_gap"])
 
-            xn = data["x"] / np.sqrt(eps_g * data["betx"])
-            yn = data["y"] / np.sqrt(eps_g * data["bety"])
-            excursion = np.sqrt(xn ** 2 + yn ** 2)
+                beta_skew = abs(
+                    data["betx"] * np.cos(angle) + data["bety"] * np.sin(angle)
+                )
+
+                sig_elem = np.sqrt(eps_g * beta_skew)
+
+                xn = data["x"] / np.sqrt(eps_g * data["betx"])
+                yn = data["y"] / np.sqrt(eps_g * data["bety"])
+                excursion = halfgap - abs(
+                    np.sqrt(xn ** 2 + yn ** 2) * np.cos(np.arctan(yn / xn) - angle)
+                )
+            else:
+                halfgap = data_thick[f"aper_{1 if axis == 'x' else 2}"]
+
+                sig_elem = np.sqrt(eps_g * data[f"bet{axis}"])
+
+                xn = data["x"] / np.sqrt(eps_g * data["betx"])
+                yn = data["y"] / np.sqrt(eps_g * data["bety"])
+                excursion = np.sqrt(xn ** 2 + yn ** 2)
 
             if use_excursion:
-                effective_gap = aper / sig_elem - excursion
+                effective_gap = halfgap / sig_elem - excursion
             else:
-                effective_gap = aper / sig_elem
-            effective_gap = effective_gap.clip(min=0)
+                effective_gap = halfgap / sig_elem
+            effective_gap = effective_gap.clip(lower=0)
+
+            if only_worst:
+                collect[element] = list(effective_gap)
+                continue
 
             if parallel:
                 start_col = "#000000"
                 end_col = "#ff0000"
                 x = idx
-                for idx, gap in enumerate(effective_gap):
+                for idx2, gap in enumerate(effective_gap):
                     col = _Artist.lerp_hex_color(
-                        start_col, end_col, idx / len(effective_gap)
+                        start_col, end_col, idx2 / len(effective_gap)
                     )
+                    kwarg = {"mode": "lines"}
+                    kwarg.update(trace_kwargs)
                     self.add_data(
                         x=[x - 0.25, x, x + 0.25],
                         y=[gap] * 3,
-                        mode="lines",
                         marker_color=col,
                         showlegend=False,
-                        name=f"Turn {idx}",
+                        name=f"Turn {idx2}",
+                        **kwarg,
                     )
 
                     self.plot_layout(
@@ -1018,7 +1103,22 @@ class _TwissArtist(_Artist):
             else:
                 elem_name = element if suffix is None else suffix + element
 
-                self.add_data(x=data["turn"], y=effective_gap, name=elem_name, **kwargs)
+                self.add_data(
+                    x=data["turn"],
+                    y=effective_gap,
+                    name=elem_name,
+                    **trace_kwargs[element] if trace_kwargs is not None else {},
+                )
+
+        if only_worst:
+            worst = []
+            for _, row in collect.iterrows():
+                worst.append(min(row))
+            self.add_data(
+                x=data["turn"],
+                y=worst,
+                **kwargs,
+            )
 
     def clear_figure(self):
         """TODO: Docstring for clear_figure.
@@ -1078,6 +1178,7 @@ class _TrackArtist(_TwissArtist):
 
         """
         loss = self._parent.loss_df
+        track = self._parent.track_df
 
         if by_group:
             re_group = re.compile(r"^.*?(?=\.)")
@@ -1098,7 +1199,7 @@ class _TrackArtist(_TwissArtist):
                 else:
                     count = data.value_counts("element", sort=False)
 
-                count /= max(loss["number"])
+                count = 100 * count / max(track["number"])
 
                 self.add_data(
                     x=count.index,
@@ -1113,7 +1214,7 @@ class _TrackArtist(_TwissArtist):
             for k, v in loss.groupby("group" if by_group else "element", sort=False):
                 data = v.value_counts("turn", sort=False)
                 data = data.sort_index()
-                data = 100 * data / max(loss["number"])
+                data = 100 * data / max(track["number"])
                 self.add_data(x=data.index, y=data, name=k, type="bar")
 
             self._global_layout.update(barmode="stack")

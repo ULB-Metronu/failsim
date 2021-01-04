@@ -352,6 +352,25 @@ class LHCSequence:
     def get_optics(cls, sequence_key):
         return list(cls.get_metadata()[sequence_key]["optics"].keys())
 
+    @classmethod
+    def get_collimator_handler(cls, sequence: str, collimation_key: str):
+        """TODO: Docstring for get_collimator_handler.
+
+        Args:
+        function (TODO): TODO
+
+        Returns: TODO
+
+        """
+        metadata = cls.get_metadata()
+        settings_path = os.path.join(
+            metadata[sequence]["collimation_base_path"],
+            metadata[sequence]["collimation"][collimation_key],
+        )
+        return CollimatorHandler(
+            pkg_resources.resource_filename(__name__, settings_path)
+        )
+
     def _load_metadata(self):
         """Loads the metadata.yaml file.
 
@@ -376,8 +395,8 @@ class LHCSequence:
             self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
         )
         for _, row in settings.iterrows():
-            gaph = np.clip(row["gaph"]["info"], 0, 10)
-            gapv = np.clip(row["gapv"]["info"], 0, 10)
+            gaph = np.clip(row["half_gaph"]["info"], 0, 10)
+            gapv = np.clip(row["half_gapv"]["info"], 0, 10)
 
             if row.name.lower() in twiss_thick.index:
                 twiss_thick.at[row.name.lower(), "aper_1"] = gaph
@@ -945,7 +964,7 @@ class LHCSequence:
         )
 
         for _, row in settings.iterrows():
-            cmd = f"{row.name}, apertype=rectangle, aperture={{ {row['gaph']['info']}, {row['gapv']['info']}}}"
+            cmd = f"{row.name}, apertype=rectangle, aperture={{ {row['half_gaph']['info']}, {row['half_gapv']['info']}}}"
             self._failsim.mad_input(cmd)
 
 
@@ -962,6 +981,7 @@ class CollimatorHandler:
             .set_index("Name")
             .drop(columns="#")
         )
+        self._collimator_df.index = self._collimator_df.index.str.lower()
 
         self._process_collimator_df()
 
@@ -999,15 +1019,22 @@ class CollimatorHandler:
         """
         res = pd.DataFrame()
         res["angle"] = self._collimator_df["angle[rad]"]
-        res["halfgap"] = self._collimator_df["halfgap[m]"]
+        res["nsig"] = self._collimator_df["nsig"]
 
         gamma = nrj / 0.938
         eps_g = eps_n / gamma
 
-        gaph = []
         gapv = []
+        gaph = []
+        gap = []
         for _, row in self._collimator_df.iterrows():
             twiss_data = twiss.loc[row.name.lower()]
+
+            angle = float(res.loc[row.name]["angle"])
+            beta_skew = abs(
+                twiss_data["betx"] * np.cos(angle) + twiss_data["bety"] * np.sin(angle)
+            )
+
             gaph.append(
                 self._collimator_df.loc[row.name]["nsigx"]
                 * np.sqrt(eps_g * twiss_data["betx"])
@@ -1016,9 +1043,14 @@ class CollimatorHandler:
                 self._collimator_df.loc[row.name]["nsigy"]
                 * np.sqrt(eps_g * twiss_data["bety"])
             )
+            gap.append(
+                float(self._collimator_df.loc[row.name]["nsig"])
+                * np.sqrt(eps_g * beta_skew)
+            )
 
-        res["gaph"] = gaph
-        res["gapv"] = gapv
+        res["half_gaph"] = gaph
+        res["half_gapv"] = gapv
+        res["half_gap"] = gap
 
         return res
 
