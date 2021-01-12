@@ -172,8 +172,6 @@ class LHCSequence:
         self._modules["01c_phase"]["enabled"] = True
         self._modules["01d_crossing"]["enabled"] = True
         self._modules["01e_final"]["enabled"] = True
-        self._modules["02_lumilevel"]["enabled"] = True
-        self._modules["05a_MO"]["enabled"] = True
 
     def _get_mode_configuration(self):
         """Loads the mode configuration.
@@ -351,6 +349,12 @@ class LHCSequence:
     @classmethod
     def get_optics(cls, sequence_key):
         return list(cls.get_metadata()[sequence_key]["optics"].keys())
+
+    @classmethod
+    def get_modules(cls):
+        module_dir = pkg_resources.resource_filename(__name__, "data/lhcmask_failsim")
+        modules = glob.glob(os.path.join(module_dir, "*.madx"))
+        return [os.path.basename(x) for x in modules]
 
     @classmethod
     def get_collimator_handler(cls, sequence: str, collimation_key: str):
