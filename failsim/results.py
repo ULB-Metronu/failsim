@@ -529,8 +529,10 @@ class _TwissArtist(_Artist):
         Returns: TODO
 
         """
-        center_range = self.get_centered_range()
-        return data[(data["s"] > center_range[0]) & (data["s"] < center_range[1])]
+        if self._center_elem is not None:
+            center_range = self.get_centered_range()
+            return data[(data["s"] > center_range[0]) & (data["s"] < center_range[1])]
+        return data
 
     def twiss_column(
         self,
@@ -680,7 +682,7 @@ class _TwissArtist(_Artist):
                 showlegend=False,
                 marker_color="gray",
                 hoverinfo="skip",
-                to_bottom=False,
+                to_bottom=True,
                 mode="lines",
             )
 
@@ -688,7 +690,7 @@ class _TwissArtist(_Artist):
                 if (
                     not ".b1:" in row["name"]
                     and not ".b2:" in row["name"]
-                    and ss == "2"
+                    and ss == "lhcb2"
                 ):
                     continue
 
@@ -1194,10 +1196,9 @@ class _TrackArtist(_TwissArtist):
                 col = _Artist.lerp_hex_color(
                     start_col, end_col, turn / max(loss["turn"])
                 )
-                if by_group:
-                    count = data.value_counts("group", sort=False)
-                else:
-                    count = data.value_counts("element", sort=False)
+                count = data.value_counts(
+                    "group" if by_group else "element", sort=False
+                )
 
                 count = 100 * count / max(track["number"])
 
@@ -1210,7 +1211,7 @@ class _TrackArtist(_TwissArtist):
                     showlegend=False,
                     xaxis={"tickson": "boundaries"},
                 )
-        if mode == "stacked":
+        elif mode == "stacked":
             for k, v in loss.groupby("group" if by_group else "element", sort=False):
                 data = v.value_counts("turn", sort=False)
                 data = data.sort_index()
@@ -1218,3 +1219,11 @@ class _TrackArtist(_TwissArtist):
                 self.add_data(x=data.index, y=data, name=k, type="bar")
 
             self._global_layout.update(barmode="stack")
+        elif mode == "longitudinal":
+            data = loss.copy()
+            data = self._crop_to_centered(data)
+            data = data.value_counts("s", sort=False) * 100 / max(track["number"])
+
+            self.add_data(
+                x=[float(x[0]) for x in data.index], y=data, type="bar", name="Loss"
+            )

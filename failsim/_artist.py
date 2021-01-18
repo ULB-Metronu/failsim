@@ -20,6 +20,7 @@ class _Artist:
             yanchor="top",
             x=0.5,
             y=0.98,
+            font_size=20,
         ),
         margin=dict(
             l=50,
@@ -69,7 +70,6 @@ class _Artist:
 
         failsim_template = dict(layout=go.Layout(self.default_layout))
         pio.templates["failsim"] = failsim_template
-        pio.templates.default = "failsim"
 
     def __getitem__(self, index):
         assert (type(index) == tuple) and (
