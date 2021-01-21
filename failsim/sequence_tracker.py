@@ -59,7 +59,7 @@ class SequenceTracker:
 
         if len(self._time_dependencies) == 0 or turns is None:
             twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
-            twiss_df["turn"] = 1
+            twiss_df["turn"] = 0
 
         else:
             for idx, file in enumerate(self._time_dependencies):
@@ -122,6 +122,8 @@ class SequenceTracker:
         """
         Does a tracking simulation using the current setup.
 
+        TODO: More explanation of what's happening
+
         Args:
             turns: How many turns to track.
 
@@ -135,7 +137,7 @@ class SequenceTracker:
         if len(self._time_dependencies) != 0:
             time_depen = []
             for idx, file in enumerate(self._time_dependencies):
-                # Subsistute keys for values
+                # Substitute keys for values
                 with open(file, "r") as fd:
                     filedata = fd.read()
                 for key, value in self._mask_values.items():
@@ -154,6 +156,7 @@ class SequenceTracker:
             )
 
         twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
+        twiss_df["turn"] = 0
         run_version = self._failsim._mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
 
