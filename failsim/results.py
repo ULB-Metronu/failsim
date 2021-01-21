@@ -75,6 +75,22 @@ class Result:
         if twiss_df["name"].iloc[0].endswith(":1"):
             self.fix_twiss_name()
 
+    def append(self, other: Result, sort: bool = False):
+        """TODO: Docstring for append.
+
+        Args:
+            other (TODO): TODO
+
+        Kwargs:
+            sort (TODO): TODO
+
+        Returns: TODO
+
+        """
+        self.twiss_df = self.twiss_df.append(other.twiss_df)
+        if sort:
+            self.twiss_df = self.twiss_df.sort_values(["turn", "s"])
+
     def save_data(self, path: str, suffix: str = ""):
         """
         Saves the Result data in 3 disctinct files:
@@ -259,6 +275,27 @@ class TrackingResult(Result):
         self.loss_df = loss_df
 
         self.plot = _TrackArtist(self)
+
+    def append(self, other: TrackingResult, sort: bool = False):
+        """TODO: Docstring for append.
+
+        Args:
+            other (TODO): TODO
+
+        Kwargs:
+            sort (TODO): TODO
+
+        Returns: TODO
+
+        """
+        self.track_df = self.track_df.append(other.track_df)
+        if not (self.loss_df is None or other.loss_df is None):
+            self.loss_df.append(other.loss_df)
+            if sort:
+                self.loss_df = self.loss_df.sort_values(["turn", "s"])
+        if sort:
+            self.track_df = self.track_df.sort_values(["turn", "s"])
+
 
     def normalize_track(self):
         """
@@ -573,6 +610,8 @@ class _TwissArtist(_Artist):
                 ]
 
         for column in columns:
+            style = dict(name=column)
+            style.update(kwargs)
 
             if animate_column is not None:
                 col, row = self._plot_pointer
@@ -595,14 +634,13 @@ class _TwissArtist(_Artist):
 
                     if idx == 0:
                         self.add_data(
-                            **kwargs,
+                            **style,
                             x=x_data,
                             y=y_data,
-                            name=column,
                         )
 
                     self.add_frame(
-                        **kwargs,
+                        **style,
                         x=x_data,
                         y=y_data,
                         frame_name=x,
@@ -616,10 +654,9 @@ class _TwissArtist(_Artist):
                     y_data = 100 * (y_data / reference[column]).dropna()
 
                 self.add_data(
-                    **kwargs,
+                    **style,
                     x=x_data,
                     y=y_data,
-                    name=column,
                 )
 
     def cartouche(self, twiss_path: Optional[Tuple[str, str]] = None):
@@ -1181,6 +1218,7 @@ class _TrackArtist(_TwissArtist):
         """
         loss = self._parent.loss_df
         track = self._parent.track_df
+        twiss = self._parent.twiss_df
 
         if by_group:
             re_group = re.compile(r"^.*?(?=\.)")
