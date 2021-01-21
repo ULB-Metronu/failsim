@@ -232,8 +232,23 @@ class _Artist:
         file_dir = os.path.dirname(name)
         if file_dir != "":
             os.makedirs(file_dir, exist_ok=True)
+        if not name.endswith(".html"):
+            name += ".html"
         with open(name, "w") as fd:
             fd.write(div)
+
+    def render(self, name: str, **kwargs):
+        """TODO: Docstring for render_png.
+
+        Args:
+            name (TODO): TODO
+
+        Returns: TODO
+
+        """
+        render_kwargs = dict(format="png", scale=8)
+        render_kwargs.update(kwargs)
+        self.figure.write_image(file=name, **render_kwargs)
 
     def _process_data(
         self, x: pd.Series, y: pd.Series, xaxis: Dict = {}, yaxis: Dict = {}, **kwargs
