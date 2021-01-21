@@ -1223,7 +1223,17 @@ class _TrackArtist(_TwissArtist):
             data = loss.copy()
             data = self._crop_to_centered(data)
             data = data.value_counts("s", sort=False) * 100 / max(track["number"])
+            lengths = []
+            if len(data) != 0:
+                lengths = [
+                    max(twiss.loc[twiss["s"] == data.index[i][0]]["lrad"])
+                    for i in range(len(data))
+                ]
 
             self.add_data(
-                x=[float(x[0]) for x in data.index], y=data, type="bar", name="Loss"
+                x=[float(x[0]) for x in data.index],
+                y=data,
+                type="bar",
+                name="Loss",
+                width=lengths,
             )
