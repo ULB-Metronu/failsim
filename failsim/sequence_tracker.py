@@ -48,6 +48,9 @@ class SequenceTracker:
         Does Twiss with current sequence.
         If time dependencies have been defined, the method does a multi-turn twiss, calling the time dependies each iteration.
 
+        Note:
+            Time dependencies will be delayed by a single turn, to ensure a clean first turn that can be used for reference. This will be compensated internally by subtracting 1 from each turn number, such that the reference turn will be turn -1, and the time dependencies will be called from turn 0.
+
         Args:
             turns: Amount of turns to do multi-turn twiss.
 
@@ -97,7 +100,7 @@ class SequenceTracker:
                 except KeyError:
                     break
 
-                temp_df["turn"] = i
+                temp_df["turn"] = i - 1
 
                 twiss_df = twiss_df.append(temp_df)
 
