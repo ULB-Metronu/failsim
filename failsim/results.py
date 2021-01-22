@@ -296,7 +296,6 @@ class TrackingResult(Result):
         if sort:
             self.track_df = self.track_df.sort_values(["turn", "s"])
 
-
     def normalize_track(self):
         """
         Creates and returns new DataFrame based on track_df with four columns added:
@@ -593,6 +592,11 @@ class _TwissArtist(_Artist):
 
         twiss = self._apply_observation_filter(self._parent.twiss_df)
 
+        # Remove negative turns; this is a result of the time
+        # dependencies being delayed by a single turn in the 
+        # twiss command, in order to ensure a single clean turn
+        twiss = twiss.loc[twiss["turn"] >= 0]
+
         if self._center_elem is not None:
             center_range = self.get_centered_range()
             col, row = self._plot_pointer
@@ -880,6 +884,11 @@ class _TwissArtist(_Artist):
         twiss = self._parent.twiss_df.copy()
         twiss = self._apply_observation_filter(twiss)
 
+        # Remove negative turns; this is a result of the time
+        # dependencies being delayed by a single turn in the 
+        # twiss command, in order to ensure a single clean turn
+        twiss = twiss.loc[twiss["turn"] >= 0]
+
         if self._center_elem is not None:
             center_range = self.get_centered_range()
             col, row = self._plot_pointer
@@ -1003,6 +1012,11 @@ class _TwissArtist(_Artist):
         if reference is None:
             reference = twiss[twiss["turn"] == min(twiss["turn"])]
 
+        # Remove negative turns; this is a result of the time
+        # dependencies being delayed by a single turn in the 
+        # twiss command, in order to ensure a single clean turn
+        twiss = twiss.loc[twiss["turn"] >= 0]
+
         if elements is None:
             for idx, turn in enumerate(set(twiss["turn"])):
                 data = twiss[twiss["turn"] == turn]
@@ -1057,6 +1071,11 @@ class _TwissArtist(_Artist):
 
         twiss_thick = pd.read_parquet(twiss_path)
         twiss_df = self._parent.twiss_df.copy()
+
+        # Remove negative turns; this is a result of the time
+        # dependencies being delayed by a single turn in the 
+        # twiss command, in order to ensure a single clean turn
+        twiss = twiss.loc[twiss["turn"] >= 0]
 
         gamma = self._parent.info_df["nrj"]["info"] / 0.938
         eps_g = self._parent.info_df["eps_n"]["info"] / gamma
@@ -1220,6 +1239,11 @@ class _TrackArtist(_TwissArtist):
         track = self._parent.track_df
         twiss = self._parent.twiss_df
 
+        # Remove negative turns; this is a result of the time
+        # dependencies being delayed by a single turn in the 
+        # twiss command, in order to ensure a single clean turn
+        twiss = twiss.loc[twiss["turn"] >= 0]
+
         if by_group:
             re_group = re.compile(r"^.*?(?=\.)")
             loss["group"] = loss.apply(
@@ -1275,3 +1299,79 @@ class _TrackArtist(_TwissArtist):
                 name="Loss",
                 width=lengths,
             )
+
+    def boxplot_envelope(
+        self,
+        twiss_path: str,
+        element: str,
+        normalize: bool = True,
+        reference: Optional[pd.DataFrame] = None,
+        **kwargs,
+    ):
+        """TODO: Docstring for boxplot_envelope.
+
+        Args:
+            twiss_path (TODO): TODO
+            element (TODO): TODO
+
+        Returns:
+            str: Returns either 'Vertical' or 'Horizontal' depending on which axis has the larger aperture.
+
+        """
+        if normalize:
+            turns = set(self._parent.twiss_df["turn"])
+            if reference is None:
+                reference = self._parent.twiss_df.loc[self._parent.twiss_df["turn"] == min(turns)]
+
+        twiss_thick = pd.read_parquet(twiss_path)
+
+        data = self._parent.track_df.loc[element].copy()
+        twiss_data = twiss_thick.loc[element].copy()
+        ref = reference.loc[element]
+
+        gamma = self._parent.info_df["nrj"]["info"] / 0.938
+        eps_g = self._parent.info_df["eps_n"]["info"] / gamma
+
+        aper = "1" if twiss_data["aper_1"] < twiss_data["aper_2"] else "2"
+        axis, vh = ("x", "Horizontal") if aper == "1" else ("y", "Vertical")
+
+        if normalize:
+            data[axis] = data[axis].div(np.sqrt(eps_g * ref[f"bet{axis}"]))
+            twiss_data[f"aper_{aper}"] /= np.sqrt(eps_g * ref[f"bet{axis}"])
+
+        style = dict(
+            boxpoints=False,
+            boxmean="sd",
+            marker_size=1,
+        )
+        style.update(kwargs)
+
+        self.add_data(
+            **style,
+            x=data["turn"],
+            y=data[axis],
+            type="box",
+            showlegend=True,
+            name="Beam distribution",
+        )
+
+        self.add_data(
+            x=[min(data["turn"])-0.5] + list(data["turn"]) + [max(data["turn"])+0.5],
+            y=[twiss_data[f"aper_{aper}"]]*(len(data["turn"])+2),
+            marker_color="rgba(255,50,50,0.75)",
+            showlegend=False,
+            name=f"{element} {vh.lower()} aperture",
+            legendgroup="aperture",
+            line_width=2,
+        )
+        self.add_data(
+            x=[min(data["turn"])-0.5] + list(data["turn"]) + [max(data["turn"])+0.5],
+            y=[-twiss_data[f"aper_{aper}"]]*(len(data["turn"])+2),
+            marker_color="rgba(255,50,50,0.75)",
+            showlegend=True,
+            name=f"{element} {vh.lower()} aperture",
+            legendgroup="aperture",
+            line_width=2,
+        )
+
+        return vh
