@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Union
 
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 import os
+import pickle
 
 
 class _Artist:
@@ -19,7 +20,7 @@ class _Artist:
             xanchor="center",
             yanchor="top",
             x=0.5,
-            y=0.98,
+            y=0.92,
             font_size=20,
         ),
         margin=dict(
@@ -215,7 +216,12 @@ class _Artist:
                 self._subplots[col][row]["data"] = []
                 self._frames = []
 
-    def save(self, name: str, ext_figure: Optional[go.Figure] = None):
+    def save(
+        self,
+        name: str,
+        as_pickle: bool = False,
+        ext_figure: Optional[Union[Dict, go.Figure]] = None,
+    ):
         """TODO: Docstring for save.
 
         Args:
@@ -223,21 +229,34 @@ class _Artist:
         Returns: TODO
 
         """
-        div = plotly.offline.plot(
-            self.figure if ext_figure is None else ext_figure,
-            include_plotlyjs="cdn",
-            include_mathjax="cdn",
-            output_type="div",
-        )
+        fig = self.figure if ext_figure is None else ext_figure
+
+        if type(fig) is dict:
+            fig = go.Figure(fig)
+
+        # Create directory if it doesn't exist
         file_dir = os.path.dirname(name)
         if file_dir != "":
             os.makedirs(file_dir, exist_ok=True)
-        if not name.endswith(".html"):
-            name += ".html"
-        with open(name, "w") as fd:
-            fd.write(div)
 
-    def render(self, name: str, **kwargs):
+        if as_pickle:
+            if not name.endswith(".pickle"):
+                name += ".pickle"
+            with open(name, "wb") as fd:
+                pickle.dump(fig.to_dict(), fd)
+        else:
+            div = plotly.offline.plot(
+                fig,
+                include_plotlyjs="cdn",
+                include_mathjax="cdn",
+                output_type="div",
+            )
+            if not name.endswith(".html"):
+                name += ".html"
+            with open(name, "w") as fd:
+                fd.write(div)
+
+    def render(self, name: str, ext_figure: Optional[Union[Dict, go.Figure]] = None, **kwargs):
         """TODO: Docstring for render_png.
 
         Args:
@@ -246,9 +265,16 @@ class _Artist:
         Returns: TODO
 
         """
+        fig = self.figure if ext_figure is None else ext_figure
+
+        if type(fig) is dict:
+            fig = go.Figure(fig)
+
         render_kwargs = dict(format="png", scale=8)
         render_kwargs.update(kwargs)
-        self.figure.write_image(file=name, **render_kwargs)
+        if not name.endswith(f".{render_kwargs['format']}"):
+            name += f".{render_kwargs['format']}"
+        fig.write_image(file=name, **render_kwargs)
 
     def _process_data(
         self, x: pd.Series, y: pd.Series, xaxis: Dict = {}, yaxis: Dict = {}, **kwargs
