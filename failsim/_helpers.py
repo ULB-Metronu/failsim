@@ -4,7 +4,7 @@ This module contains classes for miscellaneous tasks that don't fit in anywhere 
 
 
 from .globals import FailSimGlobals
-from typing import ByteString, Callable, List
+from typing import ByteString, Callable, List, Optional
 import functools
 import os
 import re
@@ -20,13 +20,15 @@ class OutputSuppressor:
 
     Args:
         enabled: Whether or not OutputSuppressor should initially suppress incoming messages or not.
+        log_file: TODO.
 
     """
 
-    def __init__(self, enabled: bool = True):
+    def __init__(self, enabled: bool = True, log_file: Optional[str] = None):
         self._enabled = enabled
         self._buffer = []
         self._buffer_maxlen = 100
+        self._log_file = log_file
 
     def set_enabled(self, enabled: bool):
         """Enables or disables OutputSuppressor.
@@ -51,6 +53,10 @@ class OutputSuppressor:
 
         if not self._enabled:
             print(string.decode("utf-8"))
+
+        if self._log_file is not None:
+            with open(self._log_file, "a") as fd:
+                fd.write(string.decode("utf-8"))
 
     def read(self):
         """Returns what's currently in the buffer.
@@ -122,7 +128,7 @@ class MoveNewFiles:
 
     """
 
-    exclude = ["^\..*", "temp"]
+    exclude = [r"^\..*", "temp"]
 
     def __init__(self, source: str, destination: str):
         self._source = source
@@ -135,8 +141,8 @@ class MoveNewFiles:
         post_files = os.listdir(self._source)
 
         new_files = np.setdiff1d(post_files, self._pre_files)
+        new_files = self.filter_exclude(new_files)
         for file in new_files:
-            new_files = self.filter_exclude(new_files)
             shutil.move(file, os.path.join(self._destination, os.path.basename(file)))
 
     def filter_exclude(self, files: List[str]):

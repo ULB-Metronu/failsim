@@ -43,7 +43,7 @@ setup(
     version=get_version_from_init(),
     description="LHC Fast failure simulation toolkit",
     long_description=readme,
-    author="Cédric Hernaslteens, Oskari Tuormaa",
+    author="Cédric Hernalsteens, Oskari Tuormaa",
     author_email="cedric.hernalsteens@cern.ch, oskari.kristian.tuormaa@cern.ch",
     url="https://gitlab.cern.ch/machine-protection/fast-beam-failures",
     license=lic,

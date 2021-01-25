@@ -49,6 +49,20 @@ HLLHCV1.4:
       type: flat
       beta_star: [ 0, 0, 75, 0 ]
       strength_file: flatcc/opt_flatvh_75_180_1500.madx
+runII:
+  sequence_filenames: ['data/lhc2015/lhc_as-built.seq']
+  run: 2
+  version: 0
+  optics_base_path: data/lhc2015/
+  optics:
+    COL_TOTEM5:
+      type: round
+      beta_star: [ 400, 10000, 400, 3000 ]
+      strength_file: opt_400_10000_400_3000_totem5.madx
+    COL_TOTEM5_THIN:
+      type: round
+      beta_star: [ 400, 10000, 400, 3000 ]
+      strength_file: opt_400_10000_400_3000_thin_totem5.madx
 runIII:
   sequence_filenames: ['data/acc-models-lhc/lhc.seq']
   run: 3

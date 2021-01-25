@@ -21,6 +21,7 @@ import yaml
 import os
 import glob
 import re
+import copy
 
 
 ## ===== Decorators ===== ##
@@ -148,7 +149,7 @@ class LHCSequence:
         Note:
             The dictionary is set up in such a way, that each module has 3 aliases with which the values of the given module can be accessed with. For example, the module submodule_01a_preparation.madx can be accessed with the module number "01a", the module number and name "01a_preparation" or the entire module filename "submodule_01a_preparation.madx".
         """
-        module_dir = pkg_resources.resource_filename("pymask", "..")
+        module_dir = pkg_resources.resource_filename(__name__, "data/lhcmask_failsim")
         modules = glob.glob(os.path.join(module_dir, "*.madx"))
 
         # Regex to get module number and name
@@ -170,7 +171,7 @@ class LHCSequence:
         self._modules["01b_beam"]["enabled"] = True
         self._modules["01c_phase"]["enabled"] = True
         self._modules["01d_crossing"]["enabled"] = True
-        self._modules["05a_MO"]["enabled"] = True
+        self._modules["01e_final"]["enabled"] = True
 
     def _get_mode_configuration(self):
         """Loads the mode configuration.
@@ -337,7 +338,9 @@ class LHCSequence:
 
     @classmethod
     def get_metadata(cls):
-        return yaml.safe_load(pkg_resources.resource_stream(__name__, "data/metadata.yaml"))
+        return yaml.safe_load(
+            pkg_resources.resource_stream(__name__, "data/metadata.yaml")
+        )
 
     @classmethod
     def get_sequences(cls):
@@ -345,7 +348,32 @@ class LHCSequence:
 
     @classmethod
     def get_optics(cls, sequence_key):
-        return list(cls.get_metadata()[sequence_key]['optics'].keys())
+        return list(cls.get_metadata()[sequence_key]["optics"].keys())
+
+    @classmethod
+    def get_modules(cls):
+        module_dir = pkg_resources.resource_filename(__name__, "data/lhcmask_failsim")
+        modules = glob.glob(os.path.join(module_dir, "*.madx"))
+        return [os.path.basename(x) for x in modules]
+
+    @classmethod
+    def get_collimator_handler(cls, sequence: str, collimation_key: str):
+        """TODO: Docstring for get_collimator_handler.
+
+        Args:
+        function (TODO): TODO
+
+        Returns: TODO
+
+        """
+        metadata = cls.get_metadata()
+        settings_path = os.path.join(
+            metadata[sequence]["collimation_base_path"],
+            metadata[sequence]["collimation"][collimation_key],
+        )
+        return CollimatorHandler(
+            pkg_resources.resource_filename(__name__, settings_path)
+        )
 
     def _load_metadata(self):
         """Loads the metadata.yaml file.
@@ -368,14 +396,21 @@ class LHCSequence:
         )
 
         twiss_thick = pd.read_parquet(
-            self._twiss_pre_thin_paths[self._mode_configuration['sequence_to_track']]
+            self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
         )
         for _, row in settings.iterrows():
+            gaph = np.clip(row["half_gaph"]["info"], 0, 10)
+            gapv = np.clip(row["half_gapv"]["info"], 0, 10)
+
             if row.name.lower() in twiss_thick.index:
-                twiss_thick.at[row.name.lower(), "aper_1"] = row["gaph"]
-                twiss_thick.at[row.name.lower(), "aper_2"] = row["gapv"]
+                twiss_thick.at[row.name.lower(), "aper_1"] = gaph
+                twiss_thick.at[row.name.lower(), "aper_2"] = gapv
+
+            self._failsim.mad_input(
+                f"{row.name}, APERTYPE=RECTANGLE, APERTURE={{ {gaph}, {gapv} }}"
+            )
         twiss_thick.to_parquet(
-            self._twiss_pre_thin_paths[self._mode_configuration['sequence_to_track']]
+            self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
         )
 
     def _call_remaining_modules(self):
@@ -569,7 +604,7 @@ class LHCSequence:
         self._custom_collimation = custom
         if custom:
             if not collimation.startswith("/"):
-                 collimation = self._failsim.path_to_cwd(collimation)
+                collimation = self._failsim.path_to_cwd(collimation)
             self._collimation_path = collimation
         else:
             self._collimation_key = collimation
@@ -626,13 +661,13 @@ class LHCSequence:
             )
             self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
 
-        if not self._custom_collimation:
+        if not self._custom_collimation and self._collimation_key is not None:
             assert (
                 not self._custom_sequence
             ), "You can't use non-custom collimation with custom sequence"
 
             rel_path = os.path.join(
-                sequence_data['collimation_base_path'],
+                sequence_data["collimation_base_path"],
                 sequence_data["collimation"][self._collimation_key],
             )
             self._collimation_path = pkg_resources.resource_filename(__name__, rel_path)
@@ -668,9 +703,7 @@ class LHCSequence:
             self._twiss_pre_thin_paths[ss] = FailSim.path_to_output(
                 f"twiss_pre_thin_{ss}.parquet"
             )
-            twiss_df.to_parquet(
-                self._twiss_pre_thin_paths[ss]
-            )
+            twiss_df.to_parquet(self._twiss_pre_thin_paths[ss])
 
             survey_df = self._failsim.mad.survey(sequence=ss).dframe()
             survey_df.to_parquet(
@@ -863,7 +896,9 @@ class LHCSequence:
         """
         new_fs = self._failsim.duplicate()
         tracker = SequenceTracker(
-            new_fs, self._mode_configuration["sequence_to_track"], verbose=verbose
+            new_fs,
+            copy.copy(self._mode_configuration["sequence_to_track"]),
+            verbose=verbose,
         )
         return tracker
 
@@ -933,7 +968,7 @@ class LHCSequence:
         )
 
         for _, row in settings.iterrows():
-            cmd = f"{row.name}, apertype=rectangle, aperture={{ {row['gaph']['info']}, {row['gapv']['info']}}}"
+            cmd = f"{row.name}, apertype=rectangle, aperture={{ {row['half_gaph']['info']}, {row['half_gapv']['info']}}}"
             self._failsim.mad_input(cmd)
 
 
@@ -950,6 +985,7 @@ class CollimatorHandler:
             .set_index("Name")
             .drop(columns="#")
         )
+        self._collimator_df.index = self._collimator_df.index.str.lower()
 
         self._process_collimator_df()
 
@@ -987,15 +1023,22 @@ class CollimatorHandler:
         """
         res = pd.DataFrame()
         res["angle"] = self._collimator_df["angle[rad]"]
-        res["halfgap"] = self._collimator_df["halfgap[m]"]
+        res["nsig"] = self._collimator_df["nsig"]
 
         gamma = nrj / 0.938
         eps_g = eps_n / gamma
 
-        gaph = []
         gapv = []
+        gaph = []
+        gap = []
         for _, row in self._collimator_df.iterrows():
             twiss_data = twiss.loc[row.name.lower()]
+
+            angle = float(res.loc[row.name]["angle"])
+            beta_skew = abs(
+                twiss_data["betx"] * np.cos(angle) + twiss_data["bety"] * np.sin(angle)
+            )
+
             gaph.append(
                 self._collimator_df.loc[row.name]["nsigx"]
                 * np.sqrt(eps_g * twiss_data["betx"])
@@ -1004,16 +1047,21 @@ class CollimatorHandler:
                 self._collimator_df.loc[row.name]["nsigy"]
                 * np.sqrt(eps_g * twiss_data["bety"])
             )
+            gap.append(
+                float(self._collimator_df.loc[row.name]["nsig"])
+                * np.sqrt(eps_g * beta_skew)
+            )
 
-        res["gaph"] = gaph
-        res["gapv"] = gapv
+        res["half_gaph"] = gaph
+        res["half_gapv"] = gapv
+        res["half_gap"] = gap
 
         return res
 
 
 class HLLHCSequence(LHCSequence):
     def __init__(self, *args, **kwargs):
-        if kwargs.get('sequence_key') and kwargs['sequence_key'] != 'HLLHCV1.4':
+        if kwargs.get("sequence_key") and kwargs["sequence_key"] != "HLLHCV1.4":
             raise Exception("Invalid sequence key")
-        kwargs.update(sequence_key='HLLHCV1.4')
+        kwargs.update(sequence_key="HLLHCV1.4")
         super().__init__(*args, **kwargs)

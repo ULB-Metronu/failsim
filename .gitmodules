@@ -7,3 +7,6 @@
 [submodule "failsim/data/lhcmask_failsim"]
 	path = failsim/data/lhcmask_failsim
 	url = ../pymask.git
+[submodule "failsim/data/lhc2015"]
+	path = failsim/data/lhc2015
+	url = https://github.com/lhcopt/lhc2015

@@ -1,17 +1,60 @@
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Union
 
 import plotly.graph_objects as go
+import plotly.io as pio
 import plotly.offline
 
 import numpy as np
 import pandas as pd
 
 import os
+import pickle
 
 
 class _Artist:
 
     """Docstring for _Artist. """
+
+    default_layout = dict(
+        title=dict(
+            xanchor="center",
+            yanchor="top",
+            x=0.5,
+            y=0.95,
+            font_size=20,
+        ),
+        margin=dict(
+            l=50,
+            r=50,
+            t=50,
+            b=50,
+        ),
+        font_size=10,
+        legend=dict(
+            xanchor="right",
+            yanchor="middle",
+            x=0.95,
+            y=0.5,
+            bordercolor="black",
+            borderwidth=1,
+        ),
+        xaxis=dict(
+            showgrid=True,
+            showline=True,
+            zeroline=False,
+            mirror="all",
+            ticks="inside",
+            exponentformat="E",
+        ),
+        yaxis=dict(
+            showgrid=True,
+            showline=True,
+            zeroline=False,
+            mirror="all",
+            ticks="inside",
+            exponentformat="E",
+        ),
+    )
 
     def __init__(self):
         self._rows = 1
@@ -21,9 +64,13 @@ class _Artist:
 
         self._global_layout = {}
         self._frames = []
+        self._annotations = []
         self._subplots = np.array([[0]], dtype=object)
 
         self._populate_subplots()
+
+        failsim_template = dict(layout=go.Layout(self.default_layout))
+        pio.templates["failsim"] = failsim_template
 
     def __getitem__(self, index):
         assert (type(index) == tuple) and (
@@ -169,7 +216,12 @@ class _Artist:
                 self._subplots[col][row]["data"] = []
                 self._frames = []
 
-    def save(self, name: str):
+    def save(
+        self,
+        name: str,
+        as_pickle: bool = False,
+        ext_figure: Optional[Union[Dict, go.Figure]] = None,
+    ):
         """TODO: Docstring for save.
 
         Args:
@@ -177,17 +229,52 @@ class _Artist:
         Returns: TODO
 
         """
-        div = plotly.offline.plot(
-            self.figure,
-            include_plotlyjs="cdn",
-            include_mathjax="cdn",
-            output_type="div",
-        )
+        fig = self.figure if ext_figure is None else ext_figure
+
+        if type(fig) is dict:
+            fig = go.Figure(fig)
+
+        # Create directory if it doesn't exist
         file_dir = os.path.dirname(name)
         if file_dir != "":
             os.makedirs(file_dir, exist_ok=True)
-        with open(name, "w") as fd:
-            fd.write(div)
+
+        if as_pickle:
+            if not name.endswith(".pickle"):
+                name += ".pickle"
+            with open(name, "wb") as fd:
+                pickle.dump(fig.to_dict(), fd)
+        else:
+            div = plotly.offline.plot(
+                fig,
+                include_plotlyjs="cdn",
+                include_mathjax="cdn",
+                output_type="div",
+            )
+            if not name.endswith(".html"):
+                name += ".html"
+            with open(name, "w") as fd:
+                fd.write(div)
+
+    def render(self, name: str, ext_figure: Optional[Union[Dict, go.Figure]] = None, **kwargs):
+        """TODO: Docstring for render_png.
+
+        Args:
+            name (TODO): TODO
+
+        Returns: TODO
+
+        """
+        fig = self.figure if ext_figure is None else ext_figure
+
+        if type(fig) is dict:
+            fig = go.Figure(fig)
+
+        render_kwargs = dict(format="png", scale=8)
+        render_kwargs.update(kwargs)
+        if not name.endswith(f".{render_kwargs['format']}"):
+            name += f".{render_kwargs['format']}"
+        fig.write_image(file=name, **render_kwargs)
 
     def _process_data(
         self, x: pd.Series, y: pd.Series, xaxis: Dict = {}, yaxis: Dict = {}, **kwargs
@@ -220,7 +307,6 @@ class _Artist:
             "y": y,
             "xaxis": f"x{str_idx}",
             "yaxis": f"y{str_idx}",
-            "mode": "markers+lines",
         }
 
         # Specify shared axis for x.
@@ -247,6 +333,17 @@ class _Artist:
 
         return data_dict
 
+    def add_annotation(self, **kwargs):
+        """TODO: Docstring for add_annotation.
+
+        Args:
+        function (TODO): TODO
+
+        Returns: TODO
+
+        """
+        self._annotations.append(kwargs)
+
     def add_data(
         self,
         x: pd.Series,
@@ -271,8 +368,8 @@ class _Artist:
             self._subplots[col][row]["data"].insert(0, data_dict)
 
             # Increment each trace in each frame
-            for frame in self._frames:
-                frame["traces"] = [x + 1 for x in frame["traces"]]
+            # for frame in self._frames:
+            #     frame["traces"] = [x + 1 for x in frame["traces"]]
 
         else:
             self._subplots[col][row]["data"].append(data_dict)
@@ -295,8 +392,6 @@ class _Artist:
         Returns: TODO
 
         """
-        col, row = self._plot_pointer
-
         data_dict = self._process_data(**kwargs, x=x, y=y, xaxis=xaxis, yaxis=yaxis)
 
         # Make sure lines arent simplified.
@@ -402,12 +497,16 @@ class _Artist:
         fig["layout"].update(self._global_layout)
 
         for plot in self._subplots.reshape(1, -1)[0]:
-            fig["layout"].update({k: v for k, v in plot.items() if "axis" in k})
+            for axis, values in {k: v for k, v in plot.items() if "axis" in k}.items():
+                if axis in fig["layout"].keys():
+                    fig["layout"][axis].update(values)
+                else:
+                    fig["layout"].update({axis: values})
             for data in plot["data"]:
                 fig["data"].append(data)
 
-        for frame in self._frames:
-            fig["frames"].append(frame)
+        fig["frames"] = self._frames
+        fig["annotations"] = self._annotations
 
         return go.Figure(fig)
 
@@ -425,5 +524,15 @@ class _Artist:
             figure.update_layout({k: v for k, v in plot.items() if "axis" in k})
             for data in plot["data"]:
                 figure.add_trace(data)
+
+        for frame_self in self._frames:
+            frame_found = False
+            for frame in figure.frames:
+                if str(frame["name"]) == str(frame_self["name"]):
+                    frame["data"] = list(frame["data"]) + frame_self["data"]
+                    frame["traces"] = list(frame["traces"]) + frame_self["traces"]
+                    frame_found = True
+            if not frame_found:
+                figure.frames = list(figure.frames) + [frame_self]
 
         return figure
