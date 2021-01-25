@@ -20,7 +20,7 @@ class _Artist:
             xanchor="center",
             yanchor="top",
             x=0.5,
-            y=0.92,
+            y=0.95,
             font_size=20,
         ),
         margin=dict(

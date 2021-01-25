@@ -593,7 +593,7 @@ class _TwissArtist(_Artist):
         twiss = self._apply_observation_filter(self._parent.twiss_df)
 
         # Remove negative turns; this is a result of the time
-        # dependencies being delayed by a single turn in the 
+        # dependencies being delayed by a single turn in the
         # twiss command, in order to ensure a single clean turn
         twiss = twiss.loc[twiss["turn"] >= 0]
 
@@ -885,7 +885,7 @@ class _TwissArtist(_Artist):
         twiss = self._apply_observation_filter(twiss)
 
         # Remove negative turns; this is a result of the time
-        # dependencies being delayed by a single turn in the 
+        # dependencies being delayed by a single turn in the
         # twiss command, in order to ensure a single clean turn
         twiss = twiss.loc[twiss["turn"] >= 0]
 
@@ -1013,7 +1013,7 @@ class _TwissArtist(_Artist):
             reference = twiss[twiss["turn"] == min(twiss["turn"])]
 
         # Remove negative turns; this is a result of the time
-        # dependencies being delayed by a single turn in the 
+        # dependencies being delayed by a single turn in the
         # twiss command, in order to ensure a single clean turn
         twiss = twiss.loc[twiss["turn"] >= 0]
 
@@ -1073,7 +1073,7 @@ class _TwissArtist(_Artist):
         twiss_df = self._parent.twiss_df.copy()
 
         # Remove negative turns; this is a result of the time
-        # dependencies being delayed by a single turn in the 
+        # dependencies being delayed by a single turn in the
         # twiss command, in order to ensure a single clean turn
         twiss = twiss.loc[twiss["turn"] >= 0]
 
@@ -1240,7 +1240,7 @@ class _TrackArtist(_TwissArtist):
         twiss = self._parent.twiss_df
 
         # Remove negative turns; this is a result of the time
-        # dependencies being delayed by a single turn in the 
+        # dependencies being delayed by a single turn in the
         # twiss command, in order to ensure a single clean turn
         twiss = twiss.loc[twiss["turn"] >= 0]
 
@@ -1304,7 +1304,7 @@ class _TrackArtist(_TwissArtist):
         self,
         twiss_path: str,
         element: str,
-        normalize: bool = True,
+        normalize: bool = False,
         reference: Optional[pd.DataFrame] = None,
         **kwargs,
     ):
@@ -1321,13 +1321,15 @@ class _TrackArtist(_TwissArtist):
         if normalize:
             turns = set(self._parent.twiss_df["turn"])
             if reference is None:
-                reference = self._parent.twiss_df.loc[self._parent.twiss_df["turn"] == min(turns)]
+                reference = self._parent.twiss_df.loc[
+                    self._parent.twiss_df["turn"] == min(turns)
+                ]
+            ref = reference.loc[element]
 
         twiss_thick = pd.read_parquet(twiss_path)
 
         data = self._parent.track_df.loc[element].copy()
         twiss_data = twiss_thick.loc[element].copy()
-        ref = reference.loc[element]
 
         gamma = self._parent.info_df["nrj"]["info"] / 0.938
         eps_g = self._parent.info_df["eps_n"]["info"] / gamma
@@ -1339,6 +1341,10 @@ class _TrackArtist(_TwissArtist):
             data[axis] = data[axis].div(np.sqrt(eps_g * ref[f"bet{axis}"]))
             twiss_data[f"aper_{aper}"] /= np.sqrt(eps_g * ref[f"bet{axis}"])
 
+        sig = data.loc[data["turn"] == min(data["turn"])][axis].std()
+
+        mean = data.groupby("turn").mean()
+
         style = dict(
             boxpoints=False,
             boxmean="sd",
@@ -1346,6 +1352,7 @@ class _TrackArtist(_TwissArtist):
         )
         style.update(kwargs)
 
+        # Boxplot
         self.add_data(
             **style,
             x=data["turn"],
@@ -1355,9 +1362,12 @@ class _TrackArtist(_TwissArtist):
             name="Beam distribution",
         )
 
+        # Aperture
         self.add_data(
-            x=[min(data["turn"])-0.5] + list(data["turn"]) + [max(data["turn"])+0.5],
-            y=[twiss_data[f"aper_{aper}"]]*(len(data["turn"])+2),
+            x=[min(data["turn"]) - 0.5]
+            + list(data["turn"])
+            + [max(data["turn"]) + 0.5],
+            y=[twiss_data[f"aper_{aper}"]] * (len(data["turn"]) + 2),
             marker_color="rgba(255,50,50,0.75)",
             showlegend=False,
             name=f"{element} {vh.lower()} aperture",
@@ -1365,13 +1375,25 @@ class _TrackArtist(_TwissArtist):
             line_width=2,
         )
         self.add_data(
-            x=[min(data["turn"])-0.5] + list(data["turn"]) + [max(data["turn"])+0.5],
-            y=[-twiss_data[f"aper_{aper}"]]*(len(data["turn"])+2),
+            x=[min(data["turn"]) - 0.5]
+            + list(data["turn"])
+            + [max(data["turn"]) + 0.5],
+            y=[-twiss_data[f"aper_{aper}"]] * (len(data["turn"]) + 2),
             marker_color="rgba(255,50,50,0.75)",
             showlegend=True,
             name=f"{element} {vh.lower()} aperture",
             legendgroup="aperture",
             line_width=2,
+        )
+
+        # Nominal width
+        self.add_data(
+            x=mean.index,
+            y=[sig*2]*len(mean),
+            base=mean[axis]-sig,
+            type="bar",
+            name="Nominal beam sigma",
+            marker_opacity=0.25,
         )
 
         return vh
