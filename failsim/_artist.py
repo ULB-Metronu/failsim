@@ -492,7 +492,9 @@ class _Artist:
         fig = {}
         fig["data"] = []
         fig["frames"] = []
-        fig["layout"] = {}
+        fig["layout"] = {
+            "template": "failsim"
+        }
 
         fig["layout"].update(self._global_layout)
 

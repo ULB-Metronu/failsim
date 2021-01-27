@@ -1187,6 +1187,7 @@ class _TwissArtist(_Artist):
 
         """
         super().clear_figure()
+        self.observation_filter(None)
         self._center_elem = None
 
     @property
@@ -1389,8 +1390,8 @@ class _TrackArtist(_TwissArtist):
         # Nominal width
         self.add_data(
             x=mean.index,
-            y=[sig*2]*len(mean),
-            base=mean[axis]-sig,
+            y=[sig * 2] * len(mean),
+            base=mean[axis] - sig,
             type="bar",
             name="Nominal beam sigma",
             marker_opacity=0.25,
