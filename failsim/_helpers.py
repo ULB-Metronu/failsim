@@ -20,7 +20,7 @@ class OutputSuppressor:
 
     Args:
         enabled: Whether or not OutputSuppressor should initially suppress incoming messages or not.
-        log_file: TODO.
+        log_file: If a path to a file is given, all MAD-X commands will be logged in given file.
 
     """
 

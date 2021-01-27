@@ -125,7 +125,13 @@ class SequenceTracker:
         """
         Does a tracking simulation using the current setup.
 
-        TODO: More explanation of what's happening
+        Does the following:
+        - Goes through each time dependency file and replaces all keys specified by add_mask_keys by their corresponding values, and saves the new files in temporary files.
+        - Creates tr$macro for calling files each turn.
+        - Add flags specified by set_track_flags.
+        - Adds particles specified by set_particles.
+        - Adds observation points specified by set_observation_points.
+        - Runs track.
 
         Args:
             turns: How many turns to track.
@@ -152,7 +158,7 @@ class SequenceTracker:
                 time_depen.append(f"call, file='tmp_{idx}.txt';")
 
             # Create tr$macro
-            self._track_flags.append("update")
+            self._track_flags.append("update", "onepass")
             time_depen = " ".join(time_depen)
             self._failsim.mad_input(
                 f"tr$macro(turn): macro = {{comp=turn; {time_depen} }}"
@@ -220,12 +226,13 @@ class SequenceTracker:
 
     @print_info("SequenceTracker")
     def save_values(self, regex: str):
-        """TODO: Docstring for save_values.
+        """Saves values for all elements matching given regex in a dictionary.
 
         Args:
-            regex: TODO
+            regex: Regex that will be matched against each element in sequence.
 
-        Returns: TODO
+        Returns:
+            Dict: Dictionary containing the saved values.
 
         """
         reg = re.compile(regex)
@@ -235,10 +242,10 @@ class SequenceTracker:
 
     @print_info("SequenceTracker")
     def restore_values(self, val_dict: dict):
-        """TODO: Docstring for restore_values.
+        """Restores values from a dictionary created from a previous call to save_values.
 
         Args:
-            val_dict: TODO
+            val_dict: Dictionary containing saved values.
 
         Returns:
             SequenceTracker: Returns self

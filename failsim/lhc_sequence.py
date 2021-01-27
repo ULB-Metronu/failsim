@@ -358,12 +358,14 @@ class LHCSequence:
 
     @classmethod
     def get_collimator_handler(cls, sequence: str, collimation_key: str):
-        """TODO: Docstring for get_collimator_handler.
+        """Returns CollimatorHandler object for given sequence and collimation key.
 
         Args:
-        function (TODO): TODO
+            sequence: Which sequence key to use.
+            collimation_key: Which collimation key to use.
 
-        Returns: TODO
+        Returns:
+            CollimatorHandler: Handler object loaded with proper collimation data.
 
         """
         metadata = cls.get_metadata()
@@ -491,16 +493,6 @@ class LHCSequence:
         sigma = np.sqrt(eps_g * twiss.twiss_df.loc[element][f"bet{axis}"])
         return beam_sigmas * sigma
 
-    def _project_aperture(self, aperture: Tuple[float, float], angle: float):
-        """TODO: Docstring for _project_aperture.
-
-        Args:
-
-        Returns: TODO
-
-        """
-        ...
-
     @reset_state(True, True)
     @print_info("LHCSequence")
     def set_modules_enabled(self, modules: List[str], enabled: bool = True):
@@ -574,6 +566,8 @@ class LHCSequence:
 
         Args:
             optics: Can either be an optics key or the path of a .madx file.
+
+        Kwargs:
             custom: Chooses whether the optics parameter is interpreted as a key or a path. If custom is True, optics is interpreted as a key, if custom if False, optics is interpreted as a path.
 
         Returns:
@@ -593,12 +587,16 @@ class LHCSequence:
     @reset_state(True, True)
     @print_info("LHCSequence")
     def select_collimation(self, collimation: str, custom: bool = False):
-        """
-        TODO
+        """Sets the collimation settings. The selected collimation can either be a collimation key found in metadata.yaml by specifying a valid key, or a custom collimation file by specifying a path.
+
         Args:
-            custom:
+            collimation: Can either be a collimation key or the path to collimation file.
+
+        Kwargs:
+            custom: Must be True if collimation is a path to a file, and False if collimation is a key.
 
         Returns:
+            LHCSequence: Returns self.
 
         """
         self._custom_collimation = custom
@@ -927,7 +925,7 @@ class LHCSequence:
         ]
 
     def twiss(self):
-        """TODO: Docstring for twiss.
+        """Calculates and returns twiss table.
 
         Returns:
             TwissResult: TwissResult containing result.
@@ -954,11 +952,13 @@ class LHCSequence:
         )
 
     def set_collimators(self, handler: CollimatorHandler):
-        """TODO: Docstring for set_collimator.
+        """Sets collimators using specified CollimatorHandler.
 
         Args:
+            handler: Handler to use.
 
-        Returns: TODO
+        Returns:
+            LHCSequence: Returns self.
 
         """
         twiss = self.twiss()
@@ -971,10 +971,12 @@ class LHCSequence:
             cmd = f"{row.name}, apertype=rectangle, aperture={{ {row['half_gaph']['info']}, {row['half_gapv']['info']}}}"
             self._failsim.mad_input(cmd)
 
+        return self
+
 
 class CollimatorHandler:
 
-    """TODO: Docstring for CollimatorHandler. """
+    """Class for loading collimation settings files, and converting collimator settings from beam sigma to mm."""
 
     def __init__(self, settings_file: str, check_against: pd.DataFrame = None):
         with open(settings_file, "r") as fd:
@@ -990,11 +992,10 @@ class CollimatorHandler:
         self._process_collimator_df()
 
     def _process_collimator_df(self):
-        """TODO: Docstring for _process_collimator_df.
+        """Calculates horizontal and vertical beam sigmas depending on the angle of each element.
 
-        Args:
-
-        Returns: TODO
+        Returns:
+            None
 
         """
         np.seterr(divide="ignore")
@@ -1014,11 +1015,15 @@ class CollimatorHandler:
     """
 
     def compute_settings(self, twiss: pd.DataFrame, eps_n: float, nrj: float):
-        """TODO: Docstring for compute_settings.
+        """Computes and returns horizontal, vertical and radial half-gap for each collimator, based on data given in twiss dataframe.
 
         Args:
+            twiss: Dataframe containing twiss data.
+            eps_n: Normalized emmitance.
+            nrj: Beam energy.
 
-        Returns: TODO
+        Returns:
+            pd.DataFrame: Dataframe containing results.
 
         """
         res = pd.DataFrame()

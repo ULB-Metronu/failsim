@@ -1,4 +1,5 @@
 from typing import List, Tuple, Dict, Optional, Union
+from collections.abc import Iterable
 
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -104,11 +105,16 @@ class _Artist:
         rows: int = None,
         **kwargs,
     ):
-        """TODO: Docstring for global_layout.
+        """Sets the global layout settings for the plot.
+        This method allows to set the amount of rows and coloumns for the plot.
+        Any kwargs passed to this method will be added to the figures plotly layout.
 
         Args:
+            cols: Amount of columns in the plot.
+            rows: Amount of rows in the plot.
 
-        Returns: TODO
+        Returns:
+            None
 
         """
         self._global_layout.update(kwargs)
@@ -132,13 +138,18 @@ class _Artist:
         share_xaxis: Tuple[int, int] = None,
         share_yaxis: Tuple[int, int] = None,
         axis_factors: Tuple[float, float] = None,
-        data_modifiers: Dict = None,
     ):
-        """TODO: Docstring for plot_layout.
+        """Allow specification of the layout of a single plot.
 
         Args:
+            xaxis: A dictionary of key-value pairs that will be added to the plot's xaxis layout.
+            yaxis: A dictionary of key-value pairs that will be added to the plot's yaxis layout.
+            share_xaxis: A tuple that defines the (X,Y) coordinate of the plot, with which this subplot will share xaxis.
+            share_yaxis: A tuple that defines the (X,Y) coordinate of the plot, with which this subplot will share yaxis.
+            axis_factors: Allows scaling all data added to this axis by a factor.
 
-        Returns: TODO
+        Returns:
+            None
 
         """
         col, row = self._plot_pointer
@@ -193,9 +204,10 @@ class _Artist:
                 }
 
     def clear_figure(self):
-        """TODO: Docstring for clear_figure.
+        """Clears all figure layout and figure data.
 
-        Returns: TODO
+        Returns:
+            None
 
         """
         self.global_layout(1, 1)
@@ -204,11 +216,10 @@ class _Artist:
         self._populate_subplots()
 
     def clear_data(self):
-        """TODO: Docstring for clear_data.
+        """Only clears figure data, and not layout data.
 
-        Args:
-
-        Returns: TODO
+        Returns:
+            None
 
         """
         for col in range(self._cols):
@@ -222,11 +233,17 @@ class _Artist:
         as_pickle: bool = False,
         ext_figure: Optional[Union[Dict, go.Figure]] = None,
     ):
-        """TODO: Docstring for save.
+        """Saves the figure in either HTML or pickle format.
 
         Args:
+            name: The name of the file to save. File format extension not required.
 
-        Returns: TODO
+        Kwargs:
+            as_pickle: Specifies whether the plot should be saved as HTML or pickle.
+            ext_figure: Saves the figure specified, instead of the internal figure.
+
+        Returns:
+            None
 
         """
         fig = self.figure if ext_figure is None else ext_figure
@@ -256,13 +273,23 @@ class _Artist:
             with open(name, "w") as fd:
                 fd.write(div)
 
-    def render(self, name: str, ext_figure: Optional[Union[Dict, go.Figure]] = None, **kwargs):
-        """TODO: Docstring for render_png.
+    def render(
+        self, name: str, ext_figure: Optional[Union[Dict, go.Figure]] = None, **kwargs
+    ):
+        """Renders the figure to a picture format. Uses png by default.
+
+        Note:
+            Any kwargs passed to this method, are forwarded to the figures write_image method.
+            This allows specification of format type, such as jpg, eps, svg, etc...
 
         Args:
-            name (TODO): TODO
+            name: The name of the file to be saved. File format extension not required.
 
-        Returns: TODO
+        Kwargs:
+            ext_figure: Renders the figure specified, instead of the internal figure.
+
+        Returns:
+            None
 
         """
         fig = self.figure if ext_figure is None else ext_figure
@@ -279,13 +306,22 @@ class _Artist:
     def _process_data(
         self, x: pd.Series, y: pd.Series, xaxis: Dict = {}, yaxis: Dict = {}, **kwargs
     ):
-        """TODO: Docstring for _process_data.
+        """
+        Internal method for processing data.
+        
+        Does the following:
+        - Applies scaling factors
+        - Sets proper axis for subplots
+        - Sets subplot specific layout options
+        - Sets shared axes
 
         Args:
-        function (TODO): TODO
+            x: Data for x-axis.
+            y: Data for y-axis.
 
-        Returns: TODO
-
+        Kwargs:
+            xaxis: X-axis specific layout options.
+            yaxis: Y-axis specific layout options.
         """
         col, row = self._plot_pointer
 
@@ -334,30 +370,41 @@ class _Artist:
         return data_dict
 
     def add_annotation(self, **kwargs):
-        """TODO: Docstring for add_annotation.
+        """Adds an annotation to the figure.
+        All kwargs are forwarded to the figures "layout"->"annotations" list.
 
-        Args:
-        function (TODO): TODO
-
-        Returns: TODO
+        Returns:
+            None
 
         """
         self._annotations.append(kwargs)
 
     def add_data(
         self,
-        x: pd.Series,
-        y: pd.Series,
+        x: Iterable,
+        y: Iterable,
         xaxis: Dict = {},
         yaxis: Dict = {},
         to_bottom: bool = False,
         **kwargs,
     ):
-        """TODO: Docstring for add_data.
+        """Adds data to the figure.
+
+        Note:
+            All kwargs will be added to the data specification.
+            This allows specification of any data parameters that can be used in plotly.
 
         Args:
+            x: The x-axis of the data to add.
+            y: The y-axis of the data to add.
 
-        Returns: TODO
+        Kwargs:
+            xaxis: Layout options for the xaxis of the plot which the data is being added to.
+            yaxis: Layout options for the yaxis of the plot which the data is being added to.
+            to_bottom: Per default, the data will be added to the top of the plot. This flag will make the data be added to the bottom instead.
+
+        Returns:
+            None
 
         """
         col, row = self._plot_pointer
@@ -384,12 +431,27 @@ class _Artist:
         yaxis: Dict = {},
         **kwargs,
     ):
-        """TODO: Docstring for add_frame.
+        """Adds frame to the figure.
+
+        Note:
+            If this is the first frame to be added, the method will also add a slider and other necessities to the plot.
+
+        Note:
+            All kwargs will be added to the data specification.
+            This allows specification of any data parameters that can be used in plotly.
 
         Args:
-        function (TODO): TODO
+            x: The x-axis of the data to be added.
+            y: The y-axis of the data to be added.
+            frame_name: The name of the frame on which this data should be shown.
+            frame_trace: The trace which this data should alter.
 
-        Returns: TODO
+        Kwargs:
+            xaxis: Layout options for the xaxis of the plot which the data is being added to.
+            yaxis: Layout options for the yaxis of the plot which the data is being added to.
+
+        Returns:
+            None
 
         """
         data_dict = self._process_data(**kwargs, x=x, y=y, xaxis=xaxis, yaxis=yaxis)
@@ -445,11 +507,13 @@ class _Artist:
             self._global_layout["sliders"][0]["steps"].append(step)
 
     def set_yrange_for_xrange(self, xrange: [Tuple[float, float]]):
-        """TODO: Docstring for set_yrange_for_xrange.
+        """This method calculates the global maximum and global minimum for all data in the plot in a given range, and sets the internal yrange accordingly.
 
         Args:
+            xrange: The range between which the global maximum and minimum should be found.
 
-        Returns: TODO
+        Returns:
+            Tuple[float, float]: Tuple containing the maximum and minimum values in the range.
 
         """
         col, row = self._plot_pointer
@@ -478,23 +542,22 @@ class _Artist:
 
         self._subplots[col][row][f"yaxis{str_idx}"].update(range=(val_min, val_max))
 
+        return val_min, val_max
+
     @property
     def figure(
         self,
     ):
-        """TODO: Docstring for figure.
+        """Compiles and returns the internal plotly figure.
 
-        Args:
-
-        Returns: TODO
+        Returns:
+            go.Figure: The compiled plotly figure.
 
         """
         fig = {}
         fig["data"] = []
         fig["frames"] = []
-        fig["layout"] = {
-            "template": "failsim"
-        }
+        fig["layout"] = {"template": "failsim"}
 
         fig["layout"].update(self._global_layout)
 
@@ -513,11 +576,13 @@ class _Artist:
         return go.Figure(fig)
 
     def external_figure(self, figure: go.Figure):
-        """TODO: Docstring for external_figure.
+        """Compiles the internal data, and adds it to the given plotly figure.
 
         Args:
+            figure: The plotly figure to add the data to.
 
-        Returns: TODO
+        Returns:
+            go.Figure: Return the figure with the data added.
 
         """
         figure.update_layout(self._global_layout)

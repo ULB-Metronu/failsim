@@ -32,7 +32,7 @@ class FailSim:
         failsim_verbosity: Enables or disables stdout output from FailSim.
         extra_macro_files: An optional list of .madx files that should be called when Mad-X is initialized.
         command_log: If command_log is not None, FailSim will input each of the commands in the log into the initialized Mad-X instance.
-        log_file: TODO.
+        log_file: If a path to a file is given, all MAD-X commands will be logged in given file.
 
     """
 

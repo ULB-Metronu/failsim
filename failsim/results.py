@@ -75,21 +75,23 @@ class Result:
         if twiss_df["name"].iloc[0].endswith(":1"):
             self.fix_twiss_name()
 
-    def append(self, other: Result, sort: bool = False):
-        """TODO: Docstring for append.
+    def append(self, other: TwissResult, sort: bool = False):
+        """Appends twiss data in other to this instance.
 
         Args:
-            other (TODO): TODO
+            other: TwissResult object to append to this instance.
 
         Kwargs:
-            sort (TODO): TODO
+            sort: Whether the new twiss table should be sorted by turn and s or not.
 
-        Returns: TODO
+        Returns:
+            TwissResult: Returns self
 
         """
         self.twiss_df = self.twiss_df.append(other.twiss_df)
         if sort:
             self.twiss_df = self.twiss_df.sort_values(["turn", "s"])
+        return self
 
     def save_data(self, path: str, suffix: str = ""):
         """
@@ -277,15 +279,19 @@ class TrackingResult(Result):
         self.plot = _TrackArtist(self)
 
     def append(self, other: TrackingResult, sort: bool = False):
-        """TODO: Docstring for append.
+        """Appends twiss and tracking data in other to this instance.
+
+        Note:
+            If the "recloss" flag was given to the SequenceTracker instance, and losses were recorded, this will also append the loss dataframes.
 
         Args:
-            other (TODO): TODO
+            other: TrackingResult object to append to this instance.
 
         Kwargs:
-            sort (TODO): TODO
+            sort: Whether the new twiss and track dataframes should be sorted by turn and s or not.
 
-        Returns: TODO
+        Returns:
+            TrackingResult: Returns self
 
         """
         self.track_df = self.track_df.append(other.track_df)
@@ -295,6 +301,7 @@ class TrackingResult(Result):
                 self.loss_df = self.loss_df.sort_values(["turn", "s"])
         if sort:
             self.track_df = self.track_df.sort_values(["turn", "s"])
+        return self
 
     def normalize_track(self):
         """
@@ -510,32 +517,45 @@ class _TwissArtist(_Artist):
         self._filter = None
 
     def centered_element(self, element: str, width: float = 1000):
-        """TODO: Docstring for centered_element.
+        """Sets an element to center the figure around.
 
         Args:
+            element: The name of the element the figure will be centered around.
 
-        Returns: TODO
+        Kwargs:
+            width: The width around the element to show.
+
+        Returns:
+            None
 
         """
         self._center_elem = element
         self._width = width
 
     def observation_filter(self, filter: Callable[[pd.DataFrame], pd.DataFrame]):
-        """TODO: Docstring for observation_filter.
+        """Defines the observation filter to use.
+
+        Note:
+            Specific dataframes are passed through this filter in this form:
+            x.loc[filter(x)]
 
         Args:
+            filter: The filter to use. Can be any callable, mainly lambda functions.
 
-        Returns: TODO
+        Returns:
+            None
 
         """
         self._filter = filter
 
     def _apply_observation_filter(self, data: pd.DataFrame):
-        """TODO: Docstring for _apply_observation_filter.
+        """Internal method for applying the observation filter to data.
 
         Args:
+            data: The data to filter.
 
-        Returns: TODO
+        Returns:
+            pd.DataFrame: The filtered dataframe.
 
         """
         if self._filter is None:
@@ -543,11 +563,10 @@ class _TwissArtist(_Artist):
         return data.loc[self._filter(data)]
 
     def get_centered_range(self):
-        """TODO: Docstring for get_centered_range.
+        """Gets the range specified by the values set in centered_element.
 
-        Args:
-
-        Returns: TODO
+        Returns:
+            Tuple[float, float]: Tuple with the range in s coordinate.
 
         """
         center_s = self._parent.twiss_df.loc[self._center_elem]["s"]
@@ -558,11 +577,13 @@ class _TwissArtist(_Artist):
         return center_s - self._width / 2, center_s + self._width / 2
 
     def _crop_to_centered(self, data: pd.DataFrame):
-        """TODO: Docstring for _crop_to_centered.
+        """Internal method for cropping data to fit within values set in centered_element.
 
         Args:
+            data: Data to crop.
 
-        Returns: TODO
+        Returns:
+            pd.DataFrame: Cropped data.
 
         """
         if self._center_elem is not None:
@@ -579,12 +600,22 @@ class _TwissArtist(_Artist):
         reference: Optional[pd.DataFrame] = None,
         **kwargs,
     ):
-        """TODO: Docstring for twiss_column.
+        """Draws one or more columns from the twiss dataframe.
+
+        Note:
+            Kwargs will be passed into the plotly data dictionary.
 
         Args:
-        function (TODO): TODO
+            columns: List of columns to draw.
 
-        Returns: TODO
+        Kwargs:
+            xaxis_column: Which column to use as x-axis.
+            animate_column: Which column to use for animation.
+            crop_data: Whether or not data should be cropped to fit within values set in centered_element.
+            reference: Will show each column as percentage difference with this reference dataframe.
+
+        Returns:
+            None
 
         """
         if type(columns) is str:
@@ -664,11 +695,13 @@ class _TwissArtist(_Artist):
                 )
 
     def cartouche(self, twiss_path: Optional[Tuple[str, str]] = None):
-        """TODO: Docstring for cartouche.
+        """Draws cartouche plot, showing the beam lines and elements.
 
-        Args:
+        Kwargs:
+            twiss_path: Tuple containing the paths to the thick twiss parquet files.
 
-        Returns: TODO
+        Returns:
+            None
 
         """
         for ss in [f"lhcb{i}" for i in range(1, 3)]:
@@ -799,11 +832,19 @@ class _TwissArtist(_Artist):
         twiss_path: Optional[str] = None,
         **kwargs,
     ):
-        """TODO: Docstring for aperture.
+        """Draws aperture plots, showing the physical aperture sizes.
+
+        Note:
+            Any element with an aperture of exactly 0 will be ignored, as this is most likely due to aperture not yet being set.
 
         Args:
+            axis: Can be either 'x' or 'y'.
 
-        Returns: TODO
+        Kwargs:
+            twiss_path: Path to the thick twiss parquet file. If this is not specified, it will be assumed to be in the output directory.
+
+        Returns:
+            None
 
         """
         if twiss_path is None:
@@ -874,11 +915,21 @@ class _TwissArtist(_Artist):
         crop_data: bool = False,
         **kwargs,
     ):
-        """TODO: Docstring for orbit.
+        """Draws the beam orbit and width.
+
+        Note:
+            Kwargs will be passed into the plotly data dictionary.
 
         Args:
+            axis: Can be either 'x' or 'y'.
 
-        Returns: TODO
+        Kwargs:
+            beam_magnitudes: Which magnitudes to draw in terms of beam sigma.
+            animate_column: Which column to use for animation. If None, plot will not be animated.
+            crop_data: Whether data should be cropped to fit within values specified by centered_element.
+
+        Returns:
+            None
 
         """
         twiss = self._parent.twiss_df.copy()
@@ -983,11 +1034,23 @@ class _TwissArtist(_Artist):
         crop_data: bool = False,
         **kwargs,
     ):
-        """TODO: Docstring for twiss_beating.
+        """Draws twiss column in reference to first turn in twiss.
+
+        Note:
+            Kwargs will be passed into the plotly data dictionary.
 
         Args:
+            column: Which twiss column to draw.
 
-        Returns: TODO
+        Kwargs:
+            reference: Allows specification of new reference.
+            elements: Which elements to show. If elements are defined, the turn number will be used as x-axis.
+            start_col: Color for turn 0.
+            end_col: Color for last turn.
+            crop_data: Whether data should be cropped to fit within values specified by centered_element.
+
+        Returns:
+            None
 
         """
         twiss = self._parent.twiss_df.copy()
@@ -1049,7 +1112,7 @@ class _TwissArtist(_Artist):
         self,
         elements: List[str],
         axis: str,
-        twiss_path: str = "output/twiss_pre_thin_lhcb1.parquet",
+        twiss_path: Optional[str] = None,
         use_excursion: bool = True,
         suffix: Optional[str] = None,
         parallel: bool = False,
@@ -1058,14 +1121,28 @@ class _TwissArtist(_Artist):
         collimator_handler: Optional[CollimatorHandler] = None,
         **kwargs,
     ):
-        """TODO: Docstring for effective_half_gap.
+        """Draws effective half gap plot.
 
         Args:
-        function (TODO): TODO
+            elements: Which elements to add to plot.
+            axis: Which axis to plot. Can be either 'x' or 'y'.
+        
+        Kwargs:
+            twiss_path: Path to thick twiss parquet file.
+            use_excursion: Whether beam excursion should be considered.
+            suffix: Allows adding a suffix to legend entry.
+            parallel: Whether the elements should be shown in parallel or in series.
+            trace_kwargs: Kwargs to add to individual elements traces.
+            only_worst: Whether only the worst case of each turn for each element should be shown.
+            collimator_handler: Allows to overwrite the CollimatorHandler object. 
 
-        Returns: TODO
+        Returns:
+            None
 
         """
+        if twiss_path is None:
+            twiss_path = FailSim.path_to_output("twiss_pre_thin_lhcb1.parquet")
+
         if not twiss_path.startswith("/"):
             twiss_path = FailSim.path_to_cwd(twiss_path)
 
@@ -1179,29 +1256,15 @@ class _TwissArtist(_Artist):
             )
 
     def clear_figure(self):
-        """TODO: Docstring for clear_figure.
+        """Clears all figure layout and figure data.
 
-        Args:
-
-        Returns: TODO
+        Returns:
+            None
 
         """
         super().clear_figure()
         self.observation_filter(None)
         self._center_elem = None
-
-    @property
-    def figure(self):
-        """TODO: Docstring for figure.
-
-        Args:
-
-        Returns: TODO
-
-        """
-        fig = super().figure
-
-        return fig
 
 
 class _TrackArtist(_TwissArtist):
@@ -1212,12 +1275,16 @@ class _TrackArtist(_TwissArtist):
         super().__init__(*args, **kwargs)
 
     def orbit_excursion(self, axis: str = "r", **kwargs):
-        """TODO: Docstring for orbit_excursion.
+        """Draws orbit excursion plot.
 
-        Args:
-            axis: TODO
+        Note:
+            Kwargs will be passed into the plotly data dictionary.
 
-        Returns: TODO
+        Kwargs:
+            axis: Which axis to draw. Can be either 'x', 'y' or 'r' for radial.
+
+        Returns:
+            None
 
         """
         track = self._apply_observation_filter(self._parent.track_df.copy())
@@ -1228,12 +1295,17 @@ class _TrackArtist(_TwissArtist):
         self.add_data(**kwargs, x=x_data, y=y_data)
 
     def loss_histogram(self, mode: str = "stacked", by_group: bool = True, **kwargs):
-        """TODO: Docstring for loss_histogram.
+        """Draws loss histogram plot.
 
-        Args:
-        function (TODO): TODO
+        Note:
+            Kwargs will be passed into the plotly data dictionary.
 
-        Returns: TODO
+        Kwargs:
+            mode: Which mode to use. The available modes are: 'parallel', 'stacked' and 'longitudinal'.
+            by_group: Whether the elements should be grouped or not.
+
+        Returns:
+            None
 
         """
         loss = self._parent.loss_df
@@ -1303,17 +1375,24 @@ class _TrackArtist(_TwissArtist):
 
     def boxplot_envelope(
         self,
-        twiss_path: str,
         element: str,
         normalize: bool = False,
+        twiss_path: Optional[str] = None,
         reference: Optional[pd.DataFrame] = None,
         **kwargs,
     ):
-        """TODO: Docstring for boxplot_envelope.
+        """Draws boxplot/envelope plot.
+
+        Note:
+            Kwargs will be passed into the plotly data dictionary.
 
         Args:
-            twiss_path (TODO): TODO
-            element (TODO): TODO
+            element: Which element to draw the plot for.
+
+        Kwargs:
+            normalize: Whether the plot should be normalized in terms of beam sigma.
+            twiss_path: Path to the thick twiss parquet file. If this is not specified, it will be assumed to be in the output directory.
+            reference: Allows to overwrite the reference for normalization.
 
         Returns:
             str: Returns either 'Vertical' or 'Horizontal' depending on which axis has the larger aperture.
@@ -1326,6 +1405,9 @@ class _TrackArtist(_TwissArtist):
                     self._parent.twiss_df["turn"] == min(turns)
                 ]
             ref = reference.loc[element]
+
+        if twiss_path is None:
+            twiss_path = FailSim.path_to_output("twiss_pre_thin_lhcb1.parquet")
 
         twiss_thick = pd.read_parquet(twiss_path)
 
