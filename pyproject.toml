@@ -11,7 +11,7 @@ pandas = "^1.2.3"
 cpymad = "^1.7.0"
 pyarrow = "^3.0.0"
 PyYAML = "^5.4.1"
-pymask = { path = "../lhcmask", develop = true }
+pymask = { path = "data/pymask", develop = true }
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.812"

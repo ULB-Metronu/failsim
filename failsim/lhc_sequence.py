@@ -143,7 +143,7 @@ class LHCSequence:
         Note:
             The dictionary is set up in such a way, that each module has 3 aliases with which the values of the given module can be accessed with. For example, the module submodule_01a_preparation.madx can be accessed with the module number "01a", the module number and name "01a_preparation" or the entire module filename "submodule_01a_preparation.madx".
         """
-        module_dir = pkg_resources.resource_filename(__name__, "data/lhcmask_failsim")
+        module_dir = pkg_resources.resource_filename(__name__, "data/pymask")
         modules = glob.glob(os.path.join(module_dir, "*.madx"))
 
         # Regex to get module number and name
@@ -346,7 +346,7 @@ class LHCSequence:
 
     @classmethod
     def get_modules(cls):
-        module_dir = pkg_resources.resource_filename(__name__, "data/lhcmask_failsim")
+        module_dir = pkg_resources.resource_filename(__name__, "data/pymask")
         modules = glob.glob(os.path.join(module_dir, "*.madx"))
         return [os.path.basename(x) for x in modules]
 

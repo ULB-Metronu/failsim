@@ -257,7 +257,7 @@ class FailSim:
 
         """
         path = pkg_resources.resource_filename(
-            __name__, "data/lhcmask_failsim/" + module
+            __name__, "data/pymask/" + module
         )
         self.mad_call_file(path)
 
