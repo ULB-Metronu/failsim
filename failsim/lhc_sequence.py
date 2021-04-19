@@ -5,9 +5,9 @@ Module containing the class LHCSequence.
 from __future__ import annotations
 
 from .failsim import FailSim
-from ._checks import OpticsChecks
+from .checks import OpticsChecks
 from .sequence_tracker import SequenceTracker
-from ._helpers import print_info
+from .helpers import print_info
 from .globals import FailSimGlobals
 from .results import TwissResult
 
@@ -22,9 +22,6 @@ import os
 import glob
 import re
 import copy
-
-
-## ===== Decorators ===== ##
 
 
 def reset_state(build: bool, check: bool):
@@ -52,9 +49,6 @@ def ensure_build(func):
         return val
 
     return wrapper_ensure_build
-
-
-## ====================== ##
 
 
 class LHCSequence:

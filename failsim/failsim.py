@@ -3,7 +3,7 @@ Contains the class FailSim.
 """
 
 
-from ._helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
+from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
 from .globals import FailSimGlobals
 
 from typing import Optional, List, Union

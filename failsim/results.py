@@ -5,7 +5,7 @@ Module containing classes that contain and handle data.
 
 from __future__ import annotations
 
-from ._artist import _Artist
+from .artist import _Artist
 from .failsim import FailSim
 
 from typing import Optional, List, Union, Dict, Tuple, Callable, Type, TYPE_CHECKING

@@ -4,7 +4,7 @@ Module containing the class SequenceTracker
 
 from .failsim import FailSim
 from .results import TrackingResult, TwissResult
-from ._helpers import print_info
+from .helpers import print_info
 from .globals import FailSimGlobals
 
 from typing import List, Optional, Tuple
@@ -158,7 +158,8 @@ class SequenceTracker:
                 time_depen.append(f"call, file='tmp_{idx}.txt';")
 
             # Create tr$macro
-            self._track_flags.append("update", "onepass")
+            self._track_flags.append("onepass")
+            self._track_flags.append("update")
             time_depen = " ".join(time_depen)
             self._failsim.mad_input(
                 f"tr$macro(turn): macro = {{comp=turn; {time_depen} }}"
