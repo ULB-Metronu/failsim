@@ -1,5 +1,5 @@
 """
-Module containing the class SequenceTracker
+Module containing the class Tracker
 """
 
 from .failsim import FailSim
@@ -15,7 +15,7 @@ import gc
 import re
 
 
-class SequenceTracker:
+class Tracker:
 
     """
     This class handles tracking of particles.
@@ -26,7 +26,7 @@ class SequenceTracker:
     Args:
         failsim: The FailSim instance to use.
         sequence_to_track: The sequence to track.
-        verbose: Whether SequenceTracker should output a message each time a method is called.
+        verbose: Whether Tracker should output a message each time a method is called.
 
     """
 
@@ -42,7 +42,7 @@ class SequenceTracker:
 
         self._particles = None
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def twiss(self, turns: Optional[int] = None):
         """
         Does Twiss with current sequence.
@@ -120,7 +120,7 @@ class SequenceTracker:
 
         return TwissResult(twiss_df, summ_df, run_version, hllhc_version, eps_n, nrj)
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def track(self, turns: int = 40):
         """
         Does a tracking simulation using the current setup.
@@ -225,7 +225,7 @@ class SequenceTracker:
 
         return res
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def save_values(self, regex: str):
         """Saves values for all elements matching given regex in a dictionary.
 
@@ -241,7 +241,7 @@ class SequenceTracker:
         el_vars = {x: mad_vars[x] for x in mad_vars.keys() if len(reg.findall(x)) != 0}
         return el_vars
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def restore_values(self, val_dict: dict):
         """Restores values from a dictionary created from a previous call to save_values.
 
@@ -249,13 +249,13 @@ class SequenceTracker:
             val_dict: Dictionary containing saved values.
 
         Returns:
-            SequenceTracker: Returns self
+            Tracker: Returns self
 
         """
         for var, val in val_dict.items():
             self._failsim.mad_input(f"{var} = {val}")
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def set_particles(
         self, particles: List[Tuple[float, float, float, float, float, float]]
     ):
@@ -268,7 +268,7 @@ class SequenceTracker:
         """
         self._particles = particles
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def set_track_flags(self, flags: List[str]):
         """
         Method for adding additional flags to the Mad-X *track* command.
@@ -277,27 +277,27 @@ class SequenceTracker:
             flags: List of flags to add.
 
         Returns:
-            SequenceTracker: Returns self
+            Tracker: Returns self
 
         """
         self._track_flags = flags
 
         return self
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def clear_time_dependence(self):
         """
         Clears the list of time dependence files.
 
         Returns:
-            SequenceTracker: Returns self
+            Tracker: Returns self
 
         """
         self._time_dependencies = set()
 
         return self
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def set_time_dependence(self, file_paths: List[str]):
         """
         Sets a list of files to be called on each iteration of the track.
@@ -306,7 +306,7 @@ class SequenceTracker:
             file_paths: List of files to call each iteration. Paths can be either absolute or relative.
 
         Returns:
-            SequenceTracker: Returns self
+            Tracker: Returns self
 
         """
         self._time_dependencies = []
@@ -317,7 +317,7 @@ class SequenceTracker:
 
         return self
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def set_observation_points(self, points: List[str]):
         """
         Adds observation points to the track.
@@ -326,14 +326,14 @@ class SequenceTracker:
             points: List of element names to observe during tracking.
 
         Returns:
-            SequenceTracker: Returns self
+            Tracker: Returns self
 
         """
         self._observation_points = points
 
         return self
 
-    @print_info("SequenceTracker")
+    @print_info("Tracker")
     def add_mask_keys(
         self,
         keys: Optional[List[str]] = None,
@@ -369,7 +369,7 @@ class SequenceTracker:
             values: List of values.
 
         Returns:
-            SequenceTracker: Returns self
+            Tracker: Returns self
 
         """
         if keys and values:

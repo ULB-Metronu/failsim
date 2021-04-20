@@ -1,11 +1,6 @@
 """
 Contains the class FailSim.
 """
-
-
-from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
-from .globals import FailSimGlobals
-
 from typing import Optional, List, Union
 import numpy as np
 import pymask as pm
@@ -17,12 +12,15 @@ import io
 import copy
 
 
+from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
+from .globals import FailSimGlobals
+
 class FailSim:
     """
-    This class is the interface to the Mad-X instance.
+    This class is the interface to the Mad-X instance in `cpymad`.
 
     Note:
-        The output directory and the cwd can also be set globally by setting the static variables output_dir and cwd in the FailSimGlobals class.
+        The output directory and the cwd can also be set globally by setting the static variables `output_dir` and `cwd` in the FailSimGlobals class.
         If an output directory or cwd are specified in the constructor, the ones specified in the constructor will take priority.
 
     Args:

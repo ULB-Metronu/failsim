@@ -1,27 +1,20 @@
 """
 Module containing classes that contain and handle data.
 """
-
-
 from __future__ import annotations
-
-from .artist import _Artist
-from .failsim import FailSim
-
 from typing import Optional, List, Union, Dict, Tuple, Callable, Type, TYPE_CHECKING
+import os
+import re
+import os
+import re
 from dataclasses import dataclass
-
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-
-import os
-import re
-
-# Type checking imports
+from .artist import _Artist
+from .failsim import FailSim
 if TYPE_CHECKING:
     from .sequence import CollimatorHandler
-
 
 @dataclass
 class Result:
@@ -282,7 +275,7 @@ class TrackingResult(Result):
         """Appends twiss and tracking data in other to this instance.
 
         Note:
-            If the "recloss" flag was given to the SequenceTracker instance, and losses were recorded, this will also append the loss dataframes.
+            If the "recloss" flag was given to the Tracker instance, and losses were recorded, this will also append the loss dataframes.
 
         Args:
             other: TrackingResult object to append to this instance.

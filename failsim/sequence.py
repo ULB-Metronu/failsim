@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from .failsim import FailSim
 from .checks import OpticsChecks
-from .sequence_tracker import SequenceTracker
+from .tracker import Tracker
 from .helpers import print_info
 from .globals import FailSimGlobals
 from .results import TwissResult
@@ -877,17 +877,17 @@ class LHCSequence:
     @ensure_build
     @print_info("LHCSequence")
     def build_tracker(self, verbose: bool = False):
-        """Builds a SequenceTracker instance.
+        """Builds a Tracker instance.
 
         Args:
-            verbose: Whether the generated SequenceTracker object should be verbose or not.
+            verbose: Whether the generated Tracker object should be verbose or not.
 
         Returns:
-            SequenceTracker: A SequenceTracker instance containing this sequence.
+            Tracker: A Tracker instance containing this sequence.
 
         """
         new_fs = self._failsim.duplicate()
-        tracker = SequenceTracker(
+        tracker = Tracker(
             new_fs,
             copy.copy(self._mode_configuration["sequence_to_track"]),
             verbose=verbose,

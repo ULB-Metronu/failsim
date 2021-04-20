@@ -12,7 +12,6 @@ import logging
 
 
 class OpticsChecks:
-
     """
     Class for handling tolerance checks of sequences.
 

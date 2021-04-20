@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "failsim"
-version = "0.1.0"
+version = "2021.1"
 description = "LHC fast failure simulation toolkit"
 authors = ["Cédric Hernalsteens <cedric.hernalsteens@cern.ch>", "Oskari Tuormaa"]
 

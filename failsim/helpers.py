@@ -1,10 +1,6 @@
-
-
 """
-This module contains classes for miscellaneous tasks that don't fit in anywhere else.
+This module contains classes for miscellaneous tasks.
 """
-
-
 from .globals import FailSimGlobals
 from typing import ByteString, Callable, List, Optional
 import functools
@@ -15,7 +11,6 @@ import numpy as np
 
 
 class OutputSuppressor:
-
     """Can be used to intercept output to stdout, and only prints if not enabled.
 
     Is used by FailSim to suppress Mad-X output.
@@ -71,7 +66,6 @@ class OutputSuppressor:
 
 
 class ArrayFile:
-
     """Array that behaves like a file.
 
     Is used by FailSim to keep track of commands sent to Mad-X.

@@ -1,13 +1,11 @@
 """
 Contains global settings.
 """
-
 from dataclasses import dataclass
 
 
 @dataclass
 class FailSimGlobals:
-
     """
     Static dataclass that holds global variables.
 
