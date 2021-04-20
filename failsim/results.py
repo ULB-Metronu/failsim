@@ -20,7 +20,7 @@ import re
 
 # Type checking imports
 if TYPE_CHECKING:
-    from .lhc_sequence import CollimatorHandler
+    from .sequence import CollimatorHandler
 
 
 @dataclass

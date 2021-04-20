@@ -4,9 +4,9 @@
 [submodule "failsim/data/acc-models-lhc"]
 	path = failsim/data/acc-models-lhc
 	url = https://gitlab.cern.ch/acc-models/acc-models-lhc.git
-[submodule "failsim/data/pymask"]
-	path = failsim/data/pymask
-	url = ssh://git@gitlab.cern.ch:7999/machine-protection/libs/pymask.git
 [submodule "failsim/data/lhc2015"]
 	path = failsim/data/lhc2015
 	url = https://github.com/lhcopt/lhc2015
+[submodule "failsim/data/pymask"]
+    path = failsim/data/pymask
+    url = ssh://git@gitlab.cern.ch:7999/machine-protection/libs/pymask.git
