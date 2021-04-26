@@ -18,12 +18,6 @@ pymask = { path = "failsim/data/pymask", develop = true }
 mypy = "^0.812"
 jupyter = "^1.0.0"
 jupyterlab = "^3.0.12"
-sphinx = "^3.5.4"
-sphinx-material = { git = "https://github.com/bashtage/sphinx-material.git" }
-sphinx-automodapi = "^0.13"
-m2r2 = "^0.2.7"
-pandoc = "^1.0.2"
-nbsphinx = "^0.8.2"
 pytest = "^6.2.2"
 pytest-bdd = "^4.0.2"
 

@@ -3,25 +3,23 @@ Module containing the class LHCSequence.
 """
 
 from __future__ import annotations
-
+from typing import Optional, List, Union, Dict, Callable, Tuple
+import copy
+import re
+import os
+import glob
+import functools
+import pkg_resources
+import yaml
+import numpy as np
+import pandas as pd
+import pymask as pm
 from .failsim import FailSim
 from .checks import OpticsChecks
 from .tracker import Tracker
 from .helpers import print_info
 from .globals import FailSimGlobals
 from .results import TwissResult
-
-from typing import Optional, List, Union, Dict, Callable, Tuple
-import pymask as pm
-import numpy as np
-import pandas as pd
-import functools
-import pkg_resources
-import yaml
-import os
-import glob
-import re
-import copy
 
 
 def reset_state(build: bool, check: bool):
@@ -968,6 +966,14 @@ class LHCSequence:
         return self
 
 
+class HLLHCSequence(LHCSequence):
+    def __init__(self, *args, **kwargs):
+        if kwargs.get("sequence_key") and kwargs["sequence_key"] != "HLLHCV1.4":
+            raise Exception("Invalid sequence key")
+        kwargs.update(sequence_key="HLLHCV1.4")
+        super().__init__(*args, **kwargs)
+
+
 class CollimatorHandler:
 
     """Class for loading collimation settings files, and converting collimator settings from beam sigma to mm."""
@@ -1056,11 +1062,3 @@ class CollimatorHandler:
         res["half_gap"] = gap
 
         return res
-
-
-class HLLHCSequence(LHCSequence):
-    def __init__(self, *args, **kwargs):
-        if kwargs.get("sequence_key") and kwargs["sequence_key"] != "HLLHCV1.4":
-            raise Exception("Invalid sequence key")
-        kwargs.update(sequence_key="HLLHCV1.4")
-        super().__init__(*args, **kwargs)
