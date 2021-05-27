@@ -12,7 +12,7 @@ cpymad = "^1.7.0"
 pyarrow = "^3.0.0"
 PyYAML = "^5.4.1"
 
-pymask = { path = "failsim/data/pymask", develop = true }
+pymask = { path = "failsim/data/pymask/", develop = true }
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.812"
