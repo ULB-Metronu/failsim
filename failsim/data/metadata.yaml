@@ -4,7 +4,7 @@ HLLHCV1.5:
   version: 1.5
   collimation_base_path: data/collimation
   collimation:
-    HLV1.3_7TEV_2.5_B1: collgaps_HLv1p3_7TeV_2p5_B1.dat
+    HLV1.5_7TEV_2.5_B1: collgaps_HLv1p5_7TeV_2p5_B1.dat
   optics_base_path: data/hllhc15/
   optics:
     HL_THIN_COL_ROUND_150_1500:
@@ -17,7 +17,7 @@ HLLHCV1.4:
   version: 1.4
   collimation_base_path: data/collimation
   collimation:
-    HLV1.3_7TEV_2.5_B1: collgaps_HLv1p3_7TeV_2p5_B1.dat
+    HLV1.4_7TEV_2.5_B1: collgaps_HLv1p4_7TeV_2p5_B1.dat
   optics_base_path: data/hllhc14/
   optics:
     HL_INJ:
