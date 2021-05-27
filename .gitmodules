@@ -7,3 +7,6 @@
 [submodule "failsim/data/pymask"]
     path = failsim/data/pymask
     url = https://gitlab.cern.ch/machine-protection/libs/pymask.git
+[submodule "failsim/data/hllhc15"]
+	path = failsim/data/hllhc15
+	url = https://github.com/lhcopt/hllhc15.git

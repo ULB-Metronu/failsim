@@ -1,6 +1,7 @@
 """
 Contains the class FailSim.
 """
+from __future__ import annotations
 from typing import Optional, List, Union
 import numpy as np
 import pymask as pm
@@ -193,7 +194,7 @@ class FailSim:
         return self
 
     @print_info("FailSim")
-    def duplicate(self):
+    def duplicate(self) -> FailSim:
         """Duplicates the FailSim instance.
 
         Returns:
