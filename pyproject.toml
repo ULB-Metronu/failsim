@@ -5,7 +5,7 @@ description = "LHC fast failure simulation toolkit"
 authors = ["Cédric Hernalsteens <cedric.hernalsteens@cern.ch>", "Oskari Tuormaa"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = ">=3.8, <3.10"
 numpy = "^1.20.2"
 pandas = "^1.2.3"
 cpymad = "^1.7.0"
