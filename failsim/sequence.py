@@ -689,6 +689,7 @@ class LHCSequence:
             self._failsim.mad_call_file(ff)
 
         if thick:
+            self._failsim.mad_input(f"use, sequence=lhcb1;")
             self._built = True
             return self
 
