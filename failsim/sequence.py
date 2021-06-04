@@ -250,7 +250,7 @@ class LHCSequence:
         ):
             mask_parameters["par_on_bb_switch"] = 0.0
 
-        pm.checks_on_parameter_dict(mask_parameters)
+        #pm.checks_on_parameter_dict(mask_parameters)
 
         self._failsim._mad.set_variables_from_dict(params=mask_parameters)
 
@@ -602,7 +602,7 @@ class LHCSequence:
         return self
 
     @print_info("LHCSequence")
-    def build(self):
+    def build(self, thick=False):
         """Does the build of the sequence.
 
         Note:
@@ -687,6 +687,10 @@ class LHCSequence:
 
         for ff in self._pre_thin_scripts:
             self._failsim.mad_call_file(ff)
+
+        if thick:
+            self._built = True
+            return self
 
         for ss in self._mode_configuration["sequences_to_check"]:
             twiss_df, _ = self._failsim.twiss_and_summ(ss)
