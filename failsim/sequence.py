@@ -50,9 +50,8 @@ def ensure_build(func):
 
 
 class LHCSequence:
-
     """
-    Class for handling a Mad-X sequence.
+    Class for handling a MAD-X sequence.
     This class is used to setup and alter a sequence, after which build_tracker can be called to freeze the sequence.
 
     Args:
@@ -107,6 +106,8 @@ class LHCSequence:
         self._custom_optics = None
         self._optics_key = None
         self._optics_path = None
+        self._apertures = None
+        self._thin_apertures = None
         self._custom_collimation = None
         self.collimation = None
         self._collimation_key = None
@@ -612,6 +613,36 @@ class LHCSequence:
 
         return self
 
+    @reset_state(True, True)
+    @print_info("LHCSequence")
+    def add_apertures(self):
+        """Add the aperture definitions.
+
+        The LHC reference aperture files are first loaded, and the sequence specific aperture files are then called.
+
+        :return:
+            LHCSequence: Returns self.
+        """
+        self._apertures = [
+            pkg_resources.resource_filename(__name__, "data/aperture/aperture.b1.madx"),
+            pkg_resources.resource_filename(__name__, "data/aperture/aperture.b2.madx"),
+            pkg_resources.resource_filename(__name__, "data/aperture/aper_tol.b1.madx"),
+            pkg_resources.resource_filename(__name__, "data/aperture/aper_tol.b2.madx"),
+        ]
+        for file in self._metadata[self._sequence_key]["aperture_files"]:
+            self._apertures.append(
+                pkg_resources.resource_filename(
+                    __name__, self._metadata[self._sequence_key]["optics_base_path"] + file
+                )
+            )
+        self._thin_apertures = []
+        for file in self._metadata[self._sequence_key]["thin_aperture_files"]:
+            self._thin_apertures.append(
+                pkg_resources.resource_filename(
+                    __name__, self._metadata[self._sequence_key]["optics_base_path"] + file
+                )
+            )
+
     @print_info("LHCSequence")
     def build(self, thick: bool = False):
         """Does the build of the sequence.
@@ -685,11 +716,20 @@ class LHCSequence:
 
         for seq in self._sequence_paths:
             self._failsim.mad_call_file(seq)
+
+        if self._apertures is not None:
+            for file in self._apertures:
+                self._failsim.mad_call_file(file)
+
         if not thick:
             for ff in self._pre_thin_scripts:
                 self._failsim.mad_call_file(ff)
             self._failsim.make_thin()
         self._failsim.mad_call_file(self._optics_path)
+
+        if self._thin_apertures is not None:
+            for file in self._thin_apertures:
+                self._failsim.mad_call_file(file)
 
         self._failsim.mad_input(
             f"mylhcbeam = {self._mode_configuration['beam_to_configure']}"

@@ -4,6 +4,12 @@ HLLHCV1.5:
   version: 1.5
   macros:
     - toolkit/macro.madx
+  aperture_files:
+    - aperture/const_for_aperture.madx
+    - aperture/aperture_upgrade_IT.madx
+    - aperture/aperture_upgrade_MS.madx
+    - aperture/exp_pipe_model_after_LS3.madx
+    - aperture/exp_pipe_install_after_LS3.madx
   collimation_base_path: data/collimation
   collimation:
     HLV1.5_7TEV_2.5_B1: collgaps_HLv1p5_7TeV_2p5_B1.dat
@@ -19,6 +25,13 @@ HLLHCV1.4:
   version: 1.4
   macros:
     - toolkit/macro.madx
+  aperture_files:
+    - aperture/const_for_aperture.madx
+    - aperture/aperture_upgrade_IT.madx
+    - aperture/aperture_upgrade_MS.madx
+  thin_aperture_files:
+    - aperture/exp_pipe_model_after_LS3.madx
+    - aperture/exp_pipe_install_after_LS3.madx
   collimation_base_path: data/collimation
   collimation:
     HLV1.4_7TEV_2.5_B1: collgaps_HLv1p4_7TeV_2p5_B1.dat
