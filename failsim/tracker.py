@@ -193,7 +193,8 @@ class Tracker:
 
         self._failsim.mad_input(f"run, turns={turns}")
         self._failsim.mad_input("endtrack")
-        self._failsim.mad_input("exec tr$macro(0);")
+        if len(self._time_dependencies) != 0:
+            self._failsim.mad_input("exec tr$macro(0);")
 
         track_df = self._failsim._mad.table["trackone"].dframe()
 
