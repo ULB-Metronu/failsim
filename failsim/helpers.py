@@ -111,6 +111,7 @@ class ArrayFile:
         """
         temp = ArrayFile()
         temp._lines = self._lines.copy()
+        print(temp._lines)
         return temp
 
 

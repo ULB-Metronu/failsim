@@ -29,10 +29,9 @@ class FailSim:
         cwd: Sets the desired cwd. If cwd is None, FailSim uses os.getcwd() to set the cwd.
         madx_verbosity: Sets the verbosity of Mad-X. If this parameter is "mute", FailSim will use OutputSuppressor to completely mute Mad-X output.
         failsim_verbosity: Enables or disables stdout output from FailSim.
-        extra_macro_files: An optional list of .madx files that should be called when Mad-X is initialized.
-        command_log: If command_log is not None, FailSim will input each of the commands in the log into the initialized Mad-X instance.
+        macro_files: An optional list of .madx files that should be called when MAD-X is initialized.
+        command_log: If command_log is not None, FailSim will input each of the commands in the log into the initialized MAD-X instance.
         log_file: If a path to a file is given, all MAD-X commands will be logged in given file.
-
     """
 
     cwd: str = os.getcwd()
@@ -44,19 +43,14 @@ class FailSim:
         cwd: Optional[str] = None,
         madx_verbosity: str = "mute",
         failsim_verbosity: bool = False,
-        extra_macro_files: Optional[List[str]] = None,
+        macro_files: Optional[List[str]] = None,
         command_log: Optional[ArrayFile] = None,
         log_file: Optional[str] = None,
     ):
         self._madx_verbosity = madx_verbosity
-        self._extra_macro_files = extra_macro_files
+        self._macro_files = macro_files
         self._verbose = failsim_verbosity
         self._mad = None
-
-        if command_log is None:
-            self._command_log = ArrayFile()
-        else:
-            self._command_log = command_log
 
         # Setup cwd
         if cwd is None:
@@ -94,16 +88,12 @@ class FailSim:
         else:
             self._madx_mute = OutputSuppressor(False, log_file=log_file)
 
-        self.initialize_mad()
-        self.load_macros()
+        self._command_log = ArrayFile()
+        self.initialize_mad(replay_log=command_log)
 
-        if extra_macro_files is not None:
+        if macro_files is not None:
             for file in extra_macro_files:
                 self.mad_call_file(file)
-
-        if command_log is not None:
-            for command in command_log.copy().read():
-                self.mad_input(command)
 
     @property
     def mad(self):
@@ -111,7 +101,7 @@ class FailSim:
         return self._mad
 
     @print_info("FailSim")
-    def initialize_mad(self):
+    def initialize_mad(self, replay_log: Optional[ArrayFile] = None):
         """Initializes the Mad-X instance.
         Also sets the cwd and verbosity of the instance.
 
@@ -121,8 +111,13 @@ class FailSim:
         """
         self._mad = pm.Madxp(stdout=self._madx_mute, command_log=self._command_log)
         self.mad.chdir(self._cwd)
+        if replay_log is not None:
+            for command in replay_log.read():
+                if command.startswith("chdir"):
+                    continue
+                self.mad_input(command)
 
-        if self._madx_verbosity != "mute":
+        if self._madx_verbosity != "mute" and self._madx_verbosity != '':
             self.mad_input("option, " + self._madx_verbosity)
 
         return self
@@ -139,21 +134,6 @@ class FailSim:
 
         """
         self._madx_mute.set_enabled(is_muted)
-
-        return self
-
-    @print_info("FailSim")
-    def load_macros(self):
-        """Loads macro.madx into the Mad-X instance.
-
-        Returns:
-            FailSim: Returns self
-
-        """
-        macro_path = pkg_resources.resource_filename(
-            __name__, "data/hllhc14/toolkit/macro.madx"
-        )
-        self.mad_call_file(macro_path)
 
         return self
 
@@ -263,32 +243,17 @@ class FailSim:
         return self
 
     @print_info("FailSim")
-    def make_thin(self, beam: str):
+    def make_thin(self):
         """Makes the given sequence thin using the `myslice` macro.
 
         Args:
-            beam: The lhc beam to make thin. Can be either 1, 2 or 4.
+            sequence: The sequence that must be converted to a thin sequence.
 
         Returns:
             FailSim: Returns self
 
         """
-        self.use(f"lhcb{beam}")
-
-        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
-        pre_len = summ_df["length"][0]
-
-        self.mad_input(f"use, sequence=lhcb{beam}; exec myslice")
-
-        twiss_df, summ_df = self.twiss_and_summ(f"lhcb{beam}")
-        post_len = summ_df["length"][0]
-
-        assert abs(post_len - pre_len) < 0.001, (
-            "Length of sequence changed by makethin\n\t"
-            f"Length pre: {pre_len}\n\t"
-            f"Length post: {post_len}\n\t"
-        )
-
+        self.mad_input(f"exec myslice")
         return self
 
     @classmethod

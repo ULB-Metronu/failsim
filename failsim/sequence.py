@@ -81,6 +81,8 @@ class LHCSequence:
         tolerances_separation: List[float] = [1e-6, 1e-6, 1e-6, 1e-6],
         failsim: Optional[FailSim] = None,
         verbose: bool = False,
+        failsim_verbose: bool = False,
+        madx_verbose: bool = False,
         input_param_path: Optional[str] = None,
     ):
         self._beam_mode = beam_mode
@@ -116,15 +118,17 @@ class LHCSequence:
         self._built = False
         self._checked = False
 
-        self._load_metadata()
+        self._metadata = self.get_metadata()
         self._init_check()
         self._get_mode_configuration()
         self._initialize_mask_dictionary()
 
-        if failsim is None:
-            self._failsim = FailSim()
+        self._failsim = failsim
+        self._failsim_verbose = failsim_verbose
+        if madx_verbose:
+            self._madx_verbose = ''
         else:
-            self._failsim = failsim
+            self._madx_verbose = 'mute'
 
         if sequence_key is not None:
             self.select_sequence(sequence_key)
@@ -164,6 +168,12 @@ class LHCSequence:
         self._modules["01c_phase"]["enabled"] = True
         self._modules["01d_crossing"]["enabled"] = True
         self._modules["01e_final"]["enabled"] = True
+        self._modules["05a_MO"]["enabled"] = True
+        self._modules["05b_coupling"]["enabled"] = False
+        self._modules["05c_limit"]["enabled"] = True
+        self._modules["05d_matching"]["enabled"] = True
+        self._modules["05e_corrvalue"]["enabled"] = True
+        self._modules["05f_final"]["enabled"] = True
 
     def _get_mode_configuration(self):
         """Loads the mode configuration.
@@ -250,9 +260,7 @@ class LHCSequence:
         ):
             mask_parameters["par_on_bb_switch"] = 0.0
 
-        #pm.checks_on_parameter_dict(mask_parameters)
-
-        self._failsim._mad.set_variables_from_dict(params=mask_parameters)
+        self._failsim.mad.set_variables_from_dict(params=mask_parameters)
 
         return self
 
@@ -275,7 +283,7 @@ class LHCSequence:
             knob_parameters["par_sep8"] = -0.03425547139366354
             knob_parameters["par_sep2"] = 0.14471680504084292
 
-        self._failsim._mad.set_variables_from_dict(params=knob_parameters)
+        self._failsim.mad.set_variables_from_dict(params=knob_parameters)
 
         # Set IP knobs
         self._failsim._mad.globals["on_x1"] = knob_parameters["par_x1"]
@@ -325,8 +333,17 @@ class LHCSequence:
 
         """
         if self._modules[module]["enabled"] and not self._modules[module]["called"]:
-            self.call_pymask_module(os.path.basename(self._modules[module]["path"]))
-            self._modules[module]["called"] = True
+            if module == 'submodule_05c_limit.madx':
+                self.call_file(pkg_resources.resource_filename(
+                    __name__, self._metadata[self._sequence_key]["optics_base_path"] + "errors/corr_limit.madx")
+                )
+            elif module == 'submodule_05e_corrvalue.madx':
+                self.call_file(pkg_resources.resource_filename(
+                    __name__, self._metadata[self._sequence_key]["optics_base_path"] + "errors/corr_value_limit.madx")
+                )
+            else:
+                self.call_pymask_module(os.path.basename(self._modules[module]["path"]))
+                self._modules[module]["called"] = True
 
     @classmethod
     def get_metadata(cls):
@@ -341,6 +358,10 @@ class LHCSequence:
     @classmethod
     def get_optics(cls, sequence_key):
         return list(cls.get_metadata()[sequence_key]["optics"].keys())
+
+    @classmethod
+    def get_collimations(cls, sequence_key):
+        return list(cls.get_metadata()[sequence_key]['collimation'].keys())
 
     @classmethod
     def get_modules(cls):
@@ -368,16 +389,6 @@ class LHCSequence:
         return CollimatorHandler(
             pkg_resources.resource_filename(__name__, settings_path)
         )
-
-    def _load_metadata(self):
-        """Loads the metadata.yaml file.
-
-        Returns:
-            LHCSequence: Returns self
-
-        """
-        self._metadata = self.get_metadata()
-        return self
 
     @print_info("LHCSequence")
     def _load_and_set_collimators(self):
@@ -602,7 +613,7 @@ class LHCSequence:
         return self
 
     @print_info("LHCSequence")
-    def build(self, thick=False):
+    def build(self, thick: bool = False):
         """Does the build of the sequence.
 
         Note:
@@ -629,8 +640,18 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
+        if self._failsim is None:
+            self._failsim = FailSim(failsim_verbosity=self._failsim_verbose, madx_verbosity=self._madx_verbose)
+
+        sequence_data = self._metadata[self._sequence_key]
+        for macro in sequence_data['macros']:
+            self._failsim.mad_call_file(
+                pkg_resources.resource_filename(
+                __name__, sequence_data["optics_base_path"] + macro
+                )
+            )
+
         if not self._custom_sequence:
-            sequence_data = self._metadata[self._sequence_key]
             self._run_version = sequence_data["run"]
             self._hllhc_version = sequence_data["version"]
             self._optics_base_path = sequence_data["optics_base_path"]
@@ -664,6 +685,10 @@ class LHCSequence:
 
         for seq in self._sequence_paths:
             self._failsim.mad_call_file(seq)
+        if not thick:
+            for ff in self._pre_thin_scripts:
+                self._failsim.mad_call_file(ff)
+            self._failsim.make_thin()
         self._failsim.mad_call_file(self._optics_path)
 
         self._failsim.mad_input(
@@ -685,14 +710,6 @@ class LHCSequence:
                     f"seqedit, sequence={seq}; flatten; cycle, start={self._cycle['target']}; flatten; endedit"
                 )
 
-        for ff in self._pre_thin_scripts:
-            self._failsim.mad_call_file(ff)
-
-        if thick:
-            self._failsim.mad_input(f"use, sequence=lhcb1;")
-            self._built = True
-            return self
-
         for ss in self._mode_configuration["sequences_to_check"]:
             twiss_df, _ = self._failsim.twiss_and_summ(ss)
             self._twiss_pre_thin_paths[ss] = FailSim.path_to_output(
@@ -704,8 +721,6 @@ class LHCSequence:
             survey_df.to_parquet(
                 FailSim.path_to_output(f"survey_pre_thin_{ss}.parquet")
             )
-
-        self._failsim.make_thin(self._mode_configuration["sequence_to_track"][-1])
 
         self._load_knob_parameters(input_parameters["knob_parameters"])
 
@@ -772,7 +787,6 @@ class LHCSequence:
 
         """
         self._failsim.call_pymask_module(module)
-
         return self
 
     @reset_state(True, True)
@@ -789,7 +803,6 @@ class LHCSequence:
 
         """
         self._cycle = dict(target=target, sequences=sequences)
-
         return self
 
     @reset_state(True, True)
@@ -814,14 +827,13 @@ class LHCSequence:
     @reset_state(False, True)
     @print_info("LHCSequence")
     def crossing_save(self):
-        """Saves the current crossing settings in internal Mad-X variables.
+        """Saves the current crossing settings in internal MAD-X variables.
 
         Returns:
             LHCSequence: Returns self
 
         """
         self._failsim.mad_input("exec, crossing_save")
-
         return self
 
     @reset_state(False, True)
@@ -841,7 +853,6 @@ class LHCSequence:
         """
         state = "restore" if crossing_on else "disable"
         self._failsim.mad_input(f"exec, crossing_{state}")
-
         return self
 
     @reset_state(False, True)
@@ -857,7 +868,6 @@ class LHCSequence:
 
         """
         self._failsim.mad_call_file(file_path)
-
         return self
 
     @reset_state(False, True)
@@ -874,12 +884,11 @@ class LHCSequence:
         """
         for file in file_paths:
             self.call_file(file)
-
         return self
 
     @ensure_build
     @print_info("LHCSequence")
-    def build_tracker(self, verbose: bool = False):
+    def build_tracker(self, detached: bool = True, verbose: bool = False):
         """Builds a Tracker instance.
 
         Args:
@@ -889,10 +898,13 @@ class LHCSequence:
             Tracker: A Tracker instance containing this sequence.
 
         """
-        new_fs = self._failsim.duplicate()
+        if detached:
+            fs = self._failsim.duplicate()
+        else:
+            fs = self._failsim
         tracker = Tracker(
-            new_fs,
-            copy.copy(self._mode_configuration["sequence_to_track"]),
+            fs,
+            self._mode_configuration["sequence_to_track"],
             verbose=verbose,
         )
         return tracker
