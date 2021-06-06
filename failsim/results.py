@@ -697,7 +697,7 @@ class _TwissArtist(_Artist):
             None
 
         """
-        for ss in [f"lhcb{i}" for i in range(1, 3)]:
+        for ss in [f"lhcb{i}" for i in range(1, 2+1)]:
             # Read twiss data
             if twiss_path is None:
                 twiss = pd.read_parquet(

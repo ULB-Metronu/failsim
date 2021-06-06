@@ -64,6 +64,8 @@ class LHCSequence:
         tolerances_seperation: The separation tolerances used by run_check. The values must correspond to: [IP1, IP2, IP5, IP8].
         failsim: The FailSim instance to use. If failsim is None, LHCSequence will initialize a default instance.
         verbose: Whether LHCSequence outputs a message each time a method is called.
+        failsim_verbose: Sets the verbosity of the FailSim instance.
+        madx_verbose: Sets the verbosity of MAD-X itself (false is equivalent to the 'mute' option in FailSim).
         input_param_path: Allows specification of the path to the input_parameters.yaml file. If no path is given, LHCSequence will assume that input_parameters.yaml is in the cwd.
 
     """
@@ -103,12 +105,10 @@ class LHCSequence:
         self._sequence_paths = None
         self._optics_base_path = None
         self._sequence_data = None
-        self._custom_optics = None
         self._optics_key = None
         self._optics_path = None
         self._apertures = None
         self._thin_apertures = None
-        self._custom_collimation = None
         self.collimation = None
         self._collimation_key = None
         self._collimation_path = None
@@ -120,7 +120,14 @@ class LHCSequence:
         self._checked = False
 
         self._metadata = self.get_metadata()
-        self._init_check()
+
+        self._check = OpticsChecks(
+            separation=self._check_separations_at_ips,
+            beta=self._check_betas_at_ips,
+            tol_sep=self._tolerances_separation,
+            tol_beta=self._tolerances_beta,
+        )
+
         self._get_mode_configuration()
         self._initialize_mask_dictionary()
 
@@ -170,11 +177,6 @@ class LHCSequence:
         self._modules["01d_crossing"]["enabled"] = True
         self._modules["01e_final"]["enabled"] = True
         self._modules["05a_MO"]["enabled"] = True
-        self._modules["05b_coupling"]["enabled"] = False
-        self._modules["05c_limit"]["enabled"] = True
-        self._modules["05d_matching"]["enabled"] = True
-        self._modules["05e_corrvalue"]["enabled"] = True
-        self._modules["05f_final"]["enabled"] = True
 
     def _get_mode_configuration(self):
         """Loads the mode configuration.
@@ -202,25 +204,6 @@ class LHCSequence:
         if self._mode_configuration["force_disable_check_separations_at_ips"]:
             self._check_separations_at_ips = False
             self._check.check_separations = False
-
-    def _init_check(self):
-        """Initializes the internal OpticsChecks instance.
-
-        Note:
-            This function is automatically called by the constructor and isn't meant to be called by the user.
-
-        Returns:
-            LHCSequence: Returns self
-
-        """
-        self._check = OpticsChecks(
-            separation=self._check_separations_at_ips,
-            beta=self._check_betas_at_ips,
-            tol_sep=self._tolerances_separation,
-            tol_beta=self._tolerances_beta,
-        )
-
-        return self
 
     def _load_input_parameters(self):
         """Loads input_parameters.yaml.
@@ -334,17 +317,17 @@ class LHCSequence:
 
         """
         if self._modules[module]["enabled"] and not self._modules[module]["called"]:
-            if module == 'submodule_05c_limit.madx':
+            if module == '05c_limit':  # Because that submodule calls a file with hardcoded path
                 self.call_file(pkg_resources.resource_filename(
                     __name__, self._metadata[self._sequence_key]["optics_base_path"] + "errors/corr_limit.madx")
                 )
-            elif module == 'submodule_05e_corrvalue.madx':
+            elif module == '05e_corrvalue':  # Because that submodule calls a file with hardcoded path
                 self.call_file(pkg_resources.resource_filename(
                     __name__, self._metadata[self._sequence_key]["optics_base_path"] + "errors/corr_value_limit.madx")
                 )
             else:
                 self.call_pymask_module(os.path.basename(self._modules[module]["path"]))
-                self._modules[module]["called"] = True
+            self._modules[module]["called"] = True
 
     @classmethod
     def get_metadata(cls):
@@ -413,23 +396,11 @@ class LHCSequence:
                 twiss_thick.at[row.name.lower(), "aper_2"] = gapv
 
             self._failsim.mad_input(
-                f"{row.name}, APERTYPE=RECTANGLE, APERTURE={{ {gaph}, {gapv} }}"
+                f"{row.name}, APERTYPE=RECTANGLE, APERTURE={{ {gaph}, 0.0 }}"
             )
         twiss_thick.to_parquet(
             self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
         )
-
-    def _call_remaining_modules(self):
-        """Calls all pymask modules that have been enabled, and that haven't been called yet.
-
-        Returns:
-            LHCSequence: Returns self.
-
-        """
-        modules = [x for x in self._modules if x.endswith(".madx")]
-        modules.sort()
-        for module in modules:
-            self._check_call_module(module)
 
     def _prepare_bb_dataframes(self):
         """ Prepares the beam-beam dataframes. """
@@ -671,112 +642,139 @@ class LHCSequence:
             LHCSequence: Returns self
 
         """
-        if self._failsim is None:
-            self._failsim = FailSim(failsim_verbosity=self._failsim_verbose, madx_verbosity=self._madx_verbose)
+        BUILD_INFO_MESSAGE = "LHCSequence - build"
 
-        sequence_data = self._metadata[self._sequence_key]
-        for macro in sequence_data['macros']:
-            self._failsim.mad_call_file(
-                pkg_resources.resource_filename(
-                __name__, sequence_data["optics_base_path"] + macro
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_01__load_macros(self):
+            for macro in sequence_data['macros']:
+                self._failsim.mad_call_file(
+                    pkg_resources.resource_filename(
+                        __name__, sequence_data["optics_base_path"] + macro
+                    )
                 )
-            )
 
-        if not self._custom_sequence:
-            self._run_version = sequence_data["run"]
-            self._hllhc_version = sequence_data["version"]
-            self._optics_base_path = sequence_data["optics_base_path"]
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_02__load_sequence(self):
+            for seq in sequence_data["sequence_filenames"]:
+                self._failsim.mad_call_file(pkg_resources.resource_filename(__name__, seq))
 
-            rel_paths = sequence_data["sequence_filenames"]
-            self._sequence_paths = [
-                pkg_resources.resource_filename(__name__, x) for x in rel_paths
-            ]
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_03__load_apertures(self):
+            if self._apertures is not None:
+                for file in self._apertures:
+                    self._failsim.mad_call_file(file)
 
-        if not self._custom_optics:
-            assert (
-                not self._custom_sequence
-            ), "You can't use non-custom optics with custom sequence"
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_04__prepare(self):
+            self._failsim.mad_input(f"mylhcbeam = {self._mode_configuration['beam_to_configure']}")
+            self._failsim.mad_input(f"ver_lhc_run = {self._run_version}")
+            self._failsim.mad_input(f"ver_hllhc_optics = {self._hllhc_version}")
 
+            input_parameters = self._load_input_parameters()
+            self._load_mask_parameters(input_parameters["mask_parameters"])
+            self._check_call_module("01a_preparation")
+            self._load_knob_parameters(input_parameters["knob_parameters"])
+
+            self._check_call_module("01b_beam")
+            for ss in self._mode_configuration["sequences_to_check"]:
+                twiss_df, _ = self._failsim.twiss_and_summ(ss)
+                self._twiss_pre_thin_paths[ss] = FailSim.path_to_output(
+                    f"twiss_pre_thin_{ss}.parquet"
+                )
+                twiss_df.to_parquet(self._twiss_pre_thin_paths[ss])
+
+                survey_df = self._failsim.mad.survey(sequence=ss).dframe()
+                survey_df.to_parquet(
+                    FailSim.path_to_output(f"survey_pre_thin_{ss}.parquet")
+                )
+
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_05__cycle(self):
+            if self._cycle is not None:
+                for seq in self._cycle["sequences"]:
+                    self._failsim.mad_input(
+                        f"seqedit, sequence={seq}; flatten; cycle, start={self._cycle['target']}; flatten; endedit"
+                    )
+
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_06__thin(self):
+            if not thick:
+                for ff in self._pre_thin_scripts:
+                    self._failsim.mad_call_file(ff)
+                self._failsim.make_thin()
+
+                if self._thin_apertures is not None:
+                    for file in self._thin_apertures:
+                        self._failsim.mad_call_file(file)
+
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_07__load_optics(self):
             rel_path = os.path.join(
                 self._optics_base_path,
                 sequence_data["optics"][self._optics_key]["strength_file"],
             )
             self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
+            self._failsim.mad_call_file(self._optics_path)
 
-        if not self._custom_collimation and self._collimation_key is not None:
-            assert (
-                not self._custom_sequence
-            ), "You can't use non-custom collimation with custom sequence"
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_08__mask_module_01_orbit(self):
+            self._check_call_module("01c_phase")
+            self._check_call_module("01d_crossing")
+            self._check_call_module("01e_final")
 
-            rel_path = os.path.join(
-                sequence_data["collimation_base_path"],
-                sequence_data["collimation"][self._collimation_key],
-            )
-            self._collimation_path = pkg_resources.resource_filename(__name__, rel_path)
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_09__mask_module_02_lumilevel(self):
+            self._check_call_module("02_lumilevel")
 
-        for seq in self._sequence_paths:
-            self._failsim.mad_call_file(seq)
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_10__mask_module_03_beambeam(self):
+            self._prepare_bb_dataframes()
+            self._install_bb_lenses()
 
-        if self._apertures is not None:
-            for file in self._apertures:
-                self._failsim.mad_call_file(file)
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_11__mask_module_04_errors(self):
+            pass
 
-        if not thick:
-            for ff in self._pre_thin_scripts:
-                self._failsim.mad_call_file(ff)
-            self._failsim.make_thin()
-        self._failsim.mad_call_file(self._optics_path)
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_12__mask_module_05_tuning(self):
+            self._check_call_module("05a_MO")
+            self._check_call_module("05b_coupling")
+            self._check_call_module("05c_limit")
+            self._check_call_module("05d_matching")
+            self._check_call_module("05e_corrvalue")
+            self._check_call_module("05f_final")
 
-        if self._thin_apertures is not None:
-            for file in self._thin_apertures:
-                self._failsim.mad_call_file(file)
-
-        self._failsim.mad_input(
-            f"mylhcbeam = {self._mode_configuration['beam_to_configure']}"
-        )
-        self._failsim.mad_input(f"ver_lhc_run = {self._run_version}")
-        self._failsim.mad_input(f"ver_hllhc_optics = {self._hllhc_version}")
-
-        input_parameters = self._load_input_parameters()
-
-        self._load_mask_parameters(input_parameters["mask_parameters"])
-
-        self._check_call_module("01a_preparation")
-        self._check_call_module("01b_beam")
-
-        if self._cycle is not None:
-            for seq in self._cycle["sequences"]:
-                self._failsim.mad_input(
-                    f"seqedit, sequence={seq}; flatten; cycle, start={self._cycle['target']}; flatten; endedit"
+        @print_info(BUILD_INFO_MESSAGE)
+        def step_13__adjust_collimators(self):
+            if self._collimation_key is not None:
+                rel_path = os.path.join(
+                    sequence_data["collimation_base_path"],
+                    sequence_data["collimation"][self._collimation_key],
                 )
+                self._collimation_path = pkg_resources.resource_filename(__name__, rel_path)
+                self._load_and_set_collimators()
 
-        for ss in self._mode_configuration["sequences_to_check"]:
-            twiss_df, _ = self._failsim.twiss_and_summ(ss)
-            self._twiss_pre_thin_paths[ss] = FailSim.path_to_output(
-                f"twiss_pre_thin_{ss}.parquet"
-            )
-            twiss_df.to_parquet(self._twiss_pre_thin_paths[ss])
+        if self._failsim is None:
+            self._failsim = FailSim(failsim_verbosity=self._failsim_verbose, madx_verbosity=self._madx_verbose)
 
-            survey_df = self._failsim.mad.survey(sequence=ss).dframe()
-            survey_df.to_parquet(
-                FailSim.path_to_output(f"survey_pre_thin_{ss}.parquet")
-            )
+        sequence_data = self._metadata[self._sequence_key]
+        self._run_version = sequence_data["run"]
+        self._hllhc_version = sequence_data["version"]
+        self._optics_base_path = sequence_data["optics_base_path"]
 
-        self._load_knob_parameters(input_parameters["knob_parameters"])
-
-        self._check_call_module("01c_phase")
-        self._check_call_module("01d_crossing")
-        self._check_call_module("01e_final")
-        self._check_call_module("02_lumilevel")
-
-        self._prepare_bb_dataframes()
-        self._install_bb_lenses()
-
-        self._call_remaining_modules()
-
-        if self._collimation_path is not None:
-            self._load_and_set_collimators()
-
+        step_01__load_macros(self)
+        step_02__load_sequence(self)
+        step_03__load_apertures(self)
+        step_04__prepare(self)
+        step_05__cycle(self)
+        step_06__thin(self)
+        step_07__load_optics(self)
+        step_08__mask_module_01_orbit(self)
+        step_09__mask_module_02_lumilevel(self)
+        step_10__mask_module_03_beambeam(self)
+        step_11__mask_module_04_errors(self)
+        step_12__mask_module_05_tuning(self)
+        step_13__adjust_collimators(self)
         self._built = True
 
         return self
@@ -1032,7 +1030,6 @@ class HLLHCSequence(LHCSequence):
 
 
 class CollimatorHandler:
-
     """Class for loading collimation settings files, and converting collimator settings from beam sigma to mm."""
 
     def __init__(self, settings_file: str, check_against: pd.DataFrame = None):
