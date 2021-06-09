@@ -147,6 +147,10 @@ class LHCSequence:
         if collimation_key is not None:
             self.select_collimation(collimation_key)
 
+    @property
+    def mad(self):
+        return self._failsim.mad
+
     def _initialize_mask_dictionary(self):
         """Fills the internal dictionary _modules with default values for each pymask module.
 
@@ -613,6 +617,7 @@ class LHCSequence:
                     __name__, self._metadata[self._sequence_key]["optics_base_path"] + file
                 )
             )
+        return self
 
     @print_info("LHCSequence")
     def build(self, thick: bool = False):
