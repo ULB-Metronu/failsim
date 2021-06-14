@@ -378,7 +378,6 @@ class LHCSequence:
             pkg_resources.resource_filename(__name__, settings_path)
         )
 
-    @print_info("LHCSequence")
     def _load_and_set_collimators(self):
         self.collimation = CollimatorHandler(self._collimation_path)
 
