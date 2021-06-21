@@ -4,6 +4,7 @@ Contains the class FailSim.
 from __future__ import annotations
 from typing import Optional, List, Union
 import numpy as np
+import pandas as pd
 import pymask as pm
 import os
 import pkg_resources
@@ -205,7 +206,7 @@ class FailSim:
         return self
 
     @print_info("FailSim")
-    def twiss_and_summ(self, seq: str, flags: List[str] = None):
+    def twiss_and_summ(self, seq: str, flags: List[str] = None) -> Tuple[pd.DataFrame]:
         """Performs a Twiss with the given sequence on the Mad-X instance.
 
         Args:

@@ -50,17 +50,17 @@ class Result:
         run_version: int = 0,
         hllhc_version: float = 0.0,
         eps_n: float = 2.5e-6,
-        nrj: float = 7000,
+        beam: dict = None,
     ):
         self.twiss_df = twiss_df
         self.summ_df = summ_df
+        self.beam = beam
 
         self.info_df = pd.DataFrame(
             dict(
                 run_version=run_version,
                 hllhc_version=hllhc_version,
                 eps_n=eps_n,
-                nrj=nrj,
             ),
             index=["info"],
         )
@@ -316,8 +316,7 @@ class TrackingResult(Result):
         twiss_df = self.twiss_df
         track_df = self.track_df
 
-        gamma = self.info_df["nrj"]["info"] / 0.938
-        eps_g = self.info_df["eps_n"]["info"] / gamma
+        eps_g = self.info_df["eps_n"]["info"] / self.beam['gamma']
 
         data_out = pd.DataFrame()
 
@@ -949,8 +948,7 @@ class _TwissArtist(_Artist):
                     (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
                 ]
 
-        gamma = self._parent.info_df["nrj"]["info"] / 0.938
-        eps_g = self._parent.info_df["eps_n"]["info"] / gamma
+        eps_g = self._parent.info_df["eps_n"]["info"] / self._parent.beam['gamma']
         dpp = 1e-4
 
         twiss["envelope"] = np.sqrt(
@@ -1147,8 +1145,7 @@ class _TwissArtist(_Artist):
         # twiss command, in order to ensure a single clean turn
         twiss = twiss.loc[twiss["turn"] >= 0]
 
-        gamma = self._parent.info_df["nrj"]["info"] / 0.938
-        eps_g = self._parent.info_df["eps_n"]["info"] / gamma
+        eps_g = self._parent.info_df["eps_n"]["info"] / self._parent.beam['gamma']
 
         if only_worst:
             collect = pd.DataFrame()
@@ -1407,8 +1404,7 @@ class _TrackArtist(_TwissArtist):
         data = self._parent.track_df.loc[element].copy()
         twiss_data = twiss_thick.loc[element].copy()
 
-        gamma = self._parent.info_df["nrj"]["info"] / 0.938
-        eps_g = self._parent.info_df["eps_n"]["info"] / gamma
+        eps_g = self._parent.info_df["eps_n"]["info"] / self._parent.beam['gamma']
 
         aper = "1" if twiss_data["aper_1"] < twiss_data["aper_2"] else "2"
         axis, vh = ("x", "Horizontal") if aper == "1" else ("y", "Vertical")

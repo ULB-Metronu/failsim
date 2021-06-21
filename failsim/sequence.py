@@ -3,8 +3,7 @@ Module containing the class LHCSequence.
 """
 
 from __future__ import annotations
-from typing import Optional, List, Union, Dict, Callable, Tuple
-import copy
+from typing import Optional, List, Union, Dict, Callable
 import re
 import os
 import glob
@@ -18,7 +17,6 @@ from .failsim import FailSim
 from .checks import OpticsChecks
 from .tracker import Tracker
 from .helpers import print_info
-from .globals import FailSimGlobals
 from .results import TwissResult
 
 
@@ -378,28 +376,21 @@ class LHCSequence:
             pkg_resources.resource_filename(__name__, settings_path)
         )
 
-    def _load_and_set_collimators(self):
+    def _load_and_set_collimators(self, _vertical_aperture: float = 10.0):
         self.collimation = CollimatorHandler(self._collimation_path)
-
-        twiss_results = self.twiss()
-        twiss_df = twiss_results.twiss_df[twiss_results.twiss_df["turn"] == 1]
-        settings = self.collimation.compute_settings(
-            twiss_df, twiss_results.info_df["eps_n"], twiss_results.info_df["nrj"]
-        )
-
+        settings = self.collimation.compute_settings(self.twiss())
         twiss_thick = pd.read_parquet(
             self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
         )
         for _, row in settings.iterrows():
-            gaph = np.clip(row["half_gaph"]["info"], 0, 10)
-            gapv = np.clip(row["half_gapv"]["info"], 0, 10)
-
             if row.name.lower() in twiss_thick.index:
-                twiss_thick.at[row.name.lower(), "aper_1"] = gaph
-                twiss_thick.at[row.name.lower(), "aper_2"] = gapv
+                twiss_thick.at[row.name.lower(), "aper_1"] = row['half_gap']
+                twiss_thick.at[row.name.lower(), "aper_2"] = _vertical_aperture
+                twiss_thick.at[row.name.lower(), "tilt"] = row['angle']
 
             self._failsim.mad_input(
-                f"{row.name}, APERTYPE=RECTANGLE, APERTURE={{ {gaph}, 0.0 }}"
+                f"{row.name}, APERTYPE=RECTANGLE, "
+                f"APERTURE={{ {row['half_gap']}, {_vertical_aperture}, 0.0, 0.0 }}, TILT={row['angle']}"
             )
         twiss_thick.to_parquet(
             self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
@@ -464,9 +455,7 @@ class LHCSequence:
 
         """
         twiss = self.twiss()
-
-        gamma = twiss.info_df["nrj"] / 0.938
-        eps_g = twiss.info_df["eps_n"] / gamma
+        eps_g = twiss.info_df["eps_n"] / twiss.summ_df["gamma"]
 
         sigma = np.sqrt(eps_g * twiss.twiss_df.loc[element][f"bet{axis}"])
         return beam_sigmas * sigma
@@ -987,7 +976,6 @@ class LHCSequence:
         )
 
         eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
-        nrj = self._failsim._mad.globals["nrj"]
         run_version = self._failsim._mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
 
@@ -999,7 +987,7 @@ class LHCSequence:
             run_version=run_version,
             hllhc_version=hllhc_version,
             eps_n=eps_n,
-            nrj=nrj,
+            beam=dict(self._failsim.mad.sequence[self._mode_configuration["sequence_to_track"]].beam.items())
         )
 
     def set_collimators(self, handler: CollimatorHandler):
@@ -1047,32 +1035,7 @@ class CollimatorHandler:
         )
         self._collimator_df.index = self._collimator_df.index.str.lower()
 
-        self._process_collimator_df()
-
-    def _process_collimator_df(self):
-        """Calculates horizontal and vertical beam sigmas depending on the angle of each element.
-
-        Returns:
-            None
-
-        """
-        np.seterr(divide="ignore")
-        self._collimator_df["nsigx"] = self._collimator_df.apply(
-            lambda x: float(x["nsig"]) / abs(np.cos(float(x["angle[rad]"]))),
-            axis=1,
-        )
-        self._collimator_df["nsigy"] = self._collimator_df.apply(
-            lambda x: float(x["nsig"]) / abs(np.sin(float(x["angle[rad]"]))),
-            axis=1,
-        )
-
-    """
-    Loads collimator settings file.
-    Handles collimator dataframe.
-    Runs collimator checks.
-    """
-
-    def compute_settings(self, twiss: pd.DataFrame, eps_n: float, nrj: float):
+    def compute_settings(self, twiss: TwissResult):
         """Computes and returns horizontal, vertical and radial half-gap for each collimator, based on data given in twiss dataframe.
 
         Args:
@@ -1084,39 +1047,18 @@ class CollimatorHandler:
             pd.DataFrame: Dataframe containing results.
 
         """
+        eps_g = twiss.info_df.at['info', 'eps_n'] / twiss.beam['gamma']
+
+        gap = []
+        for _, row in self._collimator_df.iterrows():
+            beta_x, beta_y = twiss.twiss_df[twiss.twiss_df['turn'] == 1].loc[row.name.lower()][['betx', 'bety']]
+            angle = float(row["angle[rad]"])
+            gap.append(
+                float(row['nsig']) * np.sqrt(eps_g) * np.sqrt(beta_x * np.cos(angle)**2 + beta_y * np.sin(angle)**2)
+            )
+
         res = pd.DataFrame()
         res["angle"] = self._collimator_df["angle[rad]"]
         res["nsig"] = self._collimator_df["nsig"]
-
-        gamma = nrj / 0.938
-        eps_g = eps_n / gamma
-
-        gapv = []
-        gaph = []
-        gap = []
-        for _, row in self._collimator_df.iterrows():
-            twiss_data = twiss.loc[row.name.lower()]
-
-            angle = float(res.loc[row.name]["angle"])
-            beta_skew = abs(
-                twiss_data["betx"] * np.cos(angle) + twiss_data["bety"] * np.sin(angle)
-            )
-
-            gaph.append(
-                self._collimator_df.loc[row.name]["nsigx"]
-                * np.sqrt(eps_g * twiss_data["betx"])
-            )
-            gapv.append(
-                self._collimator_df.loc[row.name]["nsigy"]
-                * np.sqrt(eps_g * twiss_data["bety"])
-            )
-            gap.append(
-                float(self._collimator_df.loc[row.name]["nsig"])
-                * np.sqrt(eps_g * beta_skew)
-            )
-
-        res["half_gaph"] = gaph
-        res["half_gapv"] = gapv
         res["half_gap"] = gap
-
         return res
