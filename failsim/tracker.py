@@ -202,7 +202,6 @@ class Tracker:
             eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
         except KeyError:
             eps_n = 2.5e-6
-        nrj = self._failsim._mad.globals["nrj"]
 
         loss_df = None
         if "trackloss" in self._failsim.mad.table.keys():
@@ -218,7 +217,7 @@ class Tracker:
             run_version,
             hllhc_version,
             eps_n,
-            nrj,
+            dict(self._failsim.mad.sequence[self._sequence_to_track].beam.items()),
             loss_df=loss_df,
         )
 

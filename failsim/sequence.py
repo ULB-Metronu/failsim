@@ -414,7 +414,7 @@ class LHCSequence:
 
     def _install_bb_lenses(self):
         """ Installs the beam-beam lenses if beam-beam has been enabled by mode. """
-        ## Python approach
+        # Python approach
         if self._mode_configuration["enable_bb_python"]:
             if self._mode_configuration["track_from_b4_mad_instance"]:
                 bb_df_track = self._bb_dfs["b4"]
@@ -429,12 +429,12 @@ class LHCSequence:
                 self._mode_configuration["sequence_to_track"],
             )
 
-            ## Disable bb (to be activated later)
+            # Disable bb (to be activated later)
             self._failsim.mad.globals.on_bb_charge = 0
         else:
             bb_df_track = None
 
-        ## Legacy bb macros
+        # Legacy bb macros
         if self._mode_configuration["enable_bb_legacy"]:
             assert self._mode_configuration["beam_to_configure"] == 1
             assert not (self._mode_configuration["track_from_b4_mad_instance"])

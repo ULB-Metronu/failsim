@@ -5,16 +5,14 @@ from __future__ import annotations
 from typing import Optional, List, Union, Dict, Tuple, Callable, Type, TYPE_CHECKING
 import os
 import re
-import os
-import re
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 from .artist import _Artist
 from .failsim import FailSim
 if TYPE_CHECKING:
     from .sequence import CollimatorHandler
+
 
 @dataclass
 class Result:
@@ -259,11 +257,11 @@ class TrackingResult(Result):
         run_version: int = 0,
         hllhc_version: float = 0.0,
         eps_n: float = 2.5e-6,
-        nrj: float = 7000,
+        beam: dict = None,
         loss_df: Optional[pd.DataFrame] = None,
     ):
         super().__init__(
-            twiss_df, summ_df, run_version, hllhc_version, eps_n=eps_n, nrj=nrj
+            twiss_df, summ_df, run_version, hllhc_version, eps_n, beam
         )
 
         self.track_df = track_df
@@ -513,6 +511,7 @@ class _TwissArtist(_Artist):
 
         Args:
             element: The name of the element the figure will be centered around.
+            width: TODO
 
         Kwargs:
             width: The width around the element to show.
