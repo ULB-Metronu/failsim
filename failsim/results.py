@@ -25,7 +25,6 @@ class Result:
         run_version: The LHC run used, otherwise 0.
         hllhc_version: The HLLHC version used, otherwise 0.
         eps_n: The normalized emmitance.
-        nrj: Particle energy in GeV.
 
     Attributes:
         twiss_df: DataFrame containing the twiss table.
@@ -59,6 +58,7 @@ class Result:
                 run_version=run_version,
                 hllhc_version=hllhc_version,
                 eps_n=eps_n,
+                beam=beam,
             ),
             index=["info"],
         )
@@ -432,7 +432,7 @@ class TrackingResult(Result):
 
         # Load info
         info_df = pd.read_parquet(os.path.join(path, suffix + "info.parquet"))
-
+        print(info_df)
         # Load track
         track_df = pd.read_parquet(os.path.join(path, suffix + "track.parquet"))
 
