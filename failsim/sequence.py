@@ -607,6 +607,9 @@ class LHCSequence:
             )
         return self
 
+    def query_aperture(self, element_name: str):
+        """"""
+
     @print_info("LHCSequence")
     def build(self, thick: bool = False):
         """Does the build of the sequence.
