@@ -3,6 +3,8 @@ Module containing the class LHCSequence.
 """
 
 from __future__ import annotations
+
+import logging
 from typing import Optional, List, Union, Dict, Callable
 import re
 import os
@@ -18,6 +20,7 @@ from .checks import OpticsChecks
 from .tracker import Tracker
 from .helpers import print_info
 from .results import TwissResult
+from .aperture import Aperture
 
 
 def reset_state(build: bool, check: bool):
@@ -145,9 +148,15 @@ class LHCSequence:
         if collimation_key is not None:
             self.select_collimation(collimation_key)
 
+        self._aperture_model = None
+
     @property
     def mad(self):
         return self._failsim.mad
+
+    @property
+    def configuration(self) -> Dict:
+        return self._mode_configuration
 
     def _initialize_mask_dictionary(self):
         """Fills the internal dictionary _modules with default values for each pymask module.
@@ -272,25 +281,25 @@ class LHCSequence:
         self._failsim.mad.set_variables_from_dict(params=knob_parameters)
 
         # Set IP knobs
-        self._failsim._mad.globals["on_x1"] = knob_parameters["par_x1"]
-        self._failsim._mad.globals["on_sep1"] = knob_parameters["par_sep1"]
-        self._failsim._mad.globals["on_x2"] = knob_parameters["par_x2"]
-        self._failsim._mad.globals["on_sep2"] = knob_parameters["par_sep2"]
-        self._failsim._mad.globals["on_x5"] = knob_parameters["par_x5"]
-        self._failsim._mad.globals["on_sep5"] = knob_parameters["par_sep5"]
-        self._failsim._mad.globals["on_x8"] = knob_parameters["par_x8"]
-        self._failsim._mad.globals["on_sep8"] = knob_parameters["par_sep8"]
-        self._failsim._mad.globals["on_a1"] = knob_parameters["par_a1"]
-        self._failsim._mad.globals["on_o1"] = knob_parameters["par_o1"]
-        self._failsim._mad.globals["on_a2"] = knob_parameters["par_a2"]
-        self._failsim._mad.globals["on_o2"] = knob_parameters["par_o2"]
-        self._failsim._mad.globals["on_a5"] = knob_parameters["par_a5"]
-        self._failsim._mad.globals["on_o5"] = knob_parameters["par_o5"]
-        self._failsim._mad.globals["on_a8"] = knob_parameters["par_a8"]
-        self._failsim._mad.globals["on_o8"] = knob_parameters["par_o8"]
-        self._failsim._mad.globals["on_crab1"] = knob_parameters["par_crab1"]
-        self._failsim._mad.globals["on_crab5"] = knob_parameters["par_crab5"]
-        self._failsim._mad.globals["on_disp"] = knob_parameters["par_on_disp"]
+        self.mad.globals["on_x1"] = knob_parameters["par_x1"]
+        self.mad.globals["on_x2"] = knob_parameters["par_x2"]
+        self.mad.globals["on_sep1"] = knob_parameters["par_sep1"]
+        self.mad.globals["on_sep2"] = knob_parameters["par_sep2"]
+        self.mad.globals["on_x5"] = knob_parameters["par_x5"]
+        self.mad.globals["on_sep5"] = knob_parameters["par_sep5"]
+        self.mad.globals["on_x8"] = knob_parameters["par_x8"]
+        self.mad.globals["on_sep8"] = knob_parameters["par_sep8"]
+        self.mad.globals["on_a1"] = knob_parameters["par_a1"]
+        self.mad.globals["on_o1"] = knob_parameters["par_o1"]
+        self.mad.globals["on_a2"] = knob_parameters["par_a2"]
+        self.mad.globals["on_o2"] = knob_parameters["par_o2"]
+        self.mad.globals["on_a5"] = knob_parameters["par_a5"]
+        self.mad.globals["on_o5"] = knob_parameters["par_o5"]
+        self.mad.globals["on_a8"] = knob_parameters["par_a8"]
+        self.mad.globals["on_o8"] = knob_parameters["par_o8"]
+        self.mad.globals["on_crab1"] = knob_parameters["par_crab1"]
+        self.mad.globals["on_crab5"] = knob_parameters["par_crab5"]
+        self.mad.globals["on_disp"] = knob_parameters["par_on_disp"]
 
         # A check
         if self._failsim._mad.globals.nrj < 500:
@@ -533,6 +542,7 @@ class LHCSequence:
 
         Args:
             optics: Can either be an optics key or the path of a .madx file.
+            custom:
 
         Kwargs:
             custom: Chooses whether the optics parameter is interpreted as a key or a path. If custom is True, optics is interpreted as a key, if custom if False, optics is interpreted as a path.
@@ -558,6 +568,7 @@ class LHCSequence:
 
         Args:
             collimation: Can either be a collimation key or the path to collimation file.
+            custom:
 
         Kwargs:
             custom: Must be True if collimation is a path to a file, and False if collimation is a key.
@@ -606,9 +617,6 @@ class LHCSequence:
                 )
             )
         return self
-
-    def query_aperture(self, element_name: str):
-        """"""
 
     @print_info("LHCSequence")
     def build(self, thick: bool = False):
@@ -942,6 +950,15 @@ class LHCSequence:
             verbose=verbose,
         )
         return tracker
+
+    @ensure_build
+    @print_info("LHCSequence")
+    def get_aperture_model(self):
+        if self._aperture_model is None:
+            _ = self._metadata[self._sequence_key]["aperture_model"]
+            logging.warning(f"Loading the aperture model from: {_}")
+            self._aperture_model = Aperture(self, _)
+        return self._aperture_model
 
     def get_around_element(
         self,
