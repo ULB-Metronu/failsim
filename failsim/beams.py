@@ -77,6 +77,12 @@ class LHCBeam:
         self._tau = self.compute_tau()
         self._mat_denorm = self.set_denormalization_matrix()
 
+        self.x = np.array([])
+        self.xp = np.array([])
+        self.y = np.array([])
+        self.yp = np.array([])
+        self.beam = np.array([])
+
     @property
     def coreIntensity(self):
         return self._coreIntensity
@@ -101,45 +107,57 @@ class LHCBeam:
     def compute_tau(self):
         def exponentialTailCleaning(self, t):
             exponentialFactorIntegral = integrate.quad(
-                lambda x: _get_distribution(x, self._coreIntensity, self._coreSize, self._tailIntensity, self._tailSize,
-                                            self._elens, self._tcp, t[0]), self._elens, self._tcp)[0]
+                lambda x: _get_distribution(x, *params_distri, t[0]), self._elens, self._tcp)[0]
             exponentialTailCleaning = exponentialFactorIntegral / (integrate.quad(
-                lambda x: self._get_reference(x, self._coreIntensity, self._coreSize, self._tailIntensity,
-                                              self._tailSize), self._elens, self._tcp)[0])
+                lambda x: self._get_reference(x, *params_ref), self._elens, self._tcp)[0])
             return exponentialTailCleaning
 
+        params_distri = (self._coreIntensity, self._coreSize, self._tailIntensity,
+                         self._tailSize, self._elens, self._tcp)
+        params_ref = (self._coreIntensity, self._coreSize, self._tailIntensity, self._tailSize)
         return optimize.root(lambda t: exponentialTailCleaning(self, t) - (1 - self._eta), 1, method='hybr').x[0]
 
     @staticmethod
     @njit
-    def get_particles(nparticles: int, coreIntensity: float, coreSize: float, tailIntensity: float, tailSize: float,
-                      elens: float, tcp: float, tau: float):
+    def get_particles(nparticles: int, params: np.array, xmin: float, xmax: float, ymin: float, ymax: float):
         pts_x = np.zeros(nparticles)
         pts_y = np.zeros(nparticles)
         i = 0
         while i < nparticles:
-            u1 = -tcp + (2 * tcp * np.random.rand())
-            u2 = 0.4 * np.random.rand()  # TODO get maximum of distribution
-            y_max = _get_distribution(u1, coreIntensity, coreSize, tailIntensity, tailSize, elens, tcp, tau)
-            if u2 <= y_max:
+            u1 = xmin - (xmin - xmax) * np.random.rand()
+            u2 = ymin - (ymin - ymax) * np.random.rand()
+            if u2 <= _get_distribution(u1, *params):
                 pts_x[i] = u1
                 pts_y[i] = u2
                 i += 1
         return [pts_x, pts_y]
 
-    def generate(self, nparticles: int = int(1e4)):
-        # TODO
-        params = np.array([self._coreIntensity, self._coreSize, self._tailIntensity,
-                                    self._tailSize, self._elens, self._tcp, self._tau])
+    def generate(self, nparticles: int = int(1e4), xmin: float = None, xmax: float = None):
+        if xmin is not None and xmax is not None:
+            self._xmin = xmin
+            self._xmax = xmax
+        else:
+            self._xmin = -self._tcp
+            self._xmax = self._tcp
 
-        self.x = self.get_particles(nparticles, self._coreIntensity, self._coreSize, self._tailIntensity,
-                                    self._tailSize, self._elens, self._tcp, self._tau)
-        self.xp = self.get_particles(nparticles, self._coreIntensity, self._coreSize, self._tailIntensity,
-                                     self._tailSize, self._elens, self._tcp, self._tau)
-        self.y = self.get_particles(nparticles, self._coreIntensity, self._coreSize, self._tailIntensity,
-                                    self._tailSize, self._elens, self._tcp, self._tau)
-        self.yp = self.get_particles(nparticles, self._coreIntensity, self._coreSize, self._tailIntensity,
-                                     self._tailSize, self._elens, self._tcp, self._tau)
+        params = (self._coreIntensity, self._coreSize, self._tailIntensity,
+                  self._tailSize, self._elens, self._tcp, self._tau)
+
+        # compute ymin and ymax of the distribution for performances
+        if self._xmin < 0 and self._xmax < 0:
+            ymin = _get_distribution(self._xmin, *params)
+            ymax = _get_distribution(self._xmax, *params)
+        elif self._xmin < 0 and self._xmax > 0:
+            ymin = _get_distribution(self._xmin, *params)
+            ymax = _get_distribution(0, *params)
+        else:
+            ymax = _get_distribution(self._xmin, *params)
+            ymin = _get_distribution(self._xmax, *params)
+
+        self.x = self.get_particles(nparticles, params, self._xmin, self._xmax, ymin, ymax)
+        self.xp = self.get_particles(nparticles, params, self._xmin, self._xmax, ymin, ymax)
+        self.y = self.get_particles(nparticles, params, self._xmin, self._xmax, ymin, ymax)
+        self.yp = self.get_particles(nparticles, params, self._xmin, self._xmax, ymin, ymax)
 
         self.beam = np.stack(np.dot(self._mat_denorm,
                                     np.array([self.x[0], self.xp[0], self.y[0], self.yp[0]])),
@@ -169,8 +187,14 @@ class LHCBeam:
         else:
             return "No error"
 
+    def get_weight(self):
+        return integrate.quad(lambda x: _get_distribution(x, self._coreIntensity, self._coreSize,
+                                                          self._tailIntensity, self._tailSize, self._elens,
+                                                          self._tcp, self._tau), self._xmin, self._xmax)[0]
+
     def write_for_bdsim(self, path: str = '.', filename: str = 'lhc_beam', nslices: int = 1, compression: str = None):
         idx = 0
+        w = self.get_weight()
         for d_beam in np.split(self.beam, nslices):
             df = pd.DataFrame(data={'x': d_beam[:, 0],
                                     'xp': d_beam[:, 1],
@@ -178,6 +202,7 @@ class LHCBeam:
                                     'yp': d_beam[:, 3],
                                     })
             df['E'] = self._twiss['energy'].m_as("GeV")
+            df['W'] = w
             df.to_csv(f"{os.path.join(path, filename)}_{idx}.dat",
                       header=False,
                       sep=' ',
@@ -189,7 +214,8 @@ class LHCBeam:
         return _gaussian(x, self._coreIntensity, self._coreSize) + _gaussian(x, self._tailIntensity, self._tailSize)
 
     def get_distribution(self, x):
-        return np.vectorize(_get_distribution)(x, self._coreIntensity, self._coreSize, self._tailIntensity, self._tailSize, self._elens, self._tcp, self._tau)
+        return np.vectorize(_get_distribution)(x, self._coreIntensity, self._coreSize, self._tailIntensity,
+                                               self._tailSize, self._elens, self._tcp, self._tau)
 
     def plot(self):
         pass
