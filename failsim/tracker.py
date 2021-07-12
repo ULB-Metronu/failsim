@@ -117,7 +117,7 @@ class Tracker:
 
         run_version = self._failsim.mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim.mad.globals["ver_hllhc_optics"]
-        beam=dict(self._failsim.mad.sequence[self._mode_configuration["sequence_to_track"]].beam.items())
+        beam=dict(self._failsim.mad.sequence[self._sequence_to_track].beam.items())
 
         return TwissResult(twiss_df, summ_df, run_version, hllhc_version, eps_n, beam)
 
