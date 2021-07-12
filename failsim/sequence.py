@@ -647,6 +647,7 @@ class LHCSequence:
 
         """
         BUILD_INFO_MESSAGE = "LHCSequence - build"
+        self._built = True
 
         @print_info(BUILD_INFO_MESSAGE)
         def step_01__load_macros(self):
@@ -779,7 +780,6 @@ class LHCSequence:
         step_11__mask_module_04_errors(self)
         step_12__mask_module_05_tuning(self)
         step_13__adjust_collimators(self)
-        self._built = True
 
         return self
 
@@ -984,6 +984,7 @@ class LHCSequence:
             & (twiss_filt["s"] < twiss.loc[element]["s"] + width)
         ]
 
+    @ensure_build
     def twiss(self):
         """Calculates and returns twiss table.
 
