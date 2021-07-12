@@ -13,6 +13,8 @@ pyarrow = "^3.0.0"
 PyYAML = "^5.4.1"
 
 pymask = { path = "failsim/data/pymask/", develop = true }
+plotly = "^5.1.0"
+scipy = "^1.7.0"
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.812"
