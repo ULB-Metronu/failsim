@@ -1023,9 +1023,7 @@ class LHCSequence:
         """
         twiss = self.twiss()
 
-        settings = handler.compute_settings(
-            twiss.twiss_df, twiss.info_df["eps_n"], twiss.info_df["nrj"]
-        )
+        settings = handler.compute_settings(twiss.twiss_df)
 
         for _, row in settings.iterrows():
             cmd = f"{row.name}, apertype=rectangle, aperture={{ {row['half_gaph']['info']}, {row['half_gapv']['info']}}}"
@@ -1061,8 +1059,6 @@ class CollimatorHandler:
 
         Args:
             twiss: Dataframe containing twiss data.
-            eps_n: Normalized emmitance.
-            nrj: Beam energy.
 
         Returns:
             pd.DataFrame: Dataframe containing results.
