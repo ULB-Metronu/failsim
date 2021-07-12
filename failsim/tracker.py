@@ -111,12 +111,12 @@ class Tracker:
             os.remove(file)
 
         try:
-            eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
-            nrj = self._failsim._mad.globals["nrj"]
+            eps_n = self._failsim.mad.globals["par_beam_norm_emit"] * 1e-6
+            nrj = self._failsim.mad.globals["nrj"]
         except KeyError:
             ...
-        run_version = self._failsim._mad.globals["ver_lhc_run"]
-        hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
+        run_version = self._failsim.mad.globals["ver_lhc_run"]
+        hllhc_version = self._failsim.mad.globals["ver_hllhc_optics"]
 
         return TwissResult(twiss_df, summ_df, run_version, hllhc_version, eps_n, nrj)
 
@@ -167,8 +167,8 @@ class Tracker:
 
         twiss_df, summ_df = self._failsim.twiss_and_summ(self._sequence_to_track)
         twiss_df["turn"] = 0
-        run_version = self._failsim._mad.globals["ver_lhc_run"]
-        hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
+        run_version = self._failsim.mad.globals["ver_lhc_run"]
+        hllhc_version = self._failsim.mad.globals["ver_hllhc_optics"]
 
         self._track_flags.append("onetable")
         flags = ", ".join(self._track_flags)

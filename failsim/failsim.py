@@ -110,6 +110,7 @@ class FailSim:
             FailSim: Returns self
 
         """
+        if self._mad: del self._mad
         self._mad = pm.Madxp(stdout=self._madx_mute, command_log=self._command_log)
         self.mad.chdir(self._cwd)
         if replay_log is not None:

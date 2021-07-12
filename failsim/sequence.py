@@ -302,21 +302,21 @@ class LHCSequence:
         self.mad.globals["on_disp"] = knob_parameters["par_on_disp"]
 
         # A check
-        if self._failsim._mad.globals.nrj < 500:
+        if self._failsim.mad.globals.nrj < 500:
             assert knob_parameters["par_on_disp"] == 0
 
         # Spectrometers at experiments
         if knob_parameters["par_on_alice"] == 1:
-            self._failsim._mad.globals.on_alice = (
-                7000.0 / self._failsim._mad.globals.nrj
+            self._failsim.mad.globals.on_alice = (
+                7000.0 / self._failsim.mad.globals.nrj
             )
         if knob_parameters["par_on_lhcb"] == 1:
-            self._failsim._mad.globals.on_lhcb = 7000.0 / self._failsim._mad.globals.nrj
+            self._failsim.mad.globals.on_lhcb = 7000.0 / self._failsim.mad.globals.nrj
 
         # Solenoids at experiments
-        self._failsim._mad.globals.on_sol_atlas = knob_parameters["par_on_sol_atlas"]
-        self._failsim._mad.globals.on_sol_cms = knob_parameters["par_on_sol_cms"]
-        self._failsim._mad.globals.on_sol_alice = knob_parameters["par_on_sol_alice"]
+        self._failsim.mad.globals.on_sol_atlas = knob_parameters["par_on_sol_atlas"]
+        self._failsim.mad.globals.on_sol_cms = knob_parameters["par_on_sol_cms"]
+        self._failsim.mad.globals.on_sol_alice = knob_parameters["par_on_sol_alice"]
 
         return self
 
@@ -808,7 +808,7 @@ class LHCSequence:
 
         """
         self._check(
-            mad=self._failsim._mad,
+            mad=self._failsim.mad,
             sequences=self._mode_configuration["sequences_to_check"],
         )
 
@@ -996,9 +996,9 @@ class LHCSequence:
             self._mode_configuration["sequence_to_track"]
         )
 
-        eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
-        run_version = self._failsim._mad.globals["ver_lhc_run"]
-        hllhc_version = self._failsim._mad.globals["ver_hllhc_optics"]
+        eps_n = self._failsim.mad.globals["par_beam_norm_emit"] * 1e-6
+        run_version = self._failsim.mad.globals["ver_lhc_run"]
+        hllhc_version = self._failsim.mad.globals["ver_hllhc_optics"]
 
         twiss_df["turn"] = 1
 
