@@ -196,10 +196,10 @@ class Tracker:
         if len(self._time_dependencies) != 0:
             self._failsim.mad_input("exec tr$macro(0);")
 
-        track_df = self._failsim._mad.table["trackone"].dframe()
+        track_df = self._failsim.mad.table["trackone"].dframe()
 
         try:
-            eps_n = self._failsim._mad.globals["par_beam_norm_emit"] * 1e-6
+            eps_n = self._failsim.mad.globals["par_beam_norm_emit"] * 1e-6
         except KeyError:
             eps_n = 2.5e-6
 
