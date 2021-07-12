@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional, List, Union, Dict, Tuple, Callable, Type, TYPE_CHECKING
 import os
 import re
+import yaml
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
@@ -25,6 +26,7 @@ class Result:
         run_version: The LHC run used, otherwise 0.
         hllhc_version: The HLLHC version used, otherwise 0.
         eps_n: The normalized emmitance.
+        beam: A dictionary containing beam parameters
 
     Attributes:
         twiss_df: DataFrame containing the twiss table.
@@ -33,7 +35,6 @@ class Result:
             **run_version**: The LHC run used, otherwise 0.
             **hllhc_version**: The HLLHC version used, otherwise 0.
             **eps_n**: The normalized emmitance.
-            **nrj**: Particle energy in GeV.
 
     Note:
         Either run_version or hllhc_version has to be specified. An AssertionError will be thrown if none or both are specified.
@@ -58,7 +59,6 @@ class Result:
                 run_version=run_version,
                 hllhc_version=hllhc_version,
                 eps_n=eps_n,
-                beam=beam,
             ),
             index=["info"],
         )
@@ -86,11 +86,12 @@ class Result:
 
     def save_data(self, path: str, suffix: str = ""):
         """
-        Saves the Result data in 3 disctinct files:
+        Saves the Result data in 4 disctinct files:
 
         - **info.parquet**: Contains miscellaneous table
         - **summ.parquet**: Contains the summ table
         - **twiss.parquet**: Contains the twiss table
+        - **beam.yaml**: Contains information about the beam
 
         Args:
             path: The directory in which to save the data. Can be either absolute or relative to cwd.
@@ -114,6 +115,11 @@ class Result:
         info_name = os.path.join(path, suffix + "info.parquet")
         self.info_df.to_parquet(info_name)
 
+        # Save beam
+        beam_name = os.path.join(path, suffix+"beam.yaml")
+        with open(beam_name, "w") as fd:
+            yaml.safe_dump(self.beam, fd)
+
     @classmethod
     def load_data(cls, path: str, suffix: str = ""):
         """Classmethod that loads data from the directory specified and returns a Result object.
@@ -124,6 +130,7 @@ class Result:
             - info.parquet
             - summ.parquet
             - twiss.parquet
+            - beam.yaml
 
         Args:
             path: The directory containing data. Can be either absolute or relative to cwd.
@@ -142,6 +149,10 @@ class Result:
         # Load info
         info_df = pd.read_parquet(os.path.join(path, suffix + "info.parquet"))
 
+        # Load beam
+        with open(os.path.join(path, suffix+"beam.yaml"), "r") as fd:
+            beam = yaml.safe_load(fd)
+
         # Create instance
         inst = cls(
             twiss_df=twiss_df,
@@ -149,7 +160,7 @@ class Result:
             run_version=info_df["run_version"],
             hllhc_version=info_df["hllhc_version"],
             eps_n=info_df["eps_n"],
-            nrj=info_df["nrj"],
+            beam=beam,
         )
 
         return inst
@@ -243,7 +254,7 @@ class TrackingResult(Result):
         run_version: The LHC run used, otherwise 0.
         hllhc_version: The HLLHC version used, otherwise 0.
         eps_n: The normalized emmitance.
-        nrj: Particle energy in GeV.
+        beam: A dictionary containing beam parameters
 
     """
 
@@ -302,10 +313,6 @@ class TrackingResult(Result):
         - **pxn**: The normalized horizontal transverse velocity.
         - **yn**: The normalized vertical transverse position.
         - **pyn**: The normalized vertical transverse velocity.
-
-        Args:
-            eps_n: The normalized emmitance
-            nrj: Particle energy in GeV
 
         Returns:
             pd.DataFrame: Tracking DataFrame with normalized columns added.
@@ -450,7 +457,6 @@ class TrackingResult(Result):
             run_version=info_df["run_version"],
             hllhc_version=info_df["hllhc_version"],
             eps_n=info_df["eps_n"],
-            nrj=info_df["nrj"],
         )
 
         return inst
@@ -1153,7 +1159,7 @@ class _TwissArtist(_Artist):
             collimators = collimator_handler.compute_settings(
                 twiss_df[twiss_df["turn"] == 1],
                 self._parent.info_df["eps_n"],
-                self._parent.info_df["nrj"],
+                self._parent.beam["energy"]
             )
 
         for idx, element in enumerate(elements):
