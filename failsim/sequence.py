@@ -1000,7 +1000,7 @@ class LHCSequence:
         run_version = self._failsim.mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim.mad.globals["ver_hllhc_optics"]
 
-        twiss_df["turn"] = 1
+        twiss_df["turn"] = 0
 
         return TwissResult(
             twiss_df=twiss_df,
@@ -1068,7 +1068,7 @@ class CollimatorHandler:
 
         gap = []
         for _, row in self._collimator_df.iterrows():
-            beta_x, beta_y = twiss.twiss_df[twiss.twiss_df['turn'] == 1].loc[row.name.lower()][['betx', 'bety']]
+            beta_x, beta_y = twiss.twiss_df[twiss.twiss_df['turn'] == 0].loc[row.name.lower()][['betx', 'bety']]
             angle = float(row["angle[rad]"])
             gap.append(
                 float(row['nsig']) * np.sqrt(eps_g) * np.sqrt(beta_x * np.cos(angle)**2 + beta_y * np.sin(angle)**2)
