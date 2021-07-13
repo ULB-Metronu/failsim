@@ -8,6 +8,9 @@ import os
 import re
 import shutil
 import numpy as np
+import logging
+
+_logger = logging.getLogger()
 
 
 class OutputSuppressor:
@@ -163,11 +166,19 @@ def print_info(name: str):
     def _print_info(func):
         @functools.wraps(func)
         def _wrapper_print_info(self, *args, **kwargs):
+            # Get string representations of called function
+            args_repr = [repr(a) for a in args]
+            kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
+            signature = ", ".join(args_repr + kwargs_repr)
+            
+            # Log function call
+            _logger.info(f"{name} -> {func.__name__}({signature})")
+
+            # Print function call if set to verbose
             if self._verbose and FailSimGlobals.verbose:
-                args_repr = [repr(a) for a in args]
-                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
-                signature = ", ".join(args_repr + kwargs_repr)
                 print(f"{name} -> {func.__name__}({signature})")
+
+            # Execute called function
             val = func(self, *args, **kwargs)
             return val
 
