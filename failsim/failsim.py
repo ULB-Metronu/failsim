@@ -92,14 +92,21 @@ class FailSim:
         self._command_log = ArrayFile()
         self.initialize_mad(replay_log=command_log)
 
-        if macro_files is not None:
-            for file in extra_macro_files:
-                self.mad_call_file(file)
-
     @property
     def mad(self):
         """Provides the running MAD-X instance."""
         return self._mad
+
+    @print_info("FailSim")
+    def reset_mad(self):
+        """ Resets the current MAD-X instance.
+
+        Returns: None
+
+        """
+        del self._mad
+        self._command_log = ArrayFile() # Clear command log
+        self.initialize_mad()
 
     @print_info("FailSim")
     def initialize_mad(self, replay_log: Optional[ArrayFile] = None):
@@ -112,14 +119,22 @@ class FailSim:
         """
         self._mad = pm.Madxp(stdout=self._madx_mute, command_log=self._command_log)
         self.mad.chdir(self._cwd)
+
+        # Replay the command log if one is present
         if replay_log is not None:
-            for command in replay_log.read():
-                if command.startswith("chdir"):
-                    continue
+            # Ignore the first command, as this is the 
+            # chdir command above
+            for command in replay_log.read()[1:]:
                 self.mad_input(command)
 
+        # Set internal MAD-X verbosity
         if self._madx_verbosity != "mute" and self._madx_verbosity != '':
             self.mad_input("option, " + self._madx_verbosity)
+
+        # Call each of the macro files
+        if self._macro_files is not None:
+            for file in self._macro_files:
+                self.mad_call_file(file)
 
         return self
 

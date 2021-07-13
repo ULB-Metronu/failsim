@@ -117,6 +117,7 @@ class LHCSequence:
         self._bb_dfs = None
         self._twiss_pre_thin_paths = {}
 
+        self._has_built_once = False
         self._built = False
         self._checked = False
 
@@ -339,6 +340,21 @@ class LHCSequence:
             else:
                 self.call_pymask_module(os.path.basename(self._modules[module]["path"]))
             self._modules[module]["called"] = True
+
+    def _set_modules_called(self, modules: List[str], called: bool = False):
+        """ Sets the "called" flag for a list of modules.
+
+        Args:
+            modules (List[str]): List of modules to for which to set the "called" flag.
+
+        Kwargs:
+            called (bool): The boolean value to set for each module.
+
+        Returns: None
+
+        """
+        for module in modules:
+            self._modules[module]["called"] = called
 
     @classmethod
     def get_metadata(cls):
@@ -648,6 +664,14 @@ class LHCSequence:
         """
         BUILD_INFO_MESSAGE = "LHCSequence - build"
         self._built = True
+
+        # If sequence has already been built once,
+        # the madx instance has to be reset, and the
+        # "called" flag for each module should be reset
+        if self._has_built_once:
+            self._failsim.reset_mad()
+            self._set_modules_called(self.get_modules(), False)
+        self._has_built_once = True
 
         @print_info(BUILD_INFO_MESSAGE)
         def step_01__load_macros(self):

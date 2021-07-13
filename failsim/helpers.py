@@ -176,7 +176,7 @@ def print_info(name: str):
 
             # Print function call if set to verbose
             if self._verbose and FailSimGlobals.verbose:
-                print(f"{name} -> {func.__name__}({signature})")
+                print(f"{name+' ':-<20}-> {func.__name__}({signature})")
 
             # Execute called function
             val = func(self, *args, **kwargs)
