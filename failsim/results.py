@@ -237,6 +237,59 @@ class Result:
             "y": diff_muy,
         }
 
+    def get_effective_halfgap(self, axis: str,
+            elements: Union[str, List[str]],
+            twiss_path: Optional[str] = None,
+            use_excursion: bool = True,
+        ) -> pd.DataFrame:
+        """ Returns a dataframe describing the effective halfgap in the specified axis per turn.
+
+        Args:
+            axis (str): The axis to consider.
+            elements (Union[str, List[str]): Can either be a single element of a list of elements to consider.
+
+        Kwargs:
+            twiss_path (str): Path to the thick twiss parquet file. If this is not specified, it will be assumed to be in the output directory.
+            use_excursion: Whether beam excursion should be considered.
+
+        Returns:
+            (pd.DataFrame): Dataframe containing the effective halfgap and matching turn number.
+
+        """
+        axis = axis.lower()
+        assert axis in ["x", "y"], ("Axis has to be either 'x' or 'y'")
+
+        twiss_path = twiss_path or FailSim.path_to_output("twiss_pre_thin_lhcb1.parquet")
+        if not twiss_path.startswith("/"):
+            twiss_path = FailSim.path_to_cwd(twiss_path)
+        twiss_thick = pd.read_parquet(twiss_path)
+
+        if type(elements) == str:
+            elements = [elements]
+
+        eps_g = self.info_df["eps_n"]["info"] / self.beam["gamma"]
+
+        for element in elements:
+            data = self.twiss_df.loc[element]
+
+            aper = twiss_thick.loc[element][f"aper_{'1' if axis == 'x' else '2'}"]
+            beta = data[f"bet{axis}"]
+            turn = data["turn"]
+
+            sig = np.sqrt(eps_g * beta)
+
+            if use_excursion:
+                xn = data["x"] / np.sqrt(eps_g * data["betx"])
+                yn = data["y"] / np.sqrt(eps_g * data["bety"])
+                excursion = np.sqrt(xn ** 2 + yn ** 2)
+
+                effective_halfgap = aper / sig - excursion
+            else:
+                effective_halfgap = aper / sig
+            effective_halfgap = effective_halfgap.clip(lower=0)
+
+            return pd.DataFrame({"turn": turn, "halfgap": effective_halfgap})
+
 
 @dataclass
 class TrackingResult(Result):
