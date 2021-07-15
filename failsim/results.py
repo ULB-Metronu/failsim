@@ -1148,7 +1148,7 @@ class _TwissArtist(_Artist):
         # Remove negative turns; this is a result of the time
         # dependencies being delayed by a single turn in the
         # twiss command, in order to ensure a single clean turn
-        twiss = twiss.loc[twiss["turn"] >= 0]
+        twiss_df = twiss_df.loc[twiss_df["turn"] >= 0]
 
         eps_g = self._parent.info_df["eps_n"]["info"] / self._parent.beam['gamma']
 
