@@ -241,7 +241,7 @@ class Result:
             elements: Union[str, List[str]],
             twiss_path: Optional[str] = None,
             use_excursion: bool = True,
-        ) -> pd.DataFrame:
+        ) -> Dict[str, pd.DataFrame]:
         """ Returns a dataframe describing the effective halfgap in the specified axis per turn.
 
         Args:
@@ -253,7 +253,8 @@ class Result:
             use_excursion: Whether beam excursion should be considered.
 
         Returns:
-            (pd.DataFrame): Dataframe containing the effective halfgap and matching turn number.
+            (Dict[str, pd.DataFrame]): Dict mapping each element to a DataFrame containing
+                the effective halfgaps and matching turn numbers for each element.
 
         """
         axis = axis.lower()
@@ -269,6 +270,7 @@ class Result:
 
         eps_g = self.info_df["eps_n"]["info"] / self.beam["gamma"]
 
+        res = dict()
         for element in elements:
             data = self.twiss_df.loc[element]
 
@@ -288,7 +290,8 @@ class Result:
                 effective_halfgap = aper / sig
             effective_halfgap = effective_halfgap.clip(lower=0)
 
-            return pd.DataFrame({"turn": turn, "halfgap": effective_halfgap})
+            res[element] = pd.DataFrame({"turn": turn, "halfgap": effective_halfgap})
+        return res
 
 
 @dataclass
