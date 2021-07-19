@@ -293,7 +293,7 @@ class Result:
             # Ensure that turn and effective_halfgap are iterable
             def ensure_iter(obj):
                 if not hasattr(obj, "__iter__"):
-                    obj = list(obj)
+                    obj = [obj]
                 return obj
             turn = ensure_iter(turn)
             effective_halfgap = ensure_iter(effective_halfgap)
