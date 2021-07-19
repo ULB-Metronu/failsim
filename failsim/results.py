@@ -288,7 +288,7 @@ class Result:
                 effective_halfgap = aper / sig - excursion
             else:
                 effective_halfgap = aper / sig
-            effective_halfgap = effective_halfgap.clip(lower=0)
+            effective_halfgap = effective_halfgap.clip(0, None)
 
             res[element] = pd.DataFrame({"turn": turn, "halfgap": effective_halfgap})
         return res
