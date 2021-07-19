@@ -290,6 +290,14 @@ class Result:
                 effective_halfgap = aper / sig
             effective_halfgap = effective_halfgap.clip(0, None)
 
+            # Ensure that turn and effective_halfgap are iterable
+            def ensure_iter(obj):
+                if not hasattr(obj, "__iter__"):
+                    obj = list(obj)
+                return obj
+            turn = ensure_iter(turn)
+            effective_halfgap = ensure_iter(effective_halfgap)
+
             res[element] = pd.DataFrame({"turn": turn, "halfgap": effective_halfgap})
         return res
 
