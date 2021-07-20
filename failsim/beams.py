@@ -48,7 +48,7 @@ class LHCBeam:
                  eta: float = 0.6
                  ):
         """
-        twiss: input twiss parameter (beta_h * m, alpha_h, emit_h, beta_v * m, alpha_v, emit_v). Emittance is geometric emittance
+        twiss: input twiss parameter (betx * m, alfx, emitx, bety, alfy, emity). Emittance is geometric emittance
         coreIntensity: Intensity of the core
         coreSize:
         tailIntensity:
@@ -58,13 +58,7 @@ class LHCBeam:
         eta:
         """
         if twiss is None:
-            twiss = {'beta_x': 0.1500121538058829 * _ureg.m,
-                     'beta_y': 0.1500002840043648 * _ureg.m,
-                     'alpha_x': 1.513983407593508e-05,
-                     'alpha_y': -4.460920354037292e-05,
-                     'emit_x': 0.0003351 * _ureg.mm * _ureg.mrad,
-                     'emit_y': 0.0003351 * _ureg.mm * _ureg.mrad,
-                     'energy': 7 * _ureg.TeV}
+            raise LHCBeamError("No Twiss provided. You should run sequence.get_initial_twiss() or give a dictionnary")
         self._twiss = twiss
         self._coreIntensity = coreIntensity
         self._coreSize = coreSize
@@ -165,14 +159,14 @@ class LHCBeam:
 
     def set_denormalization_matrix(self):
         return np.array(
-            [[np.sqrt(self._twiss['emit_x'].m_as("m * rad")) * np.sqrt(self._twiss['beta_x'].m_as("m")), 0, 0, 0],
-             [-np.sqrt(self._twiss['emit_x'].m_as("m * rad")) * self._twiss['alpha_x'] / np.sqrt(
-                 self._twiss['beta_x'].m_as("m")),
-              np.sqrt(self._twiss['emit_x'].m_as("m")) / np.sqrt(self._twiss['beta_x'].m_as("m")), 0, 0],
-             [0, 0, np.sqrt(self._twiss['emit_y'].m_as("m * rad")) * np.sqrt(self._twiss['beta_y'].m_as("m")), 0],
-             [0, 0, -np.sqrt(self._twiss['emit_y'].m_as("m * rad")) * self._twiss['alpha_y'] / np.sqrt(
-                 self._twiss['beta_y'].m_as("m")),
-              np.sqrt(self._twiss['emit_y'].m_as("m * rad")) / np.sqrt(self._twiss['beta_y'].m_as("m"))]]
+            [[np.sqrt(self._twiss['emit_x']) * np.sqrt(self._twiss['bet_x']), 0, 0, 0],
+             [-np.sqrt(self._twiss['emit_x']) * self._twiss['alf_x'] / np.sqrt(
+                 self._twiss['bet_x']),
+              np.sqrt(self._twiss['emit_x']) / np.sqrt(self._twiss['bet_x']), 0, 0],
+             [0, 0, np.sqrt(self._twiss['emit_y']) * np.sqrt(self._twiss['bet_y']), 0],
+             [0, 0, -np.sqrt(self._twiss['emit_y']) * self._twiss['alf_y'] / np.sqrt(
+                 self._twiss['bet_y']),
+              np.sqrt(self._twiss['emit_y']) / np.sqrt(self._twiss['bet_y'])]]
         )
 
     def check_integrals(self):
@@ -218,4 +212,5 @@ class LHCBeam:
                                                self._tailSize, self._elens, self._tcp, self._tau)
 
     def plot(self):
+        # TODO
         pass
