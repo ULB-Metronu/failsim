@@ -1046,8 +1046,9 @@ class LHCSequence:
                 'bet_y': self.mad.table["twiss"].dframe().iloc[0]['bety'],
                 'alf_x': self.mad.table["twiss"].dframe().iloc[0]['alfx'],
                 'alf_y': self.mad.table["twiss"].dframe().iloc[0]['alfy'],
-                'emit_x': self.mad.globals["par_beam_norm_emit"],
-                'emit_y': self.mad.globals["par_beam_norm_emit"]
+                'emit_x': self.mad.globals["epsx"],
+                'emit_y': self.mad.globals["epsy"],
+                'energy': self.mad.globals['par_beam_energy_tot']
                 }
 
     def set_collimators(self, handler: CollimatorHandler):

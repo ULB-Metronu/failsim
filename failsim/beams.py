@@ -194,7 +194,7 @@ class LHCBeam:
                                     'y': d_beam[:, 2],
                                     'yp': d_beam[:, 3],
                                     })
-            df['E'] = self._twiss['energy'].m_as("GeV")
+            df['E'] = self._twiss['energy']
             df['W'] = w
             df.to_csv(f"{os.path.join(path, filename)}_{idx}.dat",
                       header=False,
