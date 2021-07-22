@@ -1037,8 +1037,6 @@ class LHCSequence:
 
     def get_initial_twiss(self) -> Dict:
         """ Return the initial Twiss parameters
-        Args:
-            sequence: The sequence.
 
         Returns:
             FailSim: Returns a dictionnary with the Twiss and the normalized emittance
