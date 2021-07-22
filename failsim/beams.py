@@ -1,13 +1,12 @@
 import os
 import numpy as np
 import pandas as pd
-
 from scipy import integrate
 from scipy import optimize
-
 from typing import Dict
 from numba import njit
 from pint import UnitRegistry
+import matplotlib.pyplot as plt
 
 _ureg = UnitRegistry()
 
@@ -159,11 +158,11 @@ class LHCBeam:
 
     def set_denormalization_matrix(self):
         return np.array(
-            [[np.sqrt(self._twiss['emit_x']) * np.sqrt(self._twiss['bet_x']), 0, 0, 0],
+            [[np.sqrt(self._twiss['emit_x'] * self._twiss['bet_x']), 0, 0, 0],
              [-np.sqrt(self._twiss['emit_x']) * self._twiss['alf_x'] / np.sqrt(
                  self._twiss['bet_x']),
               np.sqrt(self._twiss['emit_x']) / np.sqrt(self._twiss['bet_x']), 0, 0],
-             [0, 0, np.sqrt(self._twiss['emit_y']) * np.sqrt(self._twiss['bet_y']), 0],
+             [0, 0, np.sqrt(self._twiss['emit_y'] * self._twiss['bet_y']), 0],
              [0, 0, -np.sqrt(self._twiss['emit_y']) * self._twiss['alf_y'] / np.sqrt(
                  self._twiss['bet_y']),
               np.sqrt(self._twiss['emit_y']) / np.sqrt(self._twiss['bet_y'])]]
@@ -176,10 +175,10 @@ class LHCBeam:
         int_blue_curve = integrate.quad(lambda x: _get_distribution(x, self._coreIntensity, self._coreSize,
                                                                     self._tailIntensity, self._tailSize, self._elens,
                                                                     self._tcp, self._tau), self._elens, self._tcp)[0]
-        if not np.isclose(int_blue_curve / int_red_curve, 1 - self._eta):
-            raise LHCBeamError('Integrals are not correct.')
+        if np.isclose(int_blue_curve / int_red_curve, 1 - self._eta):
+            print("No error.")
         else:
-            return "No error"
+            raise LHCBeamError('Integrals are not correct.')
 
     def get_weight(self):
         return integrate.quad(lambda x: _get_distribution(x, self._coreIntensity, self._coreSize,
@@ -211,6 +210,19 @@ class LHCBeam:
         return np.vectorize(_get_distribution)(x, self._coreIntensity, self._coreSize, self._tailIntensity,
                                                self._tailSize, self._elens, self._tcp, self._tau)
 
-    def plot(self):
-        # TODO
-        pass
+    def plot(self, axes):
+        x = np.linspace(-self._tcp, self._tcp, 1000)
+
+        axes.plot(self.x[0], self.x[1], '.', markersize=0.05, label='sampled data')
+        axes.plot(x, self.core(x), color='g', lw=2, label='core')
+        axes.plot(x, self.get_reference(x), color='r', lw=2, label='reference')
+        axes.plot(x, self.get_distribution(x), color='b', lw=2, label='elens')
+
+        axes.axvline(self._elens, 1e-8, 1, color='black', lw=2, ls='--')
+        axes.axvline(-self._elens, 1e-8, 1, color='black', lw=2, ls='--')
+
+        axes.set_xlabel('Beam size (sigma)')
+        axes.set_yscale('log')
+        axes.grid(True)
+        axes.legend()
+        axes.set_xlim([-self._tcp, self._tcp])
