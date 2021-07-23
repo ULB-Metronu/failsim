@@ -1035,6 +1035,22 @@ class LHCSequence:
             beam=dict(self._failsim.mad.sequence[self._mode_configuration["sequence_to_track"]].beam.items())
         )
 
+    def get_initial_twiss(self) -> Dict:
+        """ Return the initial Twiss parameters
+
+        Returns:
+            FailSim: Returns a dictionnary with the Twiss and the normalized emittance
+        """
+
+        return {'bet_x': self.mad.table["twiss"].dframe().iloc[0]['betx'],
+                'bet_y': self.mad.table["twiss"].dframe().iloc[0]['bety'],
+                'alf_x': self.mad.table["twiss"].dframe().iloc[0]['alfx'],
+                'alf_y': self.mad.table["twiss"].dframe().iloc[0]['alfy'],
+                'emit_x': self.mad.globals["epsx"],
+                'emit_y': self.mad.globals["epsy"],
+                'energy': self.mad.globals['par_beam_energy_tot']
+                }
+
     def set_collimators(self, handler: CollimatorHandler):
         """Sets collimators using specified CollimatorHandler.
 

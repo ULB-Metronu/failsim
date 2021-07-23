@@ -11,6 +11,8 @@ pandas = "^1.2.3"
 cpymad = "^1.7.0"
 pyarrow = "^3.0.0"
 PyYAML = "^5.4.1"
+numba = "^0.53.1"
+Pint = "^0.17"
 
 pymask = { path = "failsim/data/pymask/", develop = true }
 plotly = "^5.1.0"
