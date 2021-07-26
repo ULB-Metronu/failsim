@@ -403,7 +403,7 @@ class LHCSequence:
 
     def _load_and_set_collimators(self, _vertical_aperture: float = 10.0):
         self.collimation = CollimatorHandler(self._collimation_path)
-        settings = self.collimation.compute_settings(self.twiss())
+        settings = self.collimation.compute_openings(self.twiss())
         twiss_thick = pd.read_parquet(
             self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
         )
@@ -1063,7 +1063,7 @@ class LHCSequence:
         """
         twiss = self.twiss()
 
-        settings = handler.compute_settings(twiss.twiss_df)
+        settings = handler.compute_openings(twiss.twiss_df)
 
         for _, row in settings.iterrows():
             cmd = f"{row.name}, apertype=rectangle, aperture={{ {row['half_gaph']['info']}, {row['half_gapv']['info']}}}"
@@ -1094,7 +1094,31 @@ class CollimatorHandler:
         )
         self._collimator_df.index = self._collimator_df.index.str.lower()
 
-    def compute_settings(self, twiss: TwissResult):
+    def compute_centers(self, twiss: TwissResult):
+        """Computes and returns horizontal and vertical offsets. The collimators are centered around the reference
+        closed-orbit and not around the machine center. So we need to offset them with respect to the computed
+        closed-orbit.
+
+        Args:
+            twiss: Dataframe containing twiss data.
+
+        Returns:
+            pd.DataFrame: Dataframe containing results.
+
+        """
+        centers_h = []
+        centers_v = []
+        for _, row in self._collimator_df.iterrows():
+            x, y = twiss.twiss_df[twiss.twiss_df['turn'] == 0].loc[row.name.lower()][['x', 'y']]
+            centers_h.append(x)
+            centers_v.append(y)
+
+        res = pd.DataFrame()
+        res["offset_x"] = centers_h
+        res["offset_y"] = centers_v
+        return res
+
+    def compute_openings(self, twiss: TwissResult):
         """Computes and returns horizontal, vertical and radial half-gap for each collimator, based on data given in twiss dataframe.
 
         Args:
