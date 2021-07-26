@@ -223,7 +223,10 @@ class Tracker:
         )
 
         for file in tmp_files:
-            os.remove(file)
+            try:
+                os.remove(file)
+            except FileNotFoundError:
+                continue
 
         return res
 
