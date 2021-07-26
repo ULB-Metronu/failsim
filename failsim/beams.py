@@ -210,10 +210,11 @@ class LHCBeam:
         return np.vectorize(_get_distribution)(x, self._coreIntensity, self._coreSize, self._tailIntensity,
                                                self._tailSize, self._elens, self._tcp, self._tau)
 
-    def plot(self, axes):
+    def plot(self, axes, with_samples: bool = True):
         x = np.linspace(-self._tcp, self._tcp, 1000)
 
-        axes.plot(self.x[0], self.x[1], '.', markersize=0.05, label='sampled data')
+        if with_samples:
+            axes.plot(self.x[0], self.x[1], '.', markersize=0.05, label='sampled data')
         axes.plot(x, self.core(x), color='g', lw=2, label='core')
         axes.plot(x, self.get_reference(x), color='r', lw=2, label='reference')
         axes.plot(x, self.get_distribution(x), color='b', lw=2, label='elens')
