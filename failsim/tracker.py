@@ -145,6 +145,9 @@ class Tracker:
 
         tmp_files = []
         if len(self._time_dependencies) != 0:
+            # Hash for keeping temporary tracker files
+            # seperate per tracker instance
+            unique_hash = hash(self)
             time_depen = []
             for idx, file in enumerate(self._time_dependencies):
                 # Substitute keys for values
@@ -152,11 +155,12 @@ class Tracker:
                     filedata = fd.read()
                 for key, value in self._mask_values.items():
                     filedata = filedata.replace(key, value)
-                with open(f"tmp_{idx}.txt", "w") as fd:
+                file_name = f"temp/{unique_hash}_tmp_{idx}.txt"
+                with open(file_name, "w") as fd:
                     fd.write(filedata)
 
-                tmp_files.append(f"tmp_{idx}.txt")
-                time_depen.append(f"call, file='tmp_{idx}.txt';")
+                tmp_files.append(file_name)
+                time_depen.append(f"call, file='{tmp_files[-1]}';")
 
             # Create tr$macro
             self._track_flags.append("onepass")
