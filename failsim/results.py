@@ -1220,7 +1220,7 @@ class _TwissArtist(_Artist):
             collect = pd.DataFrame()
 
         if collimator_handler is not None:
-            collimators = collimator_handler.compute_settings(
+            collimators = collimator_handler.compute_openings(
                 twiss_df[twiss_df["turn"] == 1],
                 self._parent.info_df["eps_n"],
                 self._parent.beam["energy"]

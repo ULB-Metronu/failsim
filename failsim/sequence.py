@@ -402,8 +402,11 @@ class LHCSequence:
         )
 
     def _load_and_set_collimators(self, _vertical_aperture: float = 10.0):
+        _tw = self.twiss()
         self.collimation = CollimatorHandler(self._collimation_path)
-        settings = self.collimation.compute_openings(self.twiss())
+        openings = self.collimation.compute_openings(_tw)
+        offsets = self.collimation.compute_offsets(_tw)
+        settings = pd.concat([openings, offsets], axis=1)
         twiss_thick = pd.read_parquet(
             self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
         )
@@ -412,9 +415,11 @@ class LHCSequence:
                 twiss_thick.at[row.name.lower(), "aper_1"] = row['half_gap']
                 twiss_thick.at[row.name.lower(), "aper_2"] = _vertical_aperture
                 twiss_thick.at[row.name.lower(), "tilt"] = row['angle']
+                # Need to include the offsets here
 
             self._failsim.mad_input(
                 f"{row.name}, APERTYPE=RECTANGLE, "
+                f"APER_OFFSET={{ {row['offset_x']}, {row['offset_y']} }}"
                 f"APERTURE={{ {row['half_gap']}, {_vertical_aperture}, 0.0, 0.0 }}, TILT={row['angle']}"
             )
         twiss_thick.to_parquet(
@@ -1094,7 +1099,7 @@ class CollimatorHandler:
         )
         self._collimator_df.index = self._collimator_df.index.str.lower()
 
-    def compute_centers(self, twiss: TwissResult):
+    def compute_offsets(self, twiss: TwissResult):
         """Computes and returns horizontal and vertical offsets. The collimators are centered around the reference
         closed-orbit and not around the machine center. So we need to offset them with respect to the computed
         closed-orbit.
@@ -1116,6 +1121,7 @@ class CollimatorHandler:
         res = pd.DataFrame()
         res["offset_x"] = centers_h
         res["offset_y"] = centers_v
+        res = res.set_index(self._collimator_df.index)
         return res
 
     def compute_openings(self, twiss: TwissResult):
