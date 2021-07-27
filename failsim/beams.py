@@ -74,6 +74,8 @@ class LHCBeam:
         self.xp = np.array([])
         self.y = np.array([])
         self.yp = np.array([])
+        self.t = np.array([])
+        self.pt = np.array([])
         self.beam = np.array([])
 
     @property
@@ -151,21 +153,31 @@ class LHCBeam:
         self.xp = self.get_particles(nparticles, params, self._xmin, self._xmax, ymin, ymax)
         self.y = self.get_particles(nparticles, params, self._xmin, self._xmax, ymin, ymax)
         self.yp = self.get_particles(nparticles, params, self._xmin, self._xmax, ymin, ymax)
+        self.t = np.zeros(nparticles)
+        self.pt = np.zeros(nparticles)
 
         self.beam = np.stack(np.dot(self._mat_denorm,
-                                    np.array([self.x[0], self.xp[0], self.y[0], self.yp[0]])),
+                                    np.array([self.x[0],
+                                              self.xp[0],
+                                              self.y[0],
+                                              self.yp[0],
+                                              self.t,
+                                              self.pt])),
                              axis=1)
 
     def set_denormalization_matrix(self):
         return np.array(
-            [[np.sqrt(self._twiss['emit_x'] * self._twiss['bet_x']), 0, 0, 0],
+            [[np.sqrt(self._twiss['emit_x'] * self._twiss['bet_x']), 0, 0, 0, 0, 0],
              [-np.sqrt(self._twiss['emit_x']) * self._twiss['alf_x'] / np.sqrt(
                  self._twiss['bet_x']),
-              np.sqrt(self._twiss['emit_x']) / np.sqrt(self._twiss['bet_x']), 0, 0],
-             [0, 0, np.sqrt(self._twiss['emit_y'] * self._twiss['bet_y']), 0],
+              np.sqrt(self._twiss['emit_x']) / np.sqrt(self._twiss['bet_x']), 0, 0, 0, 0],
+             [0, 0, np.sqrt(self._twiss['emit_y'] * self._twiss['bet_y']), 0, 0, 0],
              [0, 0, -np.sqrt(self._twiss['emit_y']) * self._twiss['alf_y'] / np.sqrt(
                  self._twiss['bet_y']),
-              np.sqrt(self._twiss['emit_y']) / np.sqrt(self._twiss['bet_y'])]]
+              np.sqrt(self._twiss['emit_y']) / np.sqrt(self._twiss['bet_y']), 0, 0],
+             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+             ]
         )
 
     def check_integrals(self):
@@ -184,6 +196,10 @@ class LHCBeam:
         return integrate.quad(lambda x: _get_distribution(x, self._coreIntensity, self._coreSize,
                                                           self._tailIntensity, self._tailSize, self._elens,
                                                           self._tcp, self._tau), self._xmin, self._xmax)[0]
+
+    def write_for_madx(self, path: str = '.', filename: str = 'lhc_beam'):
+        filename = os.path.join(path, filename)
+        np.save(filename, self.beam)
 
     def write_for_bdsim(self, path: str = '.', filename: str = 'lhc_beam', nslices: int = 1, compression: str = None):
         idx = 0
@@ -210,10 +226,11 @@ class LHCBeam:
         return np.vectorize(_get_distribution)(x, self._coreIntensity, self._coreSize, self._tailIntensity,
                                                self._tailSize, self._elens, self._tcp, self._tau)
 
-    def plot(self, axes):
+    def plot(self, axes, with_samples: bool = True):
         x = np.linspace(-self._tcp, self._tcp, 1000)
 
-        axes.plot(self.x[0], self.x[1], '.', markersize=0.05, label='sampled data')
+        if with_samples:
+            axes.plot(self.x[0], self.x[1], '.', markersize=0.05, label='sampled data')
         axes.plot(x, self.core(x), color='g', lw=2, label='core')
         axes.plot(x, self.get_reference(x), color='r', lw=2, label='reference')
         axes.plot(x, self.get_distribution(x), color='b', lw=2, label='elens')
