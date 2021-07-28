@@ -190,6 +190,29 @@ class FailSim:
         return self
 
     @print_info("FailSim")
+    def fork(self) -> FailSim:
+        """
+        Forks the FailSim instance, returning the new instance.
+
+        Returns:
+            FailSim: The new instance
+        """
+        from cpymad._rpc import LibMadxClient
+        from cpymad.madx import Madx
+        new_fs = FailSim(
+            output_dir=copy.copy(self._output_dir),
+            cwd=copy.copy(self._cwd),
+            madx_verbosity=copy.copy(self._madx_verbosity),
+            failsim_verbosity=self._verbose,
+        )
+        new_service = LibMadxClient.fork_client(self.mad._service) 
+        new_fs._mad = Madx(
+            libmadx=new_service.libmadx
+        )
+        new_fs.mad._service = new_service
+        return new_fs
+
+    @print_info("FailSim")
     def duplicate(self) -> FailSim:
         """Duplicates the FailSim instance.
 
