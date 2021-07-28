@@ -9,7 +9,9 @@ from .globals import FailSimGlobals
 
 from typing import List, Optional, Tuple
 import pandas as pd
+import numpy as np
 import functools
+import multiprocessing
 import os
 import gc
 import re
@@ -120,6 +122,63 @@ class Tracker:
         beam=dict(self._failsim.mad.sequence[self._sequence_to_track].beam.items())
 
         return TwissResult(twiss_df, summ_df, run_version, hllhc_version, eps_n, beam)
+
+    def fork(self):
+        new_fs = self._failsim.fork()
+        new_tracker = Tracker(new_fs, self._sequence_to_track, self._verbose)
+        new_tracker.set_particles(self._particles)
+        new_tracker.set_track_flags(self._track_flags)
+        new_tracker.set_observation_points(self._observation_points)
+        new_tracker.set_time_dependence(self._time_dependencies)
+        new_tracker.add_mask_keys(keys=self._mask_values.keys(),
+                values=self._mask_values.values())
+        return new_tracker
+
+    @print_info("Tracker")
+    def track_multithreaded(self, turns: int = 40, nthreads: int = 8):
+        # Basic assertions
+        assert (nthreads%2 == 0), \
+            ("nthreads must be a multiple of 2")
+        # assert (self._particles != None) and (len(self._particles) != 0), \
+            # ("Multithreaded tracking only works with a list of particles to track")
+        ninstances = nthreads//2 # Number of MAD-X instances to create
+
+        def track_thread(tracker, procnum, output_path):
+            """Does single tracking pass"""
+            output = os.path.join(output_path, str(procnum))
+            res = tracker.track(turns)
+            res.save_data(output)
+            print(f"Track {procnum} done!")
+
+        # Define and create temporary output path
+        output_path = f"temp/{hash(self)}/track/"
+        os.makedirs(output_path, exist_ok=True)
+
+        # Split particles and create jobs
+        jobs = []
+        for idx, part in enumerate(np.array_split(self._particles, ninstances)):
+            new_tracker = self.fork()
+            new_tracker.set_particles(part)
+            proc = multiprocessing.Process(target=track_thread,
+                    args=(new_tracker, idx, output_path))
+            proc.start()
+            jobs.append(proc)
+
+        # Wait for jobs to finish
+        for proc in jobs:
+            proc.join()
+
+        for f in os.listdir(output_path):
+            df_temp = pd.read_parquet(output_path+f+"/track.parquet")
+            try:
+                df_temp["number"] += max(df["number"])
+                df = df.append(df_temp)
+            except NameError:
+                df = df_temp
+
+        res = TrackingResult.load_data(output_path+"0")
+        res.track_df = df
+        return res
 
     @print_info("Tracker")
     def track(self, turns: int = 40):
