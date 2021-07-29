@@ -79,7 +79,7 @@ class Tracker:
                 time_depen.append(f"tmp_{idx}.txt")
 
             twiss_df = pd.DataFrame()
-            for i in range(turns):
+            for i in range(turns+1):
                 self._failsim.mad_input(f"comp={i-1}")
 
                 self._failsim.mad_input(
