@@ -1051,6 +1051,8 @@ class LHCSequence:
                 'bet_y': self.mad.table["twiss"].dframe().iloc[0]['bety'],
                 'alf_x': self.mad.table["twiss"].dframe().iloc[0]['alfx'],
                 'alf_y': self.mad.table["twiss"].dframe().iloc[0]['alfy'],
+                'p_x': self.mad.table["twiss"].dframe().iloc[0]['px'],
+                'p_y': self.mad.table["twiss"].dframe().iloc[0]['py'],
                 'emit_x': self.mad.globals["epsx"],
                 'emit_y': self.mad.globals["epsy"],
                 'energy': self.mad.globals['par_beam_energy_tot']

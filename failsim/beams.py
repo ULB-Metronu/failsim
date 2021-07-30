@@ -47,7 +47,7 @@ class LHCBeam:
                  eta: float = 0.6
                  ):
         """
-        twiss: input twiss parameter (betx * m, alfx, emitx, bety, alfy, emity). Emittance is geometric emittance
+        twiss: input twiss parameter (betx * m, alfx, emitx, bety, alfy, emity, px, py). Emittance is geometric emittance
         coreIntensity: Intensity of the core
         coreSize:
         tailIntensity:
@@ -198,8 +198,11 @@ class LHCBeam:
                                                           self._tcp, self._tau), self._xmin, self._xmax)[0]
 
     def write_for_madx(self, path: str = '.', filename: str = 'lhc_beam'):
+        madx_beam = self.beam
+        madx_beam[:, 1] = self.beam[:, 1] + self._twiss['p_x']
+        madx_beam[:, 3] = self.beam[:, 3] + self._twiss['p_y']
         filename = os.path.join(path, filename)
-        np.save(filename, self.beam)
+        np.save(filename, madx_beam)
 
     def write_for_bdsim(self, path: str = '.', filename: str = 'lhc_beam', nslices: int = 1, compression: str = None):
         idx = 0
