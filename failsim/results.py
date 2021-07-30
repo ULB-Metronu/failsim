@@ -1441,6 +1441,7 @@ class _TrackArtist(_TwissArtist):
         self,
         element: str,
         normalize: bool = False,
+        axis: Optional[str] = None,
         twiss_path: Optional[str] = None,
         reference: Optional[pd.DataFrame] = None,
         **kwargs,
@@ -1450,11 +1451,16 @@ class _TrackArtist(_TwissArtist):
         Note:
             Kwargs will be passed into the plotly data dictionary.
 
+        Note:
+            The axis will be chosen based on which axis has the lowest aperture.
+            This selection can be overridden with the `axis` parameter.
+
         Args:
             element: Which element to draw the plot for.
 
         Kwargs:
             normalize: Whether the plot should be normalized in terms of beam sigma.
+            axis: Which axis to plot.
             twiss_path: Path to the thick twiss parquet file. If this is not specified, it will be assumed to be in the output directory.
             reference: Allows to overwrite the reference for normalization.
 
@@ -1480,8 +1486,12 @@ class _TrackArtist(_TwissArtist):
 
         eps_g = self._parent.info_df["eps_n"]["info"] / self._parent.beam['gamma']
 
-        aper = "1" if twiss_data["aper_1"] < twiss_data["aper_2"] else "2"
-        axis, vh = ("x", "Horizontal") if aper == "1" else ("y", "Vertical")
+        if axis is None:
+            aper = "1" if twiss_data["aper_1"] < twiss_data["aper_2"] else "2"
+            axis, vh = ("x", "Horizontal") if aper == "1" else ("y", "Vertical")
+        else:
+            assert axis.lower() in ["x", "y"], "Axis must be either x or y."
+            aper, vh = ("1", "Horizontal") if axis == "x" else ("2", "Vertical")
 
         if normalize:
             data[axis] = data[axis].div(np.sqrt(eps_g * ref[f"bet{axis}"]))
