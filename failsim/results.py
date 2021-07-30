@@ -512,12 +512,17 @@ class TrackingResult(Result):
         if os.path.exists(os.path.join(path, suffix + "loss.parquet")):
             loss_df = pd.read_parquet(os.path.join(path, suffix + "loss.parquet"))
 
+        # Load beam
+        with open(os.path.join(path, suffix+"beam.yaml"), "r") as fd:
+            beam = yaml.safe_load(fd)
+
         # Create instance
         inst = TrackingResult(
             twiss_df=twiss_df,
             summ_df=summ_df,
             track_df=track_df,
             loss_df=loss_df,
+            beam=beam,
             run_version=info_df["run_version"],
             hllhc_version=info_df["hllhc_version"],
             eps_n=info_df["eps_n"],
