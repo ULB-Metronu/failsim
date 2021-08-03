@@ -41,13 +41,13 @@ class LHCBeam:
                  coreIntensity: float = 1,
                  coreSize: float = 1.0,
                  tailIntensity: float = 0,
-                 tailSize: float = 1.0,
+                 tailSize: float = 2.0,
                  elens: float = 4.7,
                  tcp: float = 6.7,
                  eta: float = 0.6
                  ):
         """
-        twiss: input twiss parameter (betx * m, alfx, emitx, bety, alfy, emity, px, py). Emittance is geometric emittance
+        twiss: input twiss parameter (betx * m, alfx, emitx, bety, alfy, emity, x, y, px, py). Emittance is geometric emittance
         coreIntensity: Intensity of the core
         coreSize:
         tailIntensity:
@@ -57,7 +57,7 @@ class LHCBeam:
         eta:
         """
         if twiss is None:
-            raise LHCBeamError("No Twiss provided. You should run sequence.get_initial_twiss() or give a dictionnary")
+            raise LHCBeamError("No Twiss provided. You should run sequence.get_initial_twiss() or give a dictionary")
         self._twiss = twiss
         self._coreIntensity = coreIntensity
         self._coreSize = coreSize
@@ -199,8 +199,10 @@ class LHCBeam:
 
     def write_for_madx(self, path: str = '.', filename: str = 'lhc_beam'):
         madx_beam = self.beam
-        madx_beam[:, 1] = self.beam[:, 1] + self._twiss['p_x']
-        madx_beam[:, 3] = self.beam[:, 3] + self._twiss['p_y']
+        madx_beam[:, 0] += self._twiss['x']
+        madx_beam[:, 1] += self._twiss['p_x']
+        madx_beam[:, 2] += self._twiss['y']
+        madx_beam[:, 3] += self._twiss['p_y']
         filename = os.path.join(path, filename)
         np.save(filename, madx_beam)
 
