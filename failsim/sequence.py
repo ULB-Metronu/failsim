@@ -1046,7 +1046,7 @@ class LHCSequence:
         Returns:
             FailSim: Returns a dictionary with the Twiss and the normalized emittance
         """
-        twiss0 = self.twiss().iloc[0]
+        twiss0 = self.twiss().twiss_df.iloc[0]
         return {'bet_x': twiss0['betx'],
                 'bet_y': twiss0['bety'],
                 'alf_x': twiss0['alfx'],
