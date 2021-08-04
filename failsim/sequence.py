@@ -1044,13 +1044,17 @@ class LHCSequence:
         """ Return the initial Twiss parameters
 
         Returns:
-            FailSim: Returns a dictionnary with the Twiss and the normalized emittance
+            FailSim: Returns a dictionary with the Twiss and the normalized emittance
         """
-
-        return {'bet_x': self.mad.table["twiss"].dframe().iloc[0]['betx'],
-                'bet_y': self.mad.table["twiss"].dframe().iloc[0]['bety'],
-                'alf_x': self.mad.table["twiss"].dframe().iloc[0]['alfx'],
-                'alf_y': self.mad.table["twiss"].dframe().iloc[0]['alfy'],
+        twiss0 = self.twiss().iloc[0]
+        return {'bet_x': twiss0['betx'],
+                'bet_y': twiss0['bety'],
+                'alf_x': twiss0['alfx'],
+                'alf_y': twiss0['alfy'],
+                'x': twiss0['x'],
+                'y': twiss0['y'],
+                'p_x': twiss0['px'],
+                'p_y': twiss0['py'],
                 'emit_x': self.mad.globals["epsx"],
                 'emit_y': self.mad.globals["epsy"],
                 'energy': self.mad.globals['par_beam_energy_tot']

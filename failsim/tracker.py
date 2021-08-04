@@ -222,7 +222,6 @@ class Tracker:
                 time_depen.append(f"call, file='{tmp_files[-1]}';")
 
             # Create tr$macro
-            self._track_flags.append("onepass")
             self._track_flags.append("update")
             time_depen = " ".join(time_depen)
             self._failsim.mad_input(
@@ -234,7 +233,11 @@ class Tracker:
         run_version = self._failsim.mad.globals["ver_lhc_run"]
         hllhc_version = self._failsim.mad.globals["ver_hllhc_optics"]
 
+        # Always use the following track flags
+        self._track_flags.append("onepass")
         self._track_flags.append("onetable")
+        self._track_flags.append("aperture")
+        self._track_flags.append("recloss")
         flags = ", ".join(self._track_flags)
         self._failsim.mad_input(f"track, {flags}")
 
