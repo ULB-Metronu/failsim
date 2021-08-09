@@ -1148,7 +1148,8 @@ class _TwissArtist(_Artist):
         if elements is None:
             for idx, turn in enumerate(set(twiss["turn"])):
                 data = twiss[twiss["turn"] == turn]
-                res = 100 * data[column] / reference[column]
+                res = 100 * (data[column] - reference[column]) \
+                    / reference[column]
 
                 col = _Artist.lerp_hex_color(
                     start_col, end_col, idx / len(set(twiss["turn"]))
@@ -1164,7 +1165,8 @@ class _TwissArtist(_Artist):
         else:
             for element in elements:
                 data = twiss.loc[element]
-                res = 100 * data[column] / reference.loc[element][column]
+                res = 100 * (data[column] - reference.loc[element[column]]) \
+                    / reference.loc[element][column]
 
                 self.add_data(
                     **kwargs,
