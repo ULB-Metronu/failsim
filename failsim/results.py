@@ -940,9 +940,18 @@ class _TwissArtist(_Artist):
             if "aper_1" not in row.index:
                 continue
 
+            if row.keyword == "rcollimator":
+                angle = row.tilt if axis == "x" else row.tilt+np.pi/2
+                aper = np.sqrt( row.aper_1**2 + (np.tan(angle) * row.aper_1)**2 )
+                aper = 10 if aper > 10 else aper # Limit aperture to 10
+            else:
+                aper = abs(row[f"aper_{1 if axis == 'x' else 2}"])
+
+            offset = row.apoff_1 if axis == "x" else row.apoff_2
+
             x0 = row["s"] - (row["l"] if row["l"] != 0 else 0.1)
             x1 = row["s"]
-            y0 = abs(row[f"aper_{1 if axis == 'x' else 2}"])
+            y0 = aper
             y1 = 1
 
             # Move elements with 0 mm or infinite aperture to 200 mm
@@ -958,8 +967,8 @@ class _TwissArtist(_Artist):
 
             for pol in [-1, 1]:
                 self.add_data(
-                    x=[x0, x1, x1, x0, x0],
-                    y=[pol * y0, pol * y0, pol * y1, pol * y1, pol * y0],
+                    x=np.array([x0, x1, x1, x0, x0]),
+                    y=np.array([y0, y0, y1, y1, y0]) * pol + offset,
                     **style,
                 )
             style.update(
@@ -969,7 +978,7 @@ class _TwissArtist(_Artist):
             )
             self.add_data(
                 x=[x0, x1, x1, x0, x0],
-                y=[y0, y0, -y0, -y0, y0],
+                y=np.array([y0, y0, -y0, -y0, y0]) + offset,
                 **style,
             )
 
