@@ -581,15 +581,16 @@ class _TwissArtist(_Artist):
         self._width = None
         self._filter = None
 
-    def centered_element(self, element: str, width: float = 1000):
+    def centered_element(self, element: str, width: float = 1000, alignment: str = "center"):
         """Sets an element to center the figure around.
 
         Args:
             element: The name of the element the figure will be centered around.
-            width: TODO
 
         Kwargs:
             width: The width around the element to show.
+            aligment: Can be either "center", "left" or "right".
+                Sets which side of the element should be shown.
 
         Returns:
             None
@@ -597,6 +598,7 @@ class _TwissArtist(_Artist):
         """
         self._center_elem = element
         self._width = width
+        self._aligment = alignment
 
     def observation_filter(self, filter: Callable[[pd.DataFrame], pd.DataFrame]):
         """Defines the observation filter to use.
@@ -635,12 +637,17 @@ class _TwissArtist(_Artist):
             Tuple[float, float]: Tuple with the range in s coordinate.
 
         """
-        center_s = self._parent.twiss_df.loc[self._center_elem]["s"]
+        center_s, center_l = self._parent.twiss_df.loc[self._center_elem][["s", "lrad"]]
         try:
             center_s = center_s.iloc[0]
         except AttributeError:
             pass
-        return center_s - self._width / 2, center_s + self._width / 2
+        if self._aligment == "right":
+            return center_s, center_s + self._width
+        elif self._aligment == "left":
+            return center_s - self._width, center_s+center_l
+        elif self._aligment == "center":
+            return center_s - self._width / 2, center_s + self._width / 2
 
     def _crop_to_centered(self, data: pd.DataFrame):
         """Internal method for cropping data to fit within values set in centered_element.
