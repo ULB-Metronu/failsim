@@ -414,8 +414,9 @@ class LHCSequence:
             if row.name.lower() in twiss_thick.index:
                 twiss_thick.at[row.name.lower(), "aper_1"] = row['half_gap']
                 twiss_thick.at[row.name.lower(), "aper_2"] = _vertical_aperture
+                twiss_thick.at[row.name.lower(), "apoff_1"] = row['offset_x']
+                twiss_thick.at[row.name.lower(), "apoff_2"] = row['offset_y']
                 twiss_thick.at[row.name.lower(), "tilt"] = row['angle']
-                # Need to include the offsets here
 
             self._failsim.mad_input(
                 f"{row.name}, APERTYPE=RECTANGLE, "
