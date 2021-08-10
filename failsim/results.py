@@ -577,11 +577,11 @@ class _TwissArtist(_Artist):
 
         self._parent = parent
 
-        self._center_elem = None
+        self._reference_elem = None
         self._width = None
         self._filter = None
 
-    def centered_element(self, element: str, width: float = 1000, alignment: str = "center"):
+    def reference_element(self, element: str, width: float = 1000, alignment: str = "center"):
         """Sets an element to center the figure around.
 
         Args:
@@ -596,7 +596,7 @@ class _TwissArtist(_Artist):
             None
 
         """
-        self._center_elem = element
+        self._reference_elem = element
         self._width = width
         self._aligment = alignment
 
@@ -630,14 +630,14 @@ class _TwissArtist(_Artist):
             return data
         return data.loc[self._filter(data)]
 
-    def get_centered_range(self):
-        """Gets the range specified by the values set in centered_element.
+    def get_reference_range(self):
+        """Gets the range specified by the values set in reference_element.
 
         Returns:
             Tuple[float, float]: Tuple with the range in s coordinate.
 
         """
-        center_s, center_l = self._parent.twiss_df.loc[self._center_elem][["s", "lrad"]]
+        center_s, center_l = self._parent.twiss_df.loc[self._reference_elem][["s", "lrad"]]
         try:
             center_s = center_s.iloc[0]
         except AttributeError:
@@ -649,7 +649,7 @@ class _TwissArtist(_Artist):
         elif self._aligment == "center":
             return center_s - self._width / 2, center_s + self._width / 2
 
-    def _crop_to_centered(self, data: pd.DataFrame):
+    def _crop_to_reference(self, data: pd.DataFrame):
         """Internal method for cropping data to fit within values set in centered_element.
 
         Args:
@@ -659,9 +659,9 @@ class _TwissArtist(_Artist):
             pd.DataFrame: Cropped data.
 
         """
-        if self._center_elem is not None:
-            center_range = self.get_centered_range()
-            return data[(data["s"] > center_range[0]) & (data["s"] < center_range[1])]
+        if self._reference_elem is not None:
+            reference_range = self.get_reference_range()
+            return data[(data["s"] > reference_range[0]) & (data["s"] < reference_range[1])]
         return data
 
     def twiss_column(
@@ -701,20 +701,20 @@ class _TwissArtist(_Artist):
         # twiss command, in order to ensure a single clean turn
         twiss = twiss.loc[twiss["turn"] >= 0]
 
-        if self._center_elem is not None:
-            center_range = self.get_centered_range()
+        if self._reference_elem is not None:
+            reference_range = self.get_reference_range()
             col, row = self._plot_pointer
             self.plot_layout(
                 xaxis={
                     "range": (
-                        center_range[0] * self._subplots[col][row]["factor"]["x"],
-                        center_range[1] * self._subplots[col][row]["factor"]["x"],
+                        reference_range[0] * self._subplots[col][row]["factor"]["x"],
+                        reference_range[1] * self._subplots[col][row]["factor"]["x"],
                     )
                 },
             )
             if crop_data:
                 twiss = twiss[
-                    (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
+                    (twiss["s"] > reference_range[0]) & (twiss["s"] < reference_range[1])
                 ]
 
         for column in columns:
@@ -807,14 +807,14 @@ class _TwissArtist(_Artist):
             )
 
             # Filter if center_elem is defined
-            if self._center_elem is not None:
-                center_range = self.get_centered_range()
+            if self._reference_elem is not None:
+                reference_range = self.get_reference_range()
                 twiss = twiss[
-                    (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
+                    (twiss["s"] > reference_range[0]) & (twiss["s"] < reference_range[1])
                 ]
                 beam_sep = beam_sep[
-                    (beam_sep.index > center_range[0])
-                    & (beam_sep.index < center_range[1])
+                    (beam_sep.index > reference_range[0])
+                    & (beam_sep.index < reference_range[1])
                 ]
 
             # Normalize beam separation
@@ -930,11 +930,11 @@ class _TwissArtist(_Artist):
             twiss_thick = pd.read_parquet(twiss_path)
 
         # Filter if center_elem is defined
-        if self._center_elem is not None:
-            center_range = self.get_centered_range()
+        if self._reference_elem is not None:
+            reference_range = self.get_reference_range()
             twiss_thick = twiss_thick[
-                (twiss_thick["s"] > center_range[0])
-                & (twiss_thick["s"] < center_range[1])
+                (twiss_thick["s"] > reference_range[0])
+                & (twiss_thick["s"] < reference_range[1])
             ]
 
         twiss_thick = twiss_thick.loc[
@@ -1022,20 +1022,20 @@ class _TwissArtist(_Artist):
         # twiss command, in order to ensure a single clean turn
         twiss = twiss.loc[twiss["turn"] >= 0]
 
-        if self._center_elem is not None:
-            center_range = self.get_centered_range()
+        if self._reference_elem is not None:
+            reference_range = self.get_reference_range()
             col, row = self._plot_pointer
             self.plot_layout(
                 xaxis={
                     "range": (
-                        center_range[0] * self._subplots[col][row]["factor"]["x"],
-                        center_range[1] * self._subplots[col][row]["factor"]["x"],
+                        reference_range[0] * self._subplots[col][row]["factor"]["x"],
+                        reference_range[1] * self._subplots[col][row]["factor"]["x"],
                     )
                 },
             )
             if crop_data:
                 twiss = twiss[
-                    (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
+                    (twiss["s"] > reference_range[0]) & (twiss["s"] < reference_range[1])
                 ]
 
         eps_g = self._parent.info_df["eps_n"]["info"] / self._parent.beam['gamma']
@@ -1136,20 +1136,20 @@ class _TwissArtist(_Artist):
         """
         twiss = self._parent.twiss_df.copy()
 
-        if self._center_elem is not None:
-            center_range = self.get_centered_range()
+        if self._reference_elem is not None:
+            reference_range = self.get_reference_range()
             col, row = self._plot_pointer
             self.plot_layout(
                 xaxis={
                     "range": (
-                        center_range[0] * self._subplots[col][row]["factor"]["x"],
-                        center_range[1] * self._subplots[col][row]["factor"]["x"],
+                        reference_range[0] * self._subplots[col][row]["factor"]["x"],
+                        reference_range[1] * self._subplots[col][row]["factor"]["x"],
                     )
                 },
             )
             if crop_data:
                 twiss = twiss[
-                    (twiss["s"] > center_range[0]) & (twiss["s"] < center_range[1])
+                    (twiss["s"] > reference_range[0]) & (twiss["s"] < reference_range[1])
                 ]
 
         # Calculate beating
@@ -1346,7 +1346,7 @@ class _TwissArtist(_Artist):
         """
         super().clear_figure()
         self.observation_filter(None)
-        self._center_elem = None
+        self._reference_elem = None
 
 
 class _TrackArtist(_TwissArtist):
@@ -1438,7 +1438,7 @@ class _TrackArtist(_TwissArtist):
             self._global_layout.update(barmode="stack")
         elif mode == "longitudinal":
             data = loss.copy()
-            data = self._crop_to_centered(data)
+            data = self._crop_to_reference(data)
             data = data.value_counts("s", sort=False) * 100 / max(track["number"])
             lengths = []
             if len(data) != 0:
@@ -1478,8 +1478,7 @@ class _TrackArtist(_TwissArtist):
             twiss_path: Path to the thick twiss parquet file. If this is not specified, it will be assumed to be in the output directory.
             reference: Allows to overwrite the reference for normalization.
 
-        Returns:
-            str: Returns either 'Vertical' or 'Horizontal' depending on which axis has the larger aperture.
+        Returns: None
 
         """
         if normalize:
@@ -1566,5 +1565,3 @@ class _TrackArtist(_TwissArtist):
             name="Nominal beam sigma",
             marker_opacity=0.25,
         )
-
-        return vh
