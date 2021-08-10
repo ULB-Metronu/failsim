@@ -1459,7 +1459,7 @@ class _TrackArtist(_TwissArtist):
         self,
         element: str,
         normalize: bool = False,
-        axis: Optional[str] = None,
+        axis: Optional[str] = "x",
         twiss_path: Optional[str] = None,
         reference: Optional[pd.DataFrame] = None,
         **kwargs,
@@ -1468,10 +1468,6 @@ class _TrackArtist(_TwissArtist):
 
         Note:
             Kwargs will be passed into the plotly data dictionary.
-
-        Note:
-            The axis will be chosen based on which axis has the lowest aperture.
-            This selection can be overridden with the `axis` parameter.
 
         Args:
             element: Which element to draw the plot for.
@@ -1504,12 +1500,13 @@ class _TrackArtist(_TwissArtist):
 
         eps_g = self._parent.info_df["eps_n"]["info"] / self._parent.beam['gamma']
 
-        if axis is None:
-            aper = "1" if twiss_data["aper_1"] < twiss_data["aper_2"] else "2"
-            axis, vh = ("x", "Horizontal") if aper == "1" else ("y", "Vertical")
+        aper, vh = ("1", "Horizontal") if axis == "x" else ("2", "Vertical")
+        if twiss_data.keyword == "rcollimator":
+            angle = twiss_data.tilt if axis == "x" else twiss_data.tilt+np.pi/2
+            aper = np.sqrt( twiss_data.aper_1**2 + (np.tan(angle) * twiss_data.aper_1)**2 )
+            aper = 10 if aper > 10 else aper # Limit aperture to 10
         else:
-            assert axis.lower() in ["x", "y"], "Axis must be either x or y."
-            aper, vh = ("1", "Horizontal") if axis == "x" else ("2", "Vertical")
+            aper = twiss_data[f"aper_{aper}"]
 
         if normalize:
             data[axis] = data[axis].div(np.sqrt(eps_g * ref[f"bet{axis}"]))
@@ -1541,7 +1538,7 @@ class _TrackArtist(_TwissArtist):
             x=[min(data["turn"]) - 0.5]
             + list(data["turn"])
             + [max(data["turn"]) + 0.5],
-            y=[twiss_data[f"aper_{aper}"]] * (len(data["turn"]) + 2),
+            y=[aper] * (len(data["turn"]) + 2),
             marker_color="rgba(255,50,50,0.75)",
             showlegend=False,
             name=f"{element} {vh.lower()} aperture",
@@ -1552,7 +1549,7 @@ class _TrackArtist(_TwissArtist):
             x=[min(data["turn"]) - 0.5]
             + list(data["turn"])
             + [max(data["turn"]) + 0.5],
-            y=[-twiss_data[f"aper_{aper}"]] * (len(data["turn"]) + 2),
+            y=[-aper] * (len(data["turn"]) + 2),
             marker_color="rgba(255,50,50,0.75)",
             showlegend=True,
             name=f"{element} {vh.lower()} aperture",
