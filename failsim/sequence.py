@@ -711,16 +711,18 @@ class LHCSequence:
             self._load_knob_parameters(input_parameters["knob_parameters"])
 
             self._check_call_module("01b_beam")
+            import time
+            unique_hash = hash(time.time()+float(id(self)))
             for ss in self._mode_configuration["sequences_to_check"]:
                 twiss_df, _ = self._failsim.twiss_and_summ(ss)
                 self._twiss_pre_thin_paths[ss] = FailSim.path_to_output(
-                    f"twiss_pre_thin_{ss}.parquet"
+                    f"{unique_hash}_twiss_pre_thin_{ss}.parquet"
                 )
                 twiss_df.to_parquet(self._twiss_pre_thin_paths[ss])
 
                 survey_df = self._failsim.mad.survey(sequence=ss).dframe()
                 survey_df.to_parquet(
-                    FailSim.path_to_output(f"survey_pre_thin_{ss}.parquet")
+                    FailSim.path_to_output(f"{unique_hash}_survey_pre_thin_{ss}.parquet")
                 )
 
         @print_info(BUILD_INFO_MESSAGE)

@@ -206,7 +206,8 @@ class Tracker:
         if len(self._time_dependencies) != 0:
             # Hash for keeping temporary tracker files
             # seperate per tracker instance
-            unique_hash = hash(self)
+            import time
+            unique_hash = hash(time.time()+float(id(self)))
             time_depen = []
             for idx, file in enumerate(self._time_dependencies):
                 # Substitute keys for values
