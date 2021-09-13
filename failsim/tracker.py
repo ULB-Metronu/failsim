@@ -214,7 +214,7 @@ class Tracker:
                     filedata = fd.read()
                 for key, value in self._mask_values.items():
                     filedata = filedata.replace(key, value)
-                file_name = f"temp/{unique_hash}_tmp_{idx}.txt"
+                file_name = f"{FailSimGlobals.tmp_directory}/{unique_hash}_tmp_{idx}.txt"
                 with open(file_name, "w") as fd:
                     fd.write(filedata)
 
