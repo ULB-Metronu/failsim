@@ -966,6 +966,7 @@ class LHCSequence:
         """Builds a Tracker instance.
 
         Args:
+            detached:
             verbose: Whether the generated Tracker object should be verbose or not.
 
         Returns:

@@ -1,29 +1,30 @@
 """
 Module containing the class Tracker
 """
+from __future__ import annotations
+from typing import List, Optional, Tuple
+import os
+import gc
+import re
+import multiprocessing
+import pathlib
+import pandas as pd
+import numpy as np
 
 from .failsim import FailSim
 from .results import TrackingResult, TwissResult
 from .helpers import print_info
 from .globals import FailSimGlobals
 
-from typing import List, Optional, Tuple
-import pandas as pd
-import numpy as np
-import functools
-import multiprocessing
-import os
-import gc
-import re
-
 
 class Tracker:
 
     """
-    This class handles tracking of particles.
+    This class handles tracking of particles with MAD-X.
 
     Note:
-        This class should not be created by the user, and should only be instantiated through build_tracker.
+        This class should not be created by the user, and should only be instantiated through the `build_tracker`
+        method of `LHCSequence`.
 
     Args:
         failsim: The FailSim instance to use.
@@ -43,6 +44,9 @@ class Tracker:
         self._mask_values = {}
 
         self._particles = None
+
+        # Create the temp directory in case it doesn't exist yet
+        pathlib.Path(os.path.join(FailSimGlobals.cwd, FailSimGlobals.tmp_directory)).mkdir(exist_ok=True)
 
     @print_info("Tracker")
     def twiss(self, turns: int = 1):
@@ -123,7 +127,8 @@ class Tracker:
 
         return TwissResult(twiss_df, summ_df, run_version, hllhc_version, eps_n, beam)
 
-    def fork(self):
+    @print_info("Tracker")
+    def fork(self) -> Tracker:
         new_fs = self._failsim.fork()
         new_tracker = Tracker(new_fs, self._sequence_to_track, self._verbose)
         new_tracker.set_particles(self._particles)
@@ -204,9 +209,7 @@ class Tracker:
 
         tmp_files = []
         if len(self._time_dependencies) != 0:
-            # Hash for keeping temporary tracker files
-            # seperate per tracker instance
-            import time
+
             unique_hash = hash(self)
             time_depen = []
             for idx, file in enumerate(self._time_dependencies):
@@ -215,7 +218,7 @@ class Tracker:
                     filedata = fd.read()
                 for key, value in self._mask_values.items():
                     filedata = filedata.replace(key, value)
-                file_name = os.path.join(FailSimGlobals.tmp_directory, f"{unique_hash}_tmp_{idx}.txt")
+                file_name = FailSim.path_to_cwd(os.path.join(FailSimGlobals.tmp_directory, f"{unique_hash}_tmp_{idx}.txt"))
                 with open(file_name, "w") as fd:
                     fd.write(filedata)
 

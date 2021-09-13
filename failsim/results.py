@@ -949,7 +949,7 @@ class _TwissArtist(_Artist):
 
             if row.keyword == "rcollimator":
                 angle = row.tilt if axis == "x" else row.tilt+np.pi/2
-                aper = np.sqrt( row.aper_1**2 + (np.tan(angle) * row.aper_1)**2 )
+                aper = np.sqrt( row.aper_1**2 + (np.tan(angle) * row.aper_1)**2)
                 aper = 10 if aper > 10 else aper # Limit aperture to 10
             else:
                 aper = abs(row[f"aper_{1 if axis == 'x' else 2}"])

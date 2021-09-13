@@ -17,6 +17,7 @@ import copy
 from .helpers import OutputSuppressor, ArrayFile, print_info, MoveNewFiles
 from .globals import FailSimGlobals
 
+
 class FailSim:
     """
     This class is the interface to the Mad-X instance in `cpymad`.
@@ -105,7 +106,7 @@ class FailSim:
 
         """
         del self._mad
-        self._command_log = ArrayFile() # Clear command log
+        self._command_log = ArrayFile()  # Clear command log
         self.initialize_mad()
 
     @print_info("FailSim")
