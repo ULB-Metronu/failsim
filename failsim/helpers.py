@@ -143,7 +143,7 @@ class MoveNewFiles:
         new_files = np.setdiff1d(post_files, self._pre_files)
         new_files = self.filter_exclude(new_files)
         for file in new_files:
-            shutil.move(file, os.path.join(self._destination, os.path.basename(file)))
+            shutil.move(os.path.join(self._source, file), os.path.join(self._destination, os.path.basename(file)))
 
     def filter_exclude(self, files: List[str]):
         for ex in self.exclude:

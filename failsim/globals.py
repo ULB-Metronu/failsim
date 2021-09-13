@@ -17,3 +17,4 @@ class FailSimGlobals:
     output_dir: str = None
     cwd: str = None
     verbose: bool = True
+    tmp_directory: str = 'tmp'
