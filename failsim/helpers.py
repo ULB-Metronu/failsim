@@ -114,7 +114,6 @@ class ArrayFile:
         """
         temp = ArrayFile()
         temp._lines = self._lines.copy()
-        print(temp._lines)
         return temp
 
 
@@ -143,9 +142,12 @@ class MoveNewFiles:
         new_files = np.setdiff1d(post_files, self._pre_files)
         new_files = self.filter_exclude(new_files)
         for file in new_files:
-            shutil.move(file, os.path.join(self._destination, os.path.basename(file)))
+            try:
+                shutil.move(os.path.join(self._source, file), os.path.join(self._destination, os.path.basename(file)))
+            except FileNotFoundError:
+                pass
 
-    def filter_exclude(self, files: List[str]):
+    def filter_exclude(self, files):
         for ex in self.exclude:
             r = re.compile(ex)
             res = [r.findall(x) for x in files]
