@@ -46,7 +46,7 @@ class Tracker:
         self._particles = None
 
         # Create the temp directory in case it doesn't exist yet
-        pathlib.Path(FailSimGlobals.tmp_directory).mkdir(exist_ok=True)
+        pathlib.Path(FailSim.path_to_cwd(FailSimGlobals.tmp_directory)).mkdir(exist_ok=True)
 
     @print_info("Tracker")
     def twiss(self, turns: int = 1):
@@ -209,7 +209,7 @@ class Tracker:
 
         tmp_files = []
         if len(self._time_dependencies) != 0:
-            # Hash for keeping temporary tracker files seperate per tracker instance
+
             unique_hash = hash(self)
             time_depen = []
             for idx, file in enumerate(self._time_dependencies):
@@ -221,6 +221,7 @@ class Tracker:
                 file_name = FailSim.path_to_cwd(
                     os.path.join(FailSimGlobals.tmp_directory, f"{unique_hash}_tmp_{idx}.txt")
                 )
+
                 with open(file_name, "w") as fd:
                     fd.write(filedata)
 
