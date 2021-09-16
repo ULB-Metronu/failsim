@@ -46,7 +46,7 @@ class Tracker:
         self._particles = None
 
         # Create the temp directory in case it doesn't exist yet
-        pathlib.Path(os.path.join(FailSimGlobals.cwd, FailSimGlobals.tmp_directory)).mkdir(exist_ok=True)
+        pathlib.Path(FailSim.path_to_cwd(FailSimGlobals.tmp_directory)).mkdir(exist_ok=True)
 
     @print_info("Tracker")
     def twiss(self, turns: int = 1):
