@@ -6,4 +6,4 @@ from .globals import FailSimGlobals
 from .artist import _Artist
 from .aperture import Aperture
 from .beams import LHCBeam
-from .analysis import AnalysisHistogram, LossPerTurnHistogram, EventAnalysis, AnalysisCombine
+from .analysis import AnalysisHistogram, LossPerTurnHistogram, EventAnalysis, AnalysisCombine, LossPerTurnByGroupHistogram

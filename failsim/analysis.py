@@ -3,8 +3,10 @@ from typing import List
 import os
 import re
 import glob
+import yaml
 import pickle
 import functools
+import pkg_resources
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,9 +16,14 @@ import hist
 class AnalysisHistogram:
     def __init__(self, hist_histogram=None):
         self._h = hist_histogram
+        self._load_parameters()
 
     def __add__(self, other):
         return self.__class__(self._h + other._h)
+
+    def _load_parameters(self):
+        self.parameters = yaml.safe_load(open(os.path.join(pkg_resources.resource_filename('failsim', "data"),
+                         'analysis_parameters.yaml')))
 
     @classmethod
     def combine(cls, *histograms: List[AnalysisHistogram]):
@@ -31,10 +38,33 @@ class LossPerTurnHistogram(AnalysisHistogram):
             self._h = hist.Hist(hist.axis.Regular(50, 0.5, 50.5, underflow=False, overflow=False, name="Turns"))
 
     def fill(self, data):
-        self._h.fill(data['turn'])
+        self._h.fill(data["turn"]);
 
     def plot(self):
-        self._h.plot()
+        self._h.plot(histtype="fill")
+
+
+class LossPerTurnByGroupHistogram(AnalysisHistogram):
+    def __init__(self, hist_histogram=None, groupby: str= "element"):
+        self.groupby = groupby
+        if hist_histogram:
+          self._h = hist_histogram
+        else:
+            self._h = hist.Hist(
+                hist.axis.Regular(50, 0.5, 50.5, underflow=False, overflow=False, name="Turns"),
+                hist.axis.StrCategory(AnalysisHistogram().parameters["groupby"][self.groupby], label="Collimators")
+            )
+
+    def fill(self, data):
+         self._h.fill(data["turn"], data[self.groupby])
+
+        # df = data.groupby(["element"])
+        # elements = list(df.groups.keys())
+        # [self._h.fill(df.get_group(item)["turn"], item) for item in elements]
+
+    def plot(self):
+        self._h.stack(1)
+        self._h.plot(stack=True, histtype="fill")
 
 
 class Analysis:
@@ -70,18 +100,22 @@ class EventAnalysis(Analysis):
         self._histograms = histograms or []
 
     def __call__(self):
-        loss_data = pd.read_parquet(os.path.join(self._path, f"{self._prefix}-{self.SUFFIXES['loss']}.parquet"))
+        try:
+            loss_data = pd.read_parquet(os.path.join(self._path, f"{self._prefix}-{self.SUFFIXES['loss']}.parquet"))
+        except FileNotFoundError:
+            loss_data = None
 
         def _preprocess_data():
             """Preprocessing applied to the loss dataframe."""
-            loss_data["group"] = loss_data.apply(lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
+            loss_data["family"] = loss_data.apply(lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
 
         def _process_data():
             for h in self._histograms:
                 h.fill(loss_data)
 
-        _preprocess_data()
-        _process_data()
+        if loss_data is not None:
+            _preprocess_data()
+            _process_data()
 
     def save(self):
         super().save(filename=f"{self._prefix}-analysis.pkl")
