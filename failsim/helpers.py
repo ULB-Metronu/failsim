@@ -8,9 +8,6 @@ import os
 import re
 import shutil
 import numpy as np
-import logging
-
-_logger = logging.getLogger()
 
 
 class OutputSuppressor:
@@ -114,6 +111,7 @@ class ArrayFile:
         """
         temp = ArrayFile()
         temp._lines = self._lines.copy()
+        print(temp._lines)
         return temp
 
 
@@ -142,12 +140,9 @@ class MoveNewFiles:
         new_files = np.setdiff1d(post_files, self._pre_files)
         new_files = self.filter_exclude(new_files)
         for file in new_files:
-            try:
-                shutil.move(os.path.join(self._source, file), os.path.join(self._destination, os.path.basename(file)))
-            except FileNotFoundError:
-                pass
+            shutil.move(os.path.join(self._source, file), os.path.join(self._destination, os.path.basename(file)))
 
-    def filter_exclude(self, files):
+    def filter_exclude(self, files: List[str]):
         for ex in self.exclude:
             r = re.compile(ex)
             res = [r.findall(x) for x in files]
@@ -168,19 +163,11 @@ def print_info(name: str):
     def _print_info(func):
         @functools.wraps(func)
         def _wrapper_print_info(self, *args, **kwargs):
-            # Get string representations of called function
-            args_repr = [repr(a) for a in args]
-            kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
-            signature = ", ".join(args_repr + kwargs_repr)
-            
-            # Log function call
-            _logger.info(f"{name} -> {func.__name__}({signature})")
-
-            # Print function call if set to verbose
             if self._verbose and FailSimGlobals.verbose:
-                print(f"{name+' ':-<20}-> {func.__name__}({signature})")
-
-            # Execute called function
+                args_repr = [repr(a) for a in args]
+                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
+                signature = ", ".join(args_repr + kwargs_repr)
+                print(f"{name} -> {func.__name__}({signature})")
             val = func(self, *args, **kwargs)
             return val
 

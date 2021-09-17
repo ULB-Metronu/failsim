@@ -1,8 +1,8 @@
 """
-Contains the class FailSim.
+FailSim main class: it is a thin wrapper around `cpymad`.
 """
 from __future__ import annotations
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Tuple
 import numpy as np
 import pandas as pd
 import pymask as pm
@@ -62,6 +62,7 @@ class FailSim:
                 self._cwd = FailSimGlobals.cwd
         else:
             self._cwd = cwd
+        os.makedirs(self._cwd, exist_ok=True)
 
         # Setup output directory
         if output_dir is None:
@@ -77,8 +78,7 @@ class FailSim:
             self._output_dir = os.path.join(self._cwd, self._output_dir)
 
         # Create output directory if it doesn't exist
-        if not os.path.exists(self._output_dir):
-            os.makedirs(self._output_dir)
+        os.makedirs(self._output_dir, exist_ok=True)
 
         # Set static variables
         FailSim.cwd = self._cwd
@@ -283,7 +283,7 @@ class FailSim:
         return self
 
     @print_info("FailSim")
-    def make_thin(self):
+    def make_thin(self, make_end_markers: bool = False):
         """Makes the given sequence thin using the `myslice` macro.
 
         Args:
@@ -293,6 +293,8 @@ class FailSim:
             FailSim: Returns self
 
         """
+        if make_end_markers:
+            self.mad_input("make_end_markers=1")
         self.mad_input(f"exec myslice")
         return self
 

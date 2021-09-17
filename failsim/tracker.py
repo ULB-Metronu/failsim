@@ -221,12 +221,11 @@ class Tracker:
                 file_name = FailSim.path_to_cwd(
                     os.path.join(FailSimGlobals.tmp_directory, f"{unique_hash}_tmp_{idx}.txt")
                 )
-
                 with open(file_name, "w") as fd:
                     fd.write(filedata)
 
                 tmp_files.append(file_name)
-                time_depen.append(f"call, file='{tmp_files[-1]}';")
+                time_depen.append(f"call, file='{os.path.relpath(tmp_files[-1], FailSim.path_to_cwd('.'))}';")
 
             # Create tr$macro
             self._track_flags.append("update")

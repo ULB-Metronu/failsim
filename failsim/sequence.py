@@ -738,7 +738,7 @@ class LHCSequence:
             if not thick:
                 for ff in self._pre_thin_scripts:
                     self._failsim.mad_call_file(ff)
-                self._failsim.make_thin()
+                self._failsim.make_thin(make_end_markers=True)
 
                 if self._thin_apertures is not None:
                     for file in self._thin_apertures:

@@ -84,7 +84,7 @@ class Result:
             self.twiss_df = self.twiss_df.sort_values(["turn", "s"])
         return self
 
-    def save_data(self, path: str, suffix: str = ""):
+    def save_data(self, path: str=".", suffix: str = ""):
         """
         Saves the Result data in 4 disctinct files:
 
@@ -99,7 +99,7 @@ class Result:
 
         """
         if not path.startswith("/"):
-            path = FailSim.path_to_cwd(path)
+            path = FailSim.path_to_output(path)
 
         os.makedirs(path, exist_ok=True)
 
