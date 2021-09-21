@@ -31,7 +31,8 @@ class AnalysisHistogram:
 
 
 class LossPerTurnHistogram(AnalysisHistogram):
-    def __init__(self, hist_histogram=None):
+    def __init__(self, hist_histogram=None, cumulative:bool =False):
+        self.cumulative = cumulative
         if hist_histogram:
             self._h = hist_histogram
         else:
@@ -39,14 +40,16 @@ class LossPerTurnHistogram(AnalysisHistogram):
 
     def fill(self, data):
         self._h.fill(data["turn"]);
-
+        if self.cumulative:
+            self._h[:] = np.cumsum(self._h[:])
     def plot(self):
         self._h.plot(histtype="fill")
 
 
 class LossPerTurnByGroupHistogram(AnalysisHistogram):
-    def __init__(self, hist_histogram=None, groupby: str= "element"):
+    def __init__(self, hist_histogram=None, groupby: str= "element", cumulative:bool =False):
         self.groupby = groupby
+        self.cumulative = cumulative
         if hist_histogram:
           self._h = hist_histogram
         else:
@@ -56,13 +59,25 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
             )
 
     def fill(self, data):
-         self._h.fill(data["turn"], data[self.groupby])
+        self._h.fill(data["turn"], data[self.groupby])
+        if self.cumulative:
+            for n in range(len(self._h[0, :].values())):
+                self._h[:, n] = np.cumsum(self._h[:, n])
 
         # df = data.groupby(["element"])
         # elements = list(df.groups.keys())
         # [self._h.fill(df.get_group(item)["turn"], item) for item in elements]
 
     def plot(self):
+        fig, ax1 = plt.subplots()
+        ax1.tick_params(axis='both', which='major', labelsize=30)
+        ax1.tick_params(axis='both', which='minor', labelsize=30)
+        plt.xticks(np.arange(1, 51, 1.0))
+        plt.ylabel("Losses", fontsize=30)
+        plt.xlabel("Turns", fontsize=30)
+        fig.set_size_inches(w=50, h=10)
+        plt.grid(linewidth=0.3)
+        plt.title("mqxfa_b3l1 case 5", fontsize=40)
         self._h.stack(1)
         self._h.plot(stack=True, histtype="fill")
 
