@@ -9,6 +9,7 @@ import functools
 import pkg_resources
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import matplotlib.pyplot as plt
 import hist
 
@@ -69,17 +70,32 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
         # [self._h.fill(df.get_group(item)["turn"], item) for item in elements]
 
     def plot(self):
-        fig, ax1 = plt.subplots()
-        ax1.tick_params(axis='both', which='major', labelsize=30)
-        ax1.tick_params(axis='both', which='minor', labelsize=30)
-        plt.xticks(np.arange(1, 51, 1.0))
-        plt.ylabel("Losses", fontsize=30)
-        plt.xlabel("Turns", fontsize=30)
-        fig.set_size_inches(w=50, h=10)
-        plt.grid(linewidth=0.3)
-        plt.title("mqxfa_b3l1 case 5", fontsize=40)
         self._h.stack(1)
         self._h.plot(stack=True, histtype="fill")
+
+
+class ImpactParameterHistogram(AnalysisHistogram):
+    def __init__(self, hist_histogram=None, groupby: str= "element", cumulative:bool =False):
+        self.groupby = groupby
+        self.cumulative = cumulative
+        if hist_histogram:
+          self._h = hist_histogram
+        else:
+            self._h = hist.Hist(
+                axis.Regular(200, 0.0, 0.0022, underflow=False, overflow=False, name="x"),
+                axis.Regular(200, 0.0, 0.0022, underflow=False, overflow=False, name="y"),
+                axis.StrCategory(params["groupby"]["element"], label="Collimators", name="Collimators")
+            )
+
+    def fill(self, data):
+        self._h.fill(data["x"], data["y"], data[self.groupby])
+
+    def plot(self, projection: str="x", element: str=None):
+        self._h.project(projection, "Collimators")
+        if element is not None:
+            self._h[:, element].plot(stack=True, histtype="fill")
+        else:
+            self._h.plot(stack=True, histtype="fill")
 
 
 class Analysis:
@@ -89,11 +105,11 @@ class Analysis:
         self._path = path
         self._histograms = None
 
-    def save(self, filename: str):
+    def save(self, filename: str, property: str = '_histograms'):
         """Save the combined analysis data (histograms, plots, etc.) in a pickle format."""
         with open(os.path.join(self._path, filename), "wb") as f:
             if self._histograms is not None:
-                pickle.dump(self._histograms, f)
+                pickle.dump(getattr(self, property), f)
 
     def __getitem__(self, k):
         return self._histograms[k]
@@ -140,7 +156,7 @@ class EventAnalysis(Analysis):
         return self._histograms
 
 
-class AnalysisCombine(Analysis):
+class AnalysisCombineLosses(Analysis):
     def __init__(self, path: str = '.'):
         super().__init__(path)
         self._files = glob.glob(os.path.join(self._path, "*-analysis.pkl"))
@@ -163,3 +179,27 @@ class AnalysisCombine(Analysis):
     @property
     def results(self):
         return self._histograms
+
+
+class AnalysisCombineTracks(Analysis):
+    def __init__(self, path: str = '.', filters: Optional[List]=None):
+        super().__init__(path)
+        self._files = glob.glob(self._path + "/**track.parquet")
+        nthreads = 1 if filters is not None else 64
+        self._dataset = pq.ParquetDataset(
+            self._files,
+            metadata_nthreads=1,
+            filters=filters,
+            use_legacy_dataset=filters is None,
+        )
+        self._data = None
+
+    def __call__(self, columns: Optional[List[str]]=None):
+        self._data = self._dataset.read(columns=columns, use_threads=True)
+
+    def save(self, filename: str = 'combined-tracks.parquet'):
+        pq.write_table(self._data, os.path.join(self._path, filename))
+
+    @property
+    def results(self):
+        return self._data

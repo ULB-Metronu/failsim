@@ -1,12 +1,11 @@
 groupby:
-    family: ['tanb', 'taxn', 'taxs', 'tcapa', 'tcapb', 'tcapc', 'tcapd', 'tcdd',
+    family: ['tcapa', 'tcapb', 'tcapc', 'tcapd', 'tcdd',
        'tcddm', 'tcdqa', 'tcdqm', 'tcdsa', 'tcdsb', 'tcl', 'tcla', 'tcld',
        'tclia', 'tclib', 'tclim', 'tclmb', 'tclmc', 'tclx', 'tcp', 'tcpch',
        'tcpcv', 'tcsg', 'tcsp', 'tcth', 'tctph', 'tctpv', 'tctv', 'tctxh',
        'tdis', 'vtcld']
 
-    element: ['tanb.4l8.b1', 'taxn.4l1', 'taxn.4l5', 'taxn.4r1', 'taxn.4r5',
-       'taxs.1l1', 'taxs.1l5', 'taxs.1r1', 'taxs.1r5', 'tcapa.6l3.b1',
+    element: ['tcapa.6l3.b1',
        'tcapa.6l7.b1', 'tcapb.6l7.b1', 'tcapc.6l7.b1', 'tcapd.5l3.b1',
        'tcdd.4l2', 'tcddm.4r8', 'tcdqa.a4r6.b1', 'tcdqa.b4r6.b1',
        'tcdqa.c4r6.b1', 'tcdqm.a4l6.b1', 'tcdqm.a4r6.b1', 'tcdqm.b4l6.b1',
