@@ -6,12 +6,12 @@ from typing import List, Optional, Tuple
 import os
 import gc
 import re
-import multiprocessing
 import pathlib
 import pandas as pd
 import numpy as np
 
 from .failsim import FailSim
+from .beams import Beam
 from .results import TrackingResult, TwissResult
 from .helpers import print_info
 from .globals import FailSimGlobals
@@ -141,6 +141,7 @@ class Tracker:
 
     @print_info("Tracker")
     def track_multithreaded(self, turns: int = 40, nthreads: int = 8):
+        import multiprocessing
         # Basic assertions
         assert (nthreads%2 == 0), \
             ("nthreads must be a multiple of 2")
@@ -209,7 +210,6 @@ class Tracker:
 
         tmp_files = []
         if len(self._time_dependencies) != 0:
-
             unique_hash = hash(self)
             time_depen = []
             for idx, file in enumerate(self._time_dependencies):
@@ -292,6 +292,7 @@ class Tracker:
             eps_n,
             dict(self._failsim.mad.sequence[self._sequence_to_track].beam.items()),
             loss_df=loss_df,
+            beam_distribution=self._beam
         )
 
         for file in tmp_files:
@@ -344,6 +345,14 @@ class Tracker:
 
         """
         self._particles = particles
+
+    @print_info("Tracker")
+    def set_beam(self, beam: Beam):
+        """
+        TODO
+        """
+        self._beam = beam
+        self._particles = beam.distribution
 
     @print_info("Tracker")
     def set_track_flags(self, flags: List[str]):

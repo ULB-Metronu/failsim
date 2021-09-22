@@ -9,6 +9,7 @@ import yaml
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
+from .beams import Beam
 from .artist import _Artist
 from .failsim import FailSim
 if TYPE_CHECKING:
@@ -67,13 +68,13 @@ class Result:
             self.fix_twiss_name()
 
     def append(self, other: TwissResult, sort: bool = False):
-        """Appends twiss data in other to this instance.
+        """Appends twiss data to this instance.
 
         Args:
             other: TwissResult object to append to this instance.
 
         Kwargs:
-            sort: Whether the new twiss table should be sorted by turn and s or not.
+            sort: Whether the new twiss table should be sorted (by turn and by s) or not.
 
         Returns:
             TwissResult: Returns self
@@ -84,7 +85,7 @@ class Result:
             self.twiss_df = self.twiss_df.sort_values(["turn", "s"])
         return self
 
-    def save_data(self, path: str=".", suffix: str = ""):
+    def save_data(self, path: str=".", prefix: str = ""):
         """
         Saves the Result data in 4 disctinct files:
 
@@ -95,30 +96,31 @@ class Result:
 
         Args:
             path: The directory in which to save the data. Can be either absolute or relative to cwd.
-            suffix: Allows specification of a suffix. The suffix will be prepended to each of the 4 saved files.
+            prefix: Allows specification of a prefix. The prefix will be prepended to each of the saved files.
 
         """
         if not path.startswith("/"):
-            path = FailSim.path_to_output(path)
+            path = FailSim.path_to_cwd(path)
 
         os.makedirs(path, exist_ok=True)
 
         # Save twiss
-        twiss_name = os.path.join(path, suffix + "twiss.parquet")
+        twiss_name = os.path.join(path, prefix + "-twiss.parquet")
         self.twiss_df.to_parquet(twiss_name)
 
         # Save summ
-        summ_name = os.path.join(path, suffix + "summ.parquet")
+        summ_name = os.path.join(path, prefix + "-summ.parquet")
         self.summ_df.to_parquet(summ_name)
 
         # Save extra info
-        info_name = os.path.join(path, suffix + "info.parquet")
+        info_name = os.path.join(path, prefix + "-info.parquet")
         self.info_df.to_parquet(info_name)
 
         # Save beam
-        beam_name = os.path.join(path, suffix+"beam.yaml")
+        beam_name = os.path.join(path, prefix+"-beam.yaml")
         with open(beam_name, "w") as fd:
             yaml.safe_dump(self.beam, fd)
+
 
     @classmethod
     def load_data(cls, path: str, suffix: str = ""):
@@ -193,13 +195,12 @@ class Result:
         for turn in turns:
             data = self.twiss_df.loc[self.twiss_df["turn"] == turn]
             temp_res = pd.DataFrame()
-
-            temp_res["betx"] = data["betx"] / reference["betx"]
-            temp_res["alfx"] = data["alfx"] / reference["alfx"]
+            temp_res["betx"] = (data["betx"]-reference["betx"]) / reference["betx"]
+            temp_res["alfx"] = (data["alfx"]-reference["alfx"]) / reference["alfx"]
             temp_res["mux"] = data["mux"] / reference["mux"]
 
-            temp_res["bety"] = data["bety"] / reference["bety"]
-            temp_res["alfy"] = data["alfy"] / reference["alfy"]
+            temp_res["bety"] = (data["bety"]-reference["bety"]) / reference["bety"]
+            temp_res["alfy"] = (data["alfy"]-reference["alfy"]) / reference["alfy"]
             temp_res["muy"] = data["muy"] / reference["muy"]
 
             temp_res["name"] = reference["name"]
@@ -237,7 +238,8 @@ class Result:
             "y": diff_muy,
         }
 
-    def get_effective_halfgap(self, axis: str,
+    def get_effective_halfgap(self, 
+            axis: str,
             elements: Union[str, List[str]],
             twiss_path: Optional[str] = None,
             use_excursion: bool = True,
@@ -334,6 +336,7 @@ class TrackingResult(Result):
         eps_n: float = 2.5e-6,
         beam: dict = None,
         loss_df: Optional[pd.DataFrame] = None,
+        beam_distribution: Beam = None,
     ):
         super().__init__(
             twiss_df, summ_df, run_version, hllhc_version, eps_n, beam
@@ -341,6 +344,7 @@ class TrackingResult(Result):
 
         self.track_df = track_df
         self.loss_df = loss_df
+        self.beam_distribution = beam_distribution
 
         self.plot = _TrackArtist(self)
 
@@ -458,22 +462,30 @@ class TrackingResult(Result):
             suffix: Allows specification of a suffix. The suffix will be prepended to each of the 4 saved files.
 
         """
+        super().save_data(path, suffix)
 
         if not path.startswith("/"):
             path = FailSim.path_to_cwd(path)
 
-        os.makedirs(path, exist_ok=True)
-
-        super().save_data(path, suffix)
-
         # Save track
-        track_name = os.path.join(path, suffix + "track.parquet")
+        track_name = os.path.join(path, suffix + "-track.parquet")
         self.track_df.to_parquet(track_name)
 
         # Save loss if it is not None
         if self.loss_df is not None:
-            loss_name = os.path.join(path, suffix + "loss.parquet")
+            loss_name = os.path.join(path, suffix + "-loss.parquet")
             self.loss_df.to_parquet(loss_name)
+
+        # Save beam distribution if it is not None
+        if self.beam_distribution is not None:
+            np.save(os.path.join(path, suffix + "-beam.npy"), self.beam_distribution.distribution_with_weights)
+
+    def compute_weights(self):
+        """TODO"""
+        weights = self.beam_distribution.weight_from_denormalized_distribution(self.track_df.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values)
+        self.track_df['weight'] = self.track_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
+        self.loss_df['weight'] = self.loss_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
+        return self
 
     @classmethod
     def load_data(cls, path: str, suffix: str = ""):
@@ -516,6 +528,11 @@ class TrackingResult(Result):
         with open(os.path.join(path, suffix+"beam.yaml"), "r") as fd:
             beam = yaml.safe_load(fd)
 
+        # Load beam distribution
+        beam_distribution = None
+        if os.path.exists(os.path.join(path, suffix + "beam.npy")):
+            beam_distribution = np.load(os.path.join(path, suffix + "beam.npy"))
+
         # Create instance
         inst = TrackingResult(
             twiss_df=twiss_df,
@@ -526,6 +543,7 @@ class TrackingResult(Result):
             run_version=info_df["run_version"],
             hllhc_version=info_df["hllhc_version"],
             eps_n=info_df["eps_n"],
+            beam_distribution=beam_distribution
         )
 
         return inst
