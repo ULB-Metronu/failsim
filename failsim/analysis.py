@@ -137,6 +137,64 @@ class ImpactParameterHistogram(AnalysisHistogram):
                       ncol=1)
 
 
+class LossPerMachinePosition(AnalysisHistogram):
+    def __init__(self, hist_histogram=None, groupby: str = "element"):
+        super().__init__(hist_histogram)
+        self.groupby = groupby
+        if hist_histogram:
+            self._h = hist_histogram
+        else:
+            self._h = hist.Hist(
+                hist.axis.Regular(26000, 0, 26658.8832, underflow=False, overflow=False, name="s", label="s"),
+                hist.axis.StrCategory(self.parameters["groupby"][self.groupby], label="Collimators")
+            )
+
+    def fill(self, data):
+        self._h.fill(data["s"], data[self.groupby])
+
+    def plot(self, ax):
+        """ Use this to "zoom in" the axes ``ax.xlim(19700, 20000)`` """
+
+        def legend(data, h):
+            if h.sum() != 0:
+                if h[:, [data[0]]].sum() * 100 / h.sum() > 1:
+                    return data[0]
+
+        legend_parameters = pd.DataFrame(AnalysisHistogram().parameters["groupby"][self.groupby]
+                                         ).apply(legend, args=(self._h,), axis=1).dropna()
+
+        self._h.stack(1).plot(stack=True, histtype="fill", legend=True, ax=ax)
+
+        artists = np.take(ax.get_legend_handles_labels()[0], -legend_parameters.index - 1)
+        labels = np.take(ax.get_legend_handles_labels()[1], -legend_parameters.index - 1)
+        ax.legend(artists,
+                  labels,
+                  prop={'size': 30},
+                  loc='center left',
+                  bbox_to_anchor=(0.965, 0.5),
+                  fancybox=True,
+                  shadow=True,
+                  ncol=1)
+        ymin, ymax = ax.get_ylim()
+
+        ax.axvline(x=0, ymin=0, ymax=1, color='red')
+        ax.text(0.1, ymax / 2, 'ip1', rotation=90, fontsize=30, clip_on=True)
+        ax.axvline(x=3332.436584, ymin=0, ymax=1, color='red')
+        ax.text(3332.536584, ymax / 2, 'ip2', rotation=90, fontsize=30, clip_on=True)
+        ax.axvline(x=6664.7208, ymin=0, ymax=1, color='red')
+        ax.text(6664.8208, ymax / 2, 'ip3', rotation=90, fontsize=30, clip_on=True)
+        ax.axvline(x=9997.005016, ymin=0, ymax=1, color='red')
+        ax.text(9997.105016, ymax / 2, 'ip4', rotation=90, fontsize=30, clip_on=True)
+        ax.axvline(x=13329.289233, ymin=0, ymax=1, color='red')
+        ax.text(13329.389233, ymax / 2, 'ip5', rotation=90, fontsize=30, clip_on=True)
+        ax.axvline(x=16661.725816, ymin=0, ymax=1, color='red')
+        ax.text(16661.825816, ymax / 2, 'ip6', rotation=90, fontsize=30, clip_on=True)
+        ax.axvline(x=19994.1624, ymin=0, ymax=1, color='red')
+        ax.text(19994.2624, ymax / 2, 'ip7', rotation=90, fontsize=30, clip_on=True)
+        ax.axvline(x=23315.378984, ymin=0, ymax=1, color='red')
+        ax.text(23315.478984, ymax / 2, 'ip8', rotation=90, fontsize=30, clip_on=True)
+
+
 class Analysis:
     """Base class to support the analysis module."""
 
@@ -162,7 +220,7 @@ class EventAnalysis(Analysis):
         'summary': "summ",
         'info': "info",
         'twiss': "twiss",
-        'twiss_pre_thin': 'twiss_pre_thin_lhcb1',
+        'twiss_pre_thin': '_twiss_pre_thin_lhcb1',
     }
 
     def __init__(self, prefix: str = '', histograms: Optional[List[AnalysisHistogram]] = None, path: str = '.'):
