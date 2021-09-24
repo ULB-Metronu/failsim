@@ -2,10 +2,12 @@
 Module containing classes that contain and handle data.
 """
 from __future__ import annotations
+import pickle
 from typing import Optional, List, Union, Dict, Tuple, Callable, Type, TYPE_CHECKING
 import os
 import re
 import yaml
+import pickle
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
@@ -64,8 +66,9 @@ class Result:
             index=["info"],
         )
 
-        if twiss_df["name"].iloc[0].endswith(":1"):
-            self.fix_twiss_name()
+        if twiss_df is not None:
+            if twiss_df["name"].iloc[0].endswith(":1"):
+                self.fix_twiss_name()
 
     def append(self, other: TwissResult, sort: bool = False):
         """Appends twiss data to this instance.
@@ -105,19 +108,19 @@ class Result:
         os.makedirs(path, exist_ok=True)
 
         # Save twiss
-        twiss_name = os.path.join(path, prefix + "-twiss.parquet")
+        twiss_name = os.path.join(path, prefix + "twiss.parquet")
         self.twiss_df.to_parquet(twiss_name)
 
         # Save summ
-        summ_name = os.path.join(path, prefix + "-summ.parquet")
+        summ_name = os.path.join(path, prefix + "summ.parquet")
         self.summ_df.to_parquet(summ_name)
 
         # Save extra info
-        info_name = os.path.join(path, prefix + "-info.parquet")
+        info_name = os.path.join(path, prefix + "info.parquet")
         self.info_df.to_parquet(info_name)
 
         # Save beam
-        beam_name = os.path.join(path, prefix+"-beam.yaml")
+        beam_name = os.path.join(path, prefix + "beam.yaml")
         with open(beam_name, "w") as fd:
             yaml.safe_dump(self.beam, fd)
 
@@ -462,33 +465,65 @@ class TrackingResult(Result):
             suffix: Allows specification of a suffix. The suffix will be prepended to each of the 4 saved files.
 
         """
+        suffix = f"{suffix}-"
         super().save_data(path, suffix)
 
         if not path.startswith("/"):
             path = FailSim.path_to_cwd(path)
 
         # Save track
-        track_name = os.path.join(path, suffix + "-track.parquet")
+        track_name = os.path.join(path, suffix + f"track.parquet")
         self.track_df.to_parquet(track_name)
 
         # Save loss if it is not None
         if self.loss_df is not None:
-            loss_name = os.path.join(path, suffix + "-loss.parquet")
+            loss_name = os.path.join(path, suffix + "loss.parquet")
             self.loss_df.to_parquet(loss_name)
 
         # Save beam distribution if it is not None
         if self.beam_distribution is not None:
-            np.save(os.path.join(path, suffix + "-beam.npy"), self.beam_distribution.distribution_with_weights)
+            np.save(os.path.join(path, suffix + "beam.npy"), self.beam_distribution.distribution_with_weights)
+            with open(os.path.join(path, suffix + "beam.pkl"), "wb") as f:
+                pickle.dump(self.beam_distribution, f)
 
-    def compute_weights(self):
+    def compute_weights(self, use_initial_distribution_from_tracks: bool=False) -> float:
         """TODO"""
-        weights = self.beam_distribution.weight_from_denormalized_distribution(self.track_df.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values)
-        self.track_df['weight'] = self.track_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
-        self.loss_df['weight'] = self.loss_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
-        return self
+        weights = None
+        if self.beam_distribution.model is not None:
+            if use_initial_distribution_from_tracks:
+                initial_distribution = self.track_df.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values
+                weights = self.beam_distribution.weight_from_denormalized_distribution(initial_distribution)
+            else:
+                if self.beam_distribution is not None:
+                    weights = self.beam_distribution.weights
+                else:
+                    weights = None 
+            
+            if self.track_df is not None:
+                if weights is not None:
+                    self.track_df['weight'] = self.track_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
+                else:
+                    self.track_df['weight'] = 1.0
+            if self.loss_df is not None:
+                if weights is not None:
+                    self.loss_df['weight'] = self.loss_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
+                else:
+                    self.loss_df['weight'] = 1.0
+        
+        return weights.sum() if weights is not None else 1.0
 
     @classmethod
-    def load_data(cls, path: str, suffix: str = ""):
+    def load_data(
+        cls, 
+        path: str, 
+        suffix: str = "",
+        load_twiss: bool = True,
+        load_summ: bool = True,
+        load_info: bool = True,
+        load_track: bool = True,
+        load_loss: bool = True,
+        load_beam: bool = True
+        ):
         """Classmethod that loads data from the directory specified and returns a TrackingResult object.
 
         Note:
@@ -507,31 +542,65 @@ class TrackingResult(Result):
             TrackingResult: A TrackingResult instance containing the loaded data.
 
         """
+        suffix = f"{suffix}-"
+
         # Load twiss
-        twiss_df = pd.read_parquet(os.path.join(path, suffix + "twiss.parquet"))
+        twiss_df = None
+        if load_twiss:
+            try:
+                twiss_df = pd.read_parquet(os.path.join(path, suffix + "twiss.parquet"))
+            except FileNotFoundError:
+                pass
 
         # Load summ
-        summ_df = pd.read_parquet(os.path.join(path, suffix + "summ.parquet"))
+        summ_df = None
+        if load_summ:
+            try:
+                summ_df = pd.read_parquet(os.path.join(path, suffix + "summ.parquet"))
+            except FileNotFoundError:
+                pass
 
         # Load info
-        info_df = pd.read_parquet(os.path.join(path, suffix + "info.parquet"))
-        print(info_df)
+        info_df = {}
+        if load_info:
+            try:
+                info_df = pd.read_parquet(os.path.join(path, suffix + "info.parquet"))
+            except FileNotFoundError:
+                pass
+        
         # Load track
-        track_df = pd.read_parquet(os.path.join(path, suffix + "track.parquet"))
+        track_df = None
+        if load_track:
+            try:
+                track_df = pd.read_parquet(os.path.join(path, suffix + "track.parquet"))
+            except FileNotFoundError:
+                pass
 
         # Load loss
         loss_df = None
-        if os.path.exists(os.path.join(path, suffix + "loss.parquet")):
-            loss_df = pd.read_parquet(os.path.join(path, suffix + "loss.parquet"))
+        if load_loss and os.path.exists(os.path.join(path, suffix + "loss.parquet")):
+            try:
+                loss_df = pd.read_parquet(os.path.join(path, suffix + "loss.parquet"))
+            except FileNotFoundError:
+                pass
 
         # Load beam
-        with open(os.path.join(path, suffix+"beam.yaml"), "r") as fd:
-            beam = yaml.safe_load(fd)
+        beam = None
+        if load_beam:
+            try:
+                with open(os.path.join(path, suffix+"beam.yaml"), "r") as fd:
+                    beam = yaml.safe_load(fd)
+            except FileNotFoundError:
+                pass
 
         # Load beam distribution
         beam_distribution = None
-        if os.path.exists(os.path.join(path, suffix + "beam.npy")):
-            beam_distribution = np.load(os.path.join(path, suffix + "beam.npy"))
+        if load_beam and os.path.exists(os.path.join(path, suffix + "beam.pkl")):
+            try:
+                with open(os.path.join(path, suffix + "beam.pkl"),'rb') as f:
+                    beam_distribution = pickle.load(f)
+            except FileNotFoundError:
+                pass
 
         # Create instance
         inst = TrackingResult(
@@ -540,9 +609,9 @@ class TrackingResult(Result):
             track_df=track_df,
             loss_df=loss_df,
             beam=beam,
-            run_version=info_df["run_version"],
-            hllhc_version=info_df["hllhc_version"],
-            eps_n=info_df["eps_n"],
+            run_version=info_df.get("run_version"),
+            hllhc_version=info_df.get("hllhc_version"),
+            eps_n=info_df.get("eps_n"),
             beam_distribution=beam_distribution
         )
 

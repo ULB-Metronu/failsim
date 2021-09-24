@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List
+from typing import Optional, List
 import os
 import re
 import glob
@@ -12,7 +12,8 @@ import pandas as pd
 import pyarrow.parquet as pq
 import matplotlib.pyplot as plt
 import hist
-
+from .results import TrackingResult
+from .beams import PDF
 
 class AnalysisHistogram:
     def __init__(self, hist_histogram=None):
@@ -20,35 +21,39 @@ class AnalysisHistogram:
         self._load_parameters()
 
     def __add__(self, other):
-        return self.__class__(self._h + other._h)
+        return self.__class__(self._h + other.h)
 
     def _load_parameters(self):
         self.parameters = yaml.safe_load(open(os.path.join(pkg_resources.resource_filename('failsim', "data"),
                          'analysis_parameters.yaml')))
 
+    @property
+    def h(self):
+        return self._h
+
     @classmethod
     def combine(cls, *histograms: List[AnalysisHistogram]):
-        return functools.reduce(lambda x, y: x + y, histograms)
+        combined_histogram = functools.reduce(lambda x, y: x + y, histograms)
+        return combined_histogram
 
 
 class LossPerTurnHistogram(AnalysisHistogram):
-    def __init__(self, hist_histogram=None, cumulative:bool =False):
-        self.cumulative = cumulative
+    def __init__(self, hist_histogram=None):
         if hist_histogram:
             self._h = hist_histogram
         else:
-            self._h = hist.Hist(hist.axis.Regular(50, 0.5, 50.5, underflow=False, overflow=False, name="Turns"))
+            self._h = hist.Hist(hist.axis.Regular(50, 0.5, 100.5, underflow=False, overflow=False, name="Turns"))
 
     def fill(self, data):
-        self._h.fill(data["turn"]);
-        if self.cumulative:
-            self._h[:] = np.cumsum(self._h[:])
-    def plot(self):
-        self._h.plot(histtype="fill")
+        self._h.fill(data["turn"], weight=data["weight"].values)
+        
+    def plot(self, ax, cumulative:bool =False, **kwargs):
+        self._h.plot(ax=ax, histtype="fill", **kwargs)
 
 
 class LossPerTurnByGroupHistogram(AnalysisHistogram):
     def __init__(self, hist_histogram=None, groupby: str= "element", cumulative:bool =False):
+        super().__init__(hist_histogram=hist_histogram)
         self.groupby = groupby
         self.cumulative = cumulative
         if hist_histogram:
@@ -56,7 +61,7 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
         else:
             self._h = hist.Hist(
                 hist.axis.Regular(50, 0.5, 50.5, underflow=False, overflow=False, name="Turns"),
-                hist.axis.StrCategory(AnalysisHistogram().parameters["groupby"][self.groupby], label="Collimators")
+                hist.axis.StrCategory(self.parameters["groupby"][self.groupby], label="Collimators")
             )
 
     def fill(self, data):
@@ -82,9 +87,9 @@ class ImpactParameterHistogram(AnalysisHistogram):
           self._h = hist_histogram
         else:
             self._h = hist.Hist(
-                axis.Regular(200, 0.0, 0.0022, underflow=False, overflow=False, name="x"),
-                axis.Regular(200, 0.0, 0.0022, underflow=False, overflow=False, name="y"),
-                axis.StrCategory(params["groupby"]["element"], label="Collimators", name="Collimators")
+                hist.axis.Regular(200, 0.0, 0.0022, underflow=False, overflow=False, name="x"),
+                hist.axis.Regular(200, 0.0, 0.0022, underflow=False, overflow=False, name="y"),
+                hist.axis.StrCategory(self.parameters["groupby"]["element"], label="Collimators", name="Collimators")
             )
 
     def fill(self, data):
@@ -105,11 +110,11 @@ class Analysis:
         self._path = path
         self._histograms = None
 
-    def save(self, filename: str, property: str = '_histograms'):
+    def save(self, filename: str, property_name: str = '_histograms'):
         """Save the combined analysis data (histograms, plots, etc.) in a pickle format."""
         with open(os.path.join(self._path, filename), "wb") as f:
-            if self._histograms is not None:
-                pickle.dump(getattr(self, property), f)
+            if getattr(self, property_name) is not None:
+                pickle.dump(getattr(self, property_name), f)
 
     def __getitem__(self, k):
         return self._histograms[k]
@@ -125,31 +130,43 @@ class EventAnalysis(Analysis):
         'twiss': "twiss",
     }
 
-    def __init__(self, prefix: str = '', histograms: Optional[List[AnalysisHistogram]] = None, path: str = '.'):
+    def __init__(self, prefix: str = '', histograms: Optional[List[AnalysisHistogram]] = None, beam_model: Optional[PDF]=None, path: str = '.'):
         super().__init__(path)
         self._prefix = prefix
         self._histograms = histograms or []
+        self._beam_model = beam_model
+        self._total_weight = 1.0
 
     def __call__(self):
-        try:
-            loss_data = pd.read_parquet(os.path.join(self._path, f"{self._prefix}-{self.SUFFIXES['loss']}.parquet"))
-        except FileNotFoundError:
-            loss_data = None
+        self._tr = TrackingResult.load_data(
+            path=self._path, 
+            suffix=self._prefix,
+            load_twiss=False,
+            load_summ=False,
+            load_info=False,
+            load_track=True,
+            load_loss=True,
+            load_beam=True
+            )
+        self._tr.beam_distribution.model = self._beam_model
+        self._total_weight = self._tr.compute_weights()
 
         def _preprocess_data():
             """Preprocessing applied to the loss dataframe."""
-            loss_data["family"] = loss_data.apply(lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
+            self._tr.loss_df["family"] = self._tr.loss_df.apply(lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
 
         def _process_data():
             for h in self._histograms:
-                h.fill(loss_data)
+                h.fill(self._tr.loss_df)
+            self._histograms.append(self._total_weight)
 
-        if loss_data is not None:
+        if self._tr.loss_df is not None:
             _preprocess_data()
             _process_data()
 
     def save(self):
-        super().save(filename=f"{self._prefix}-analysis.pkl")
+        np.save(os.path.join(self._path, f"{self._prefix}-weights-{self._beam_model}.npy"), self._tr.track_df.query("turn == 0.0")[['number', 'weight']].values)
+        super().save(filename=f"{self._prefix}-analysis-{self._beam_model}.pkl")
 
     @property
     def results(self):
@@ -157,9 +174,9 @@ class EventAnalysis(Analysis):
 
 
 class AnalysisCombineLosses(Analysis):
-    def __init__(self, path: str = '.'):
+    def __init__(self, path: str = '.', beam_model: str = 'DoubleGaussianPDF'):
         super().__init__(path)
-        self._files = glob.glob(os.path.join(self._path, "*-analysis.pkl"))
+        self._files = glob.glob(os.path.join(self._path, f"*-analysis-{beam_model}.pkl"))
         self._event_histograms = None
         self._histograms = None
 
@@ -182,13 +199,13 @@ class AnalysisCombineLosses(Analysis):
 
 
 class AnalysisCombineTracks(Analysis):
-    def __init__(self, path: str = '.', filters: Optional[List]=None):
+    def __init__(self, path: str = '.', filters: Optional[List]=None, beam_model: Optional[PDF]=None):
         super().__init__(path)
         self._files = glob.glob(self._path + "/**track.parquet")
         nthreads = 1 if filters is not None else 64
         self._dataset = pq.ParquetDataset(
             self._files,
-            metadata_nthreads=1,
+            metadata_nthreads=nthreads,
             filters=filters,
             use_legacy_dataset=filters is None,
         )

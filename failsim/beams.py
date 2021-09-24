@@ -20,6 +20,9 @@ class PDF:
     def __call__(self, x: np.ndarray):
         return self._pdf(x[:, 0:4])
 
+    def __str__(self):
+        return f"{self.__class__.__name__}"
+
 class DoubleGaussianPDF(PDF):
     def __init__(
         self,
@@ -43,19 +46,29 @@ class LHCBeamError(Exception):
 
 
 class Beam:
-    def __init__(self, closed_orbit: Tuple, twiss: Dict, model: PDF):
-        self._orbit= closed_orbit
+    def __init__(self, closed_orbit: np.ndarray, twiss: Dict, model: Optional[PDF]=None):
+        self._closed_orbit= closed_orbit
         self._twiss = twiss
         self._model = model
+        self._weights = None
 
     def generate(self, nparticles: int, inner_radius: float=0.0, outer_radius: float=1.0):
-        _ = np.hstack((
+        self._normalized_distribution = np.hstack((
             generate_multivariate_uniform_ring(ndims=4, inner_radius=inner_radius, outer_radius=outer_radius, nsamples=nparticles), 
             np.zeros((nparticles, 2))
             ))
-        self._weights = self._compute_weights(_)
-        self._beam = np.dot(_, self.denormalization_matrix().T)
+        self._weights = self.compute_weights(self._normalized_distribution)
+        self._beam = np.dot(self._normalized_distribution, self.denormalization_matrix().T) + self._closed_orbit
         return self
+
+    @property
+    def model(self):
+        return self._model
+    
+    @model.setter
+    def model(self, new_model: PDF):
+        self._model = new_model
+        self._weights = self.compute_weights(self._normalized_distribution)
 
     @property
     def weights(self):
@@ -66,11 +79,19 @@ class Beam:
         return self._beam
 
     @property
-    def distribution_with_weights(self):
-        return np.hstack((self.distribution, self.weights.reshape((self.weights.shape[0], 1))))
+    def normalized_distribution(self):
+        return self._normalized_distribution
 
-    def _compute_weights(self, distribution):
-        return self._model(distribution)
+    @property
+    def distribution_with_weights(self):
+        if self._model is not None:
+            return np.hstack((self.distribution, self.weights.reshape((self.weights.shape[0], 1))))
+        else:
+            return np.hstack((self.distribution, np.ones((self.distribution.shape[0], 1))))
+
+    def compute_weights(self, distribution):
+        if self._model is not None:
+            return self._model(distribution)
 
     def denormalization_matrix(self):
         t = self._twiss
@@ -84,5 +105,5 @@ class Beam:
         ])
 
     def weight_from_denormalized_distribution(self, distribution: np.ndarray):
-        return self._compute_weights(np.dot(distribution, np.linalg.inv(self.denormalization_matrix()).T))
+        return self.compute_weights(np.dot(distribution - self._closed_orbit, np.linalg.inv(self.denormalization_matrix()).T))
         
