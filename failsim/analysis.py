@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 import hist
+from .results import TrackingResult
+from .beams import PDF
 
 
 class AnalysisHistogram:
@@ -19,15 +21,20 @@ class AnalysisHistogram:
         self._load_parameters()
 
     def __add__(self, other):
-        return self.__class__(self._h + other._h)
+        return self.__class__(self._h + other.h)
 
     def _load_parameters(self):
         self.parameters = yaml.safe_load(open(os.path.join(pkg_resources.resource_filename('failsim', "data"),
                                                            'analysis_parameters.yaml')))
 
+    @property
+    def h(self):
+        return self._h
+
     @classmethod
     def combine(cls, *histograms: List[AnalysisHistogram]):
-        return functools.reduce(lambda x, y: x + y, histograms)
+        combined_histogram = functools.reduce(lambda x, y: x + y, histograms)
+        return combined_histogram
 
 
 class LossPerTurnHistogram(AnalysisHistogram):
@@ -36,7 +43,7 @@ class LossPerTurnHistogram(AnalysisHistogram):
         if hist_histogram:
             self._h = hist_histogram
         else:
-            self._h = hist.Hist(hist.axis.Regular(50, 0.5, 50.5, underflow=False, overflow=False, name="Turns"))
+            self._h = hist.Hist(hist.axis.Regular(50, 0.5, 100.5, underflow=False, overflow=False, name="Turns"))
 
     def fill(self, data):
         self._h.fill(data["turn"])
@@ -49,7 +56,7 @@ class LossPerTurnHistogram(AnalysisHistogram):
 
 class LossPerTurnByGroupHistogram(AnalysisHistogram):
     def __init__(self, hist_histogram=None, groupby: str = "element"):
-        super().__init__(hist_histogram)
+        super().__init__(hist_histogram=hist_histogram)
         self.groupby = groupby
         if hist_histogram:
             self._h = hist_histogram
@@ -72,20 +79,20 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
                 if h[:, [data[0]]].sum() * 100 / h.sum() > 1:
                     return data[0]
 
-        legend_parameters = pd.DataFrame(AnalysisHistogram().parameters["groupby"][self.groupby]
-                                         ).apply(legend, args=(self._h,), axis=1).dropna()
+        self.legend_parameters = pd.DataFrame(AnalysisHistogram().parameters["groupby"][self.groupby]
+                                              ).apply(legend, args=(self._h,), axis=1).dropna()
         self._h.stack(1).plot(stack=True, histtype="fill", legend=True, ax=ax)
-
-        artists = np.take(ax.get_legend_handles_labels()[0], -legend_parameters.index - 1)
-        labels = np.take(ax.get_legend_handles_labels()[1], -legend_parameters.index - 1)
-        ax.legend(artists,
-                  labels,
-                  prop={'size': 30},
-                  loc='center left',
-                  bbox_to_anchor=(0.965, 0.5),
-                  fancybox=True,
-                  shadow=True,
-                  ncol=1)
+        #
+        # artists = np.take(ax.get_legend_handles_labels()[0], -legend_parameters.index - 1)
+        # labels = np.take(ax.get_legend_handles_labels()[1], -legend_parameters.index - 1)
+        # ax.legend(artists,
+        #           labels,
+        #           prop={'size': 30},
+        #           loc='center left',
+        #           bbox_to_anchor=(0.965, 0.5),
+        #           fancybox=True,
+        #           shadow=True,
+        #           ncol=1)
 
 
 class ImpactParameterHistogram(AnalysisHistogram):
@@ -98,8 +105,7 @@ class ImpactParameterHistogram(AnalysisHistogram):
             self._h = hist.Hist(
                 hist.axis.Regular(400, -0.0022, 0.0022, underflow=False, overflow=False, name="x"),
                 hist.axis.Regular(400, -0.0022, 0.0022, underflow=False, overflow=False, name="y"),
-                hist.axis.StrCategory(self.parameters["groupby"][self.groupby], label="Collimators",
-                                      name="Collimators")
+                hist.axis.StrCategory(self.parameters["groupby"][self.groupby], label="Collimators", name="Collimators")
             )
 
     def fill(self, data):
@@ -166,14 +172,14 @@ class LossPerMachinePosition(AnalysisHistogram):
                 if h[:, [data[0]]].sum() * 100 / h.sum() > 1:
                     return data[0]
 
-        if self.groupby=="turn":
+        if self.groupby == "turn":
             legend_parameters = pd.DataFrame(
                 range(self._h.axes[1][-1])
-                                             ).apply(legend, args=(self._h,), axis=1).dropna()
+            ).apply(legend, args=(self._h,), axis=1).dropna()
         else:
             legend_parameters = pd.DataFrame(
                 AnalysisHistogram().parameters["groupby"][self.groupby]
-                                             ).apply(legend, args=(self._h,), axis=1).dropna()
+            ).apply(legend, args=(self._h,), axis=1).dropna()
 
         self._h.stack(1).plot(stack=True, histtype="fill", legend=True, ax=ax)
 
@@ -236,10 +242,13 @@ class EventAnalysis(Analysis):
         'twiss_pre_thin': '_twiss_pre_thin_lhcb1',
     }
 
-    def __init__(self, prefix: str = '', histograms: Optional[List[AnalysisHistogram]] = None, path: str = '.'):
+    def __init__(self, prefix: str = '', histograms: Optional[List[AnalysisHistogram]] = None,
+                 beam_model: Optional[PDF] = None, path: str = '.'):
         super().__init__(path)
         self._prefix = prefix
         self._histograms = histograms or []
+        self._beam_model = beam_model
+        self._total_weight = 1.0
 
     def __call__(self):
         try:
@@ -266,7 +275,7 @@ class EventAnalysis(Analysis):
             _process_data()
 
     def save(self):
-        super().save(filename=f"{self._prefix}-analysis.pkl")
+        super().save(filename=f"{self._prefix}-analysis-{self._beam_model}.pkl")
 
     @property
     def results(self):
@@ -274,9 +283,9 @@ class EventAnalysis(Analysis):
 
 
 class AnalysisCombineLosses(Analysis):
-    def __init__(self, path: str = '.'):
+    def __init__(self, path: str = '.', beam_model: str = 'DoubleGaussianPDF'):
         super().__init__(path)
-        self._files = glob.glob(os.path.join(self._path, "*-analysis.pkl"))
+        self._files = glob.glob(os.path.join(self._path, f"*-analysis-{beam_model}.pkl"))
         self._event_histograms = None
         self._histograms = None
 

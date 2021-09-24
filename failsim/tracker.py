@@ -44,6 +44,7 @@ class Tracker:
         self._mask_values = {}
 
         self._particles = None
+        self._beam = None
 
         # Create the temp directory in case it doesn't exist yet
         pathlib.Path(FailSim.path_to_cwd(FailSimGlobals.tmp_directory)).mkdir(exist_ok=True)
