@@ -202,6 +202,7 @@ class AnalysisCombineTracks(Analysis):
     def __init__(self, path: str = '.', filters: Optional[List]=None, beam_model: Optional[PDF]=None):
         super().__init__(path)
         self._files = glob.glob(self._path + "/**track.parquet")
+        self._beam_model = beam_model
         nthreads = 1 if filters is not None else 64
         self._dataset = pq.ParquetDataset(
             self._files,
@@ -212,10 +213,20 @@ class AnalysisCombineTracks(Analysis):
         self._data = None
 
     def __call__(self, columns: Optional[List[str]]=None):
-        self._data = self._dataset.read(columns=columns, use_threads=True)
+        self._data = self._dataset.read(columns=columns, use_threads=True).to_pandas()
+
+        with open(os.path.join(self._path, "1-beam.pkl"), 'rb') as f:
+            b = pickle.load(f)
+        b.model = self._beam_model
+        initial_distribution = self._data.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values
+        weights = b.weight_from_denormalized_distribution(initial_distribution)
+        print(self._beam_model)
+        print(b)
+        self._data['weight'] = self._data.apply(lambda _: weights[int(_['number'])-1], axis=1)
 
     def save(self, filename: str = 'combined-tracks.parquet'):
-        pq.write_table(self._data, os.path.join(self._path, filename))
+        self._data.to_parquet(os.path.join(self._path, filename))
+        #pq.write_table(self._data, os.path.join(self._path, filename))
 
     @property
     def results(self):
