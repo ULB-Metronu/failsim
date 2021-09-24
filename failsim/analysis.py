@@ -46,12 +46,12 @@ class LossPerTurnHistogram(AnalysisHistogram):
             self._h = hist.Hist(hist.axis.Regular(50, 0.5, 100.5, underflow=False, overflow=False, name="Turns"))
 
     def fill(self, data):
-        self._h.fill(data["turn"])
+        self._h.fill(data["turn"], weight=data["weight"].values)
 
-    def plot(self, ax, cumulative: bool = False):
+    def plot(self, ax, cumulative: bool = False, **kwargs):
         if cumulative:
             self._h[:] = np.cumsum(self._h[:])
-        self._h.plot(histtype="fill", ax=ax)
+        self._h.plot(histtype="fill", ax=ax, **kwargs)
 
 
 class LossPerTurnByGroupHistogram(AnalysisHistogram):
@@ -79,20 +79,20 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
                 if h[:, [data[0]]].sum() * 100 / h.sum() > 1:
                     return data[0]
 
-        self.legend_parameters = pd.DataFrame(AnalysisHistogram().parameters["groupby"][self.groupby]
-                                              ).apply(legend, args=(self._h,), axis=1).dropna()
+        legend_parameters = pd.DataFrame(AnalysisHistogram().parameters["groupby"][self.groupby]
+                                         ).apply(legend, args=(self._h,), axis=1).dropna()
         self._h.stack(1).plot(stack=True, histtype="fill", legend=True, ax=ax)
-        #
-        # artists = np.take(ax.get_legend_handles_labels()[0], -legend_parameters.index - 1)
-        # labels = np.take(ax.get_legend_handles_labels()[1], -legend_parameters.index - 1)
-        # ax.legend(artists,
-        #           labels,
-        #           prop={'size': 30},
-        #           loc='center left',
-        #           bbox_to_anchor=(0.965, 0.5),
-        #           fancybox=True,
-        #           shadow=True,
-        #           ncol=1)
+
+        artists = np.take(ax.get_legend_handles_labels()[0], -legend_parameters.index - 1)
+        labels = np.take(ax.get_legend_handles_labels()[1], -legend_parameters.index - 1)
+        ax.legend(artists,
+                  labels,
+                  prop={'size': 30},
+                  loc='center left',
+                  bbox_to_anchor=(0.965, 0.5),
+                  fancybox=True,
+                  shadow=True,
+                  ncol=1)
 
 
 class ImpactParameterHistogram(AnalysisHistogram):
@@ -251,30 +251,43 @@ class EventAnalysis(Analysis):
         self._total_weight = 1.0
 
     def __call__(self):
-        try:
-            loss_data = pd.read_parquet(os.path.join(self._path, f"{self._prefix}-{self.SUFFIXES['loss']}.parquet"))
-        except FileNotFoundError:
-            loss_data = None
+        self._tr = TrackingResult.load_data(
+            path=self._path,
+            suffix=self._prefix,
+            load_twiss=False,
+            load_summ=False,
+            load_info=False,
+            load_track=True,
+            load_loss=True,
+            load_beam=True
+        )
         try:
             twiss_pre_thin = pd.read_parquet(
                 os.path.join(self._path, f"{self._prefix}-{self.SUFFIXES['twiss_pre_thin']}.parquet"))
         except FileNotFoundError:
             twiss_pre_thin = None
 
+        self._tr.beam_distribution.model = self._beam_model
+        self._total_weight = self._tr.compute_weights()
+
         def _preprocess_data():
             """Preprocessing applied to the loss dataframe."""
-            loss_data["family"] = loss_data.apply(lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
-            loss_data["aper_1"] = twiss_pre_thin["aper_1"]
+            self._tr.loss_df["family"] = self._tr.loss_df.apply(
+                lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
+            self._tr.loss_df["aper_1"] = twiss_pre_thin["aper_1"]
 
         def _process_data():
             for h in self._histograms:
-                h.fill(loss_data)
+                h.fill(self._tr.loss_df)
+            self._histograms.append(self._total_weight)
 
-        if loss_data is not None:
+        if self._tr.loss_df is not None:
             _preprocess_data()
             _process_data()
 
     def save(self):
+        np.save(os.path.join(self._path, f"{self._prefix}-weights-{self._beam_model}.npy"),
+                self._tr.track_df.query("turn == 0.0")[['number', 'weight']].values)
         super().save(filename=f"{self._prefix}-analysis-{self._beam_model}.pkl")
 
     @property
@@ -308,9 +321,10 @@ class AnalysisCombineLosses(Analysis):
 
 
 class AnalysisCombineTracks(Analysis):
-    def __init__(self, path: str = '.', filters: Optional[List] = None):
+    def __init__(self, path: str = '.', filters: Optional[List] = None, beam_model: Optional[PDF] = None):
         super().__init__(path)
         self._files = glob.glob(self._path + "/**track.parquet")
+        self._beam_model = beam_model
         nthreads = 1 if filters is not None else 64
         self._dataset = pq.ParquetDataset(
             self._files,
@@ -321,10 +335,20 @@ class AnalysisCombineTracks(Analysis):
         self._data = None
 
     def __call__(self, columns: Optional[List[str]] = None):
-        self._data = self._dataset.read(columns=columns, use_threads=True)
+        self._data = self._dataset.read(columns=columns, use_threads=True).to_pandas()
+
+        with open(os.path.join(self._path, "1-beam.pkl"), 'rb') as f:
+            b = pickle.load(f)
+        b.model = self._beam_model
+        initial_distribution = self._data.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values
+        weights = b.weight_from_denormalized_distribution(initial_distribution)
+        print(self._beam_model)
+        print(b)
+        self._data['weight'] = self._data.apply(lambda _: weights[int(_['number']) - 1], axis=1)
 
     def save(self, filename: str = 'combined-tracks.parquet'):
-        pq.write_table(self._data, os.path.join(self._path, filename))
+        self._data.to_parquet(os.path.join(self._path, filename))
+        # pq.write_table(self._data, os.path.join(self._path, filename))
 
     @property
     def results(self):
