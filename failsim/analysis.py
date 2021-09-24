@@ -139,29 +139,41 @@ class ImpactParameterHistogram(AnalysisHistogram):
 
 class LossPerMachinePosition(AnalysisHistogram):
     def __init__(self, hist_histogram=None, groupby: str = "element"):
+        """'Groupby' can be 'element', 'family' or 'turn' """
         super().__init__(hist_histogram)
         self.groupby = groupby
         if hist_histogram:
             self._h = hist_histogram
         else:
-            self._h = hist.Hist(
-                hist.axis.Regular(26000, 0, 26658.8832, underflow=False, overflow=False, name="s", label="s"),
-                hist.axis.StrCategory(self.parameters["groupby"][self.groupby], label="Collimators")
-            )
+            if self.groupby == "turn":
+                self._h = hist.Hist(
+                    hist.axis.Regular(26000, 0, 26658.8832, underflow=False, overflow=False, name="s", label="s"),
+                    hist.axis.IntCategory(np.array(range(50)) + 1, label="Turn", name="Turn"))
+            else:
+                self._h = hist.Hist(
+                    hist.axis.Regular(26000, 0, 26658.8832, underflow=False, overflow=False, name="s", label="s"),
+                    hist.axis.StrCategory(self.parameters["groupby"][self.groupby], label="Collimators")
+                )
 
     def fill(self, data):
         self._h.fill(data["s"], data[self.groupby])
 
     def plot(self, ax):
-        """ Use this to "zoom in" the axes ``ax.xlim(19700, 20000)`` """
+        """ Use this to "zoom in" the axes: ``ax.xlim(19700, 20000)`` """
 
         def legend(data, h):
             if h.sum() != 0:
                 if h[:, [data[0]]].sum() * 100 / h.sum() > 1:
                     return data[0]
 
-        legend_parameters = pd.DataFrame(AnalysisHistogram().parameters["groupby"][self.groupby]
-                                         ).apply(legend, args=(self._h,), axis=1).dropna()
+        if self.groupby=="turn":
+            legend_parameters = pd.DataFrame(
+                range(self._h.axes[1][-1])
+                                             ).apply(legend, args=(self._h,), axis=1).dropna()
+        else:
+            legend_parameters = pd.DataFrame(
+                AnalysisHistogram().parameters["groupby"][self.groupby]
+                                             ).apply(legend, args=(self._h,), axis=1).dropna()
 
         self._h.stack(1).plot(stack=True, histtype="fill", legend=True, ax=ax)
 
@@ -177,6 +189,7 @@ class LossPerMachinePosition(AnalysisHistogram):
                   ncol=1)
         ymin, ymax = ax.get_ylim()
 
+        ax.axvline(x=26658.8832, ymin=0, ymax=1, color='red')
         ax.axvline(x=0, ymin=0, ymax=1, color='red')
         ax.text(0.1, ymax / 2, 'ip1', rotation=90, fontsize=30, clip_on=True)
         ax.axvline(x=3332.436584, ymin=0, ymax=1, color='red')
