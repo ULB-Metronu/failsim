@@ -113,6 +113,9 @@ class OpticsChecks:
                 other_data: Dictionary containing the summ dataframe and all Mad-X variables.
 
         """
+        if not self.beta and not self.separation:
+            return tuple()
+            
         var_dict = mad.get_variables_dicts()
         twiss_dfs = {}
         summ_dfs = {}
