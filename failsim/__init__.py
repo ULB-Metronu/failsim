@@ -7,4 +7,4 @@ from .artist import _Artist
 from .aperture import Aperture
 from .beams import QGaussianPDF, DoubleGaussianPDF, ExponentialTailDepletionPDF, Beam
 from .analysis import AnalysisHistogram, LossPerTurnHistogram, EventAnalysis, AnalysisCombineLosses, \
-    AnalysisCombineTracks, LossPerTurnByGroupHistogram, ImpactParameterHistogram, LossPerMachinePosition
+    AnalysisCombineTracks, LossPerTurnByGroupHistogram, ImpactParameterHistogram, LossMap
