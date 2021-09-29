@@ -401,31 +401,35 @@ class LHCSequence:
             pkg_resources.resource_filename(__name__, settings_path)
         )
 
-    def _load_and_set_collimators(self, _vertical_aperture: float = 10.0):
+    def _load_and_set_collimators(self, _vertical_aperture: float = 10.0, with_pre_thin_twiss: bool = False):
         _tw = self.twiss()
         self.collimation = CollimatorHandler(self._collimation_path)
         openings = self.collimation.compute_openings(_tw)
         offsets = self.collimation.compute_offsets(_tw)
         settings = pd.concat([openings, offsets], axis=1)
-        twiss_thick = pd.read_parquet(
-            self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
-        )
+
+        if with_pre_thin_twiss:
+            twiss_thick = pd.read_parquet(
+                self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
+            )
         for _, row in settings.iterrows():
-            if row.name.lower() in twiss_thick.index:
-                twiss_thick.at[row.name.lower(), "aper_1"] = row['half_gap']
-                twiss_thick.at[row.name.lower(), "aper_2"] = _vertical_aperture
-                twiss_thick.at[row.name.lower(), "apoff_1"] = row['offset_x']
-                twiss_thick.at[row.name.lower(), "apoff_2"] = row['offset_y']
-                twiss_thick.at[row.name.lower(), "tilt"] = row['angle']
+            if with_pre_thin_twiss:
+                if row.name.lower() in twiss_thick.index:
+                    twiss_thick.at[row.name.lower(), "aper_1"] = row['half_gap']
+                    twiss_thick.at[row.name.lower(), "aper_2"] = _vertical_aperture
+                    twiss_thick.at[row.name.lower(), "apoff_1"] = row['offset_x']
+                    twiss_thick.at[row.name.lower(), "apoff_2"] = row['offset_y']
+                    twiss_thick.at[row.name.lower(), "tilt"] = row['angle']
 
             self._failsim.mad_input(
                 f"{row.name}, APERTYPE=RECTANGLE, "
                 f"APER_OFFSET={{ {row['offset_x']}, {row['offset_y']} }}"
                 f"APERTURE={{ {row['half_gap']}, {_vertical_aperture}, 0.0, 0.0 }}, TILT={row['angle']}"
             )
-        twiss_thick.to_parquet(
-            self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
-        )
+        if with_pre_thin_twiss:
+            twiss_thick.to_parquet(
+                self._twiss_pre_thin_paths[self._mode_configuration["sequence_to_track"]]
+            )
 
     def _prepare_bb_dataframes(self):
         """ Prepares the beam-beam dataframes. """
@@ -641,7 +645,7 @@ class LHCSequence:
         return self
 
     @print_info("LHCSequence")
-    def build(self, thick: bool = False):
+    def build(self, thick: bool = False, with_pre_thin_twiss: bool = False):
         """Does the build of the sequence.
 
         Note:
@@ -713,17 +717,18 @@ class LHCSequence:
             self._check_call_module("01b_beam")
             import time
             unique_hash = hash(time.time()+float(id(self)))
-            for ss in self._mode_configuration["sequences_to_check"]:
-                twiss_df, _ = self._failsim.twiss_and_summ(ss)
-                self._twiss_pre_thin_paths[ss] = FailSim.path_to_output(
-                    f"{unique_hash}_twiss_pre_thin_{ss}.parquet"
-                )
-                twiss_df.to_parquet(self._twiss_pre_thin_paths[ss])
+            if with_pre_thin_twiss:
+                for ss in self._mode_configuration["sequences_to_check"]:
+                    twiss_df, _ = self._failsim.twiss_and_summ(ss)
+                    self._twiss_pre_thin_paths[ss] = FailSim.path_to_output(
+                        f"{unique_hash}_twiss_pre_thin_{ss}.parquet"
+                    )
+                    twiss_df.to_parquet(self._twiss_pre_thin_paths[ss])
 
-                survey_df = self._failsim.mad.survey(sequence=ss).dframe()
-                survey_df.to_parquet(
-                    FailSim.path_to_output(f"{unique_hash}_survey_pre_thin_{ss}.parquet")
-                )
+                    survey_df = self._failsim.mad.survey(sequence=ss).dframe()
+                    survey_df.to_parquet(
+                        FailSim.path_to_output(f"{unique_hash}_survey_pre_thin_{ss}.parquet")
+                    )
 
         @print_info(BUILD_INFO_MESSAGE)
         def step_05__cycle(self):
@@ -758,6 +763,7 @@ class LHCSequence:
             self._check_call_module("01c_phase")
             self._check_call_module("01d_crossing")
             self._check_call_module("01e_final")
+            self._failsim.mad_input("exec, twiss_opt;")
 
         @print_info(BUILD_INFO_MESSAGE)
         def step_09__mask_module_02_lumilevel(self):
@@ -789,7 +795,7 @@ class LHCSequence:
                     sequence_data["collimation"][self._collimation_key],
                 )
                 self._collimation_path = pkg_resources.resource_filename(__name__, rel_path)
-                self._load_and_set_collimators()
+                self._load_and_set_collimators(with_pre_thin_twiss=with_pre_thin_twiss)
 
         if self._failsim is None:
             self._failsim = FailSim(failsim_verbosity=self._failsim_verbose, madx_verbosity=self._madx_verbose)
@@ -843,7 +849,6 @@ class LHCSequence:
             mad=self._failsim.mad,
             sequences=self._mode_configuration["sequences_to_check"],
         )
-
         self._checked = True
 
         return self
@@ -1044,6 +1049,7 @@ class LHCSequence:
             beam=dict(self._failsim.mad.sequence[self._mode_configuration["sequence_to_track"]].beam.items())
         )
 
+    @ensure_build
     def get_initial_twiss(self) -> Dict:
         """ Return the initial Twiss parameters
 

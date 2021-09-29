@@ -362,9 +362,7 @@ class AnalysisCombineTracks(Analysis):
         b.model = self._beam_model
         initial_distribution = self._data.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values
         weights = b.weight_from_denormalized_distribution(initial_distribution)
-        print(self._beam_model)
-        print(b)
-        self._data['weight'] = self._data.apply(lambda _: weights[int(_['number']) - 1], axis=1)
+        self._data['weight'] = self._data.apply(lambda _: weights[int(_['number'])-1], axis=1)
 
     def save(self, filename: str = 'combined-tracks.parquet'):
         self._data.to_parquet(os.path.join(self._path, filename))
