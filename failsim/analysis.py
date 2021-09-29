@@ -16,8 +16,9 @@ from .results import TrackingResult
 from .beams import PDF
 
 class AnalysisHistogram:
-    def __init__(self, hist_histogram=None):
+    def __init__(self, hist_histogram=None, maximum_turns=100):
         self._h = hist_histogram
+        self._max_turns = maximum_turns
         self._load_parameters()
 
     def __add__(self, other):
@@ -149,7 +150,7 @@ class EventAnalysis(Analysis):
             load_beam=True
             )
         self._tr.beam_distribution.model = self._beam_model
-        self._total_weight = self._tr.compute_weights()
+        self._total_weight = self._tr.compute_weights()  # Adds the weight column and return the total weight
 
         def _preprocess_data():
             """Preprocessing applied to the loss dataframe."""
@@ -224,7 +225,6 @@ class AnalysisCombineTracks(Analysis):
 
     def save(self, filename: str = 'combined-tracks.parquet'):
         self._data.to_parquet(os.path.join(self._path, filename))
-        #pq.write_table(self._data, os.path.join(self._path, filename))
 
     @property
     def results(self):

@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
-def generate_multivariate_uniform_ring(ndims: int, center: Optional[np.ndarray]=None, inner_radius: float=0.0, outer_radius:float=1.0, nsamples: int=1):
+def generate_multivariate_uniform_ring(ndims: int, nsamples: int=1, center: Optional[np.ndarray]=None, inner_radius: float=0.0, outer_radius:float=1.0, **kwargs):
     if center is None:
         center = np.zeros(ndims)
 
@@ -15,6 +15,16 @@ def generate_multivariate_uniform_ring(ndims: int, center: Optional[np.ndarray]=
     __ = (__ * (outer_radius**ndims - inner_radius**ndims) + inner_radius**ndims)**(1/ndims)
 
     return _ * __[:, None] + center
+
+
+def generate_double_multivariate_gaussian(ndims: int, nsamples: int=1, center: Optional[np.ndarray]=None, weight: float=0.8, sigma2: float=2.0):
+    _ = np.random.uniform(size=int(nsamples))
+    return np.concatenate(
+        (
+            np.random.multivariate_normal(mean=np.zeros(ndims), cov=np.eye(ndims),        size=int(nsamples))[_ <= weight], 
+            np.random.multivariate_normal(mean=np.zeros(ndims), cov=sigma2*np.eye(ndims), size=int(nsamples))[_ >  weight]
+        )
+    )
 
 class PDF:
     def __call__(self, x: np.ndarray):
@@ -46,20 +56,13 @@ class LHCBeamError(Exception):
 
 
 class Beam:
-    def __init__(self, closed_orbit: np.ndarray, twiss: Dict, model: Optional[PDF]=None):
-        self._closed_orbit= closed_orbit
-        self._twiss = twiss
+    GENERATOR = None
+
+    def __init__(self, closed_orbit: Optional[np.ndarray] = None, twiss: Optional[Dict] = None, model: Optional[PDF]=None):
+        self._closed_orbit= closed_orbit or np.zeros(6)
+        self._twiss = twiss or {}
         self._model = model
         self._weights = None
-
-    def generate(self, nparticles: int, inner_radius: float=0.0, outer_radius: float=1.0):
-        self._normalized_distribution = np.hstack((
-            generate_multivariate_uniform_ring(ndims=4, inner_radius=inner_radius, outer_radius=outer_radius, nsamples=nparticles), 
-            np.zeros((nparticles, 2))
-            ))
-        self._weights = self.compute_weights(self._normalized_distribution)
-        self._beam = np.dot(self._normalized_distribution, self.denormalization_matrix().T) + self._closed_orbit
-        return self
 
     @property
     def model(self):
@@ -95,6 +98,8 @@ class Beam:
 
     def denormalization_matrix(self):
         t = self._twiss
+        if not t:
+            return np.eye(6)
         return np.array([
             [np.sqrt(t['emit_x'] * t['bet_x']), 0, 0, 0, 0, 0],
             [-np.sqrt(t['emit_x']) * t['alf_x'] / np.sqrt(t['bet_x']), np.sqrt(t['emit_x']) / np.sqrt(t['bet_x']), 0, 0, 0, 0],
@@ -106,4 +111,41 @@ class Beam:
 
     def weight_from_denormalized_distribution(self, distribution: np.ndarray):
         return self.compute_weights(np.dot(distribution - self._closed_orbit, np.linalg.inv(self.denormalization_matrix()).T))
-        
+
+    def generate(self, nparticles: int, **kwargs):
+        self._normalized_distribution = np.hstack((
+            self.__class__.GENERATOR(ndims=4, nsamples=nparticles, **kwargs),
+            np.zeros((nparticles, 2))
+            ))
+        self._weights = self.compute_weights(self._normalized_distribution)
+        self._beam = np.dot(self._normalized_distribution, self.denormalization_matrix().T) + self._closed_orbit
+        return self
+
+
+class UniformBeam(Beam):
+
+    GENERATOR = generate_multivariate_uniform_ring
+
+    def generate(self, nparticles: int, inner_radius: float=0.0, outer_radius: float=1.0):
+        args = locals()
+        del args['self']
+        return super().generate(**args)
+
+
+class DoubleGaussianBeam(Beam):
+
+    GENERATOR = generate_double_multivariate_gaussian
+
+    def generate(self, nparticles: int, inner_radius: float=0.0, outer_radius: float=1.0):
+        args = locals()
+        del args['self']
+        print(args)
+        return super().generate(**args)
+
+class GaussianBeam(DoubleGaussianBeam):
+
+    def generate(self, nparticles: int, inner_radius: float=0.0, outer_radius: float=1.0):
+        args = locals()
+        del args['self']
+        print(args)
+        return super().generate(**args)
