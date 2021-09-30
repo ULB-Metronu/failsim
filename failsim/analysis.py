@@ -16,8 +16,9 @@ from .beams import PDF
 
 
 class AnalysisHistogram:
-    def __init__(self, hist_histogram=None):
+    def __init__(self, hist_histogram=None, maximum_turns=100):
         self._h = hist_histogram
+        self._max_turns = maximum_turns
         self._load_parameters()
 
     def __add__(self, other):
@@ -271,12 +272,12 @@ class EventAnalysis(Analysis):
 
     def __call__(self):
         try:
-            twiss_pre_thin = pd.read_parquet(
-                os.path.join(self._path, f"{self._prefix}-{self.SUFFIXES['twiss_pre_thin']}.parquet"))
+            aperture = pd.read_parquet(
+                os.path.join(self._path, "1-twiss.parquet"))
+                #f"{self._prefix}-{self.SUFFIXES['twiss']}.parquet")
 
         except FileNotFoundError:
-            twiss_pre_thin = None
-
+            aperture = None
         self._tr = TrackingResult.load_data(
             path=self._path,
             suffix=self._prefix,
@@ -294,7 +295,7 @@ class EventAnalysis(Analysis):
             """Preprocessing applied to the loss dataframe."""
             self._tr.loss_df["family"] = self._tr.loss_df.apply(
                 lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
-            self._tr.loss_df["aper_1"] = twiss_pre_thin["aper_1"]
+            self._tr.loss_df["aper_1"] = aperture["aper_1"]
 
         def _process_data():
             for h in self._histograms:
