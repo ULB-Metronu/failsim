@@ -44,13 +44,16 @@ class AnalysisHistogram:
 
 
 class LossPerTurnHistogram(AnalysisHistogram):
-    def __init__(self, hist_histogram=None):
+    def __init__(self, hist_histogram=None, maximum_turns=100):
         super().__init__(hist_histogram)
+        self._max_turns = maximum_turns
         self.groupby = None
         if hist_histogram:
             self._h = hist_histogram
         else:
-            self._h = hist.Hist(hist.axis.Regular(100, 0.5, 100.5, underflow=False, overflow=False, name="Turns"))
+            self._h = hist.Hist(hist.axis.Regular(
+                self._max_turns, 0.5, self._max_turns + 0.5, underflow=False, overflow=False, name="Turns"
+            ))
 
     def fill(self, data):
         self._h.fill(data["turn"], weight=data["weight"].values)
@@ -59,21 +62,26 @@ class LossPerTurnHistogram(AnalysisHistogram):
         if cumulative:
             self._h[:] = np.cumsum(self._h[:])
         if total_weight is not None:
-            self._h = 700*self._h/total_weight
+            self._h = 700 * self._h / total_weight
         self._h.plot(histtype="fill", ax=ax, **kwargs)
 
 
 class LossPerTurnByGroupHistogram(AnalysisHistogram):
-    def __init__(self, hist_histogram=None, groupby: str = "element"):
+    def __init__(self, hist_histogram=None, groupby: str = "element", maximum_turns=100):
         super().__init__(hist_histogram=hist_histogram)
+        self._max_turns = maximum_turns
         self.groupby = groupby
 
         if hist_histogram:
             self._h = hist_histogram
         else:
             self._h = hist.Hist(
-                hist.axis.Regular(100, 0.5, 100.5, underflow=False, overflow=False, name="Turns"),
-                hist.axis.StrCategory(self.parameters["groupby"][self.groupby], label="Collimators")
+                hist.axis.Regular(
+                    self._max_turns, 0.5, self._max_turns + 0.5, underflow=False, overflow=False, name="Turns"
+                ),
+                hist.axis.StrCategory(
+                    self.parameters["groupby"][self.groupby], label="Collimators"
+                )
             )
 
     def fill(self, data):
@@ -82,7 +90,7 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
     def plot(self, ax, total_weight=None, cumulative: bool = False, legend_filter=1):
 
         if total_weight is not None:
-            self._h = 700*self._h/total_weight
+            self._h = 700 * self._h / total_weight
 
         def legend(data, h):
             if h.sum() != 0:
@@ -133,7 +141,7 @@ class ImpactParameterHistogram(AnalysisHistogram):
 
     def plot(self, ax, total_weight=None, projection: str = "x", group: str = None, legend_filter=1):
         if total_weight is not None:
-            self._h = 700*self._h/total_weight
+            self._h = 700 * self._h / total_weight
 
         def legend(data, h):
             if h.sum() != 0:
@@ -162,9 +170,10 @@ class ImpactParameterHistogram(AnalysisHistogram):
 
 
 class LossMap(AnalysisHistogram):
-    def __init__(self, hist_histogram=None, groupby: str = "element"):
+    def __init__(self, hist_histogram=None, groupby: str = "element", maximum_turns=100):
         """'Groupby' can be 'element', 'family' or 'turn' """
         super().__init__(hist_histogram)
+        self._max_turns = maximum_turns
         self.groupby = groupby
         if hist_histogram:
             self._h = hist_histogram
@@ -172,7 +181,7 @@ class LossMap(AnalysisHistogram):
             if self.groupby == "turn":
                 self._h = hist.Hist(
                     hist.axis.Regular(26000, 0, 26658.8832, underflow=False, overflow=False, name="s", label="s"),
-                    hist.axis.IntCategory(np.array(range(100)) + 1, label="Turn", name="Turn"))
+                    hist.axis.IntCategory(np.array(range(self._max_turns)) + 1, label="Turn", name="Turn"))
             else:
                 self._h = hist.Hist(
                     hist.axis.Regular(26000, 0, 26658.8832, underflow=False, overflow=False, name="s", label="s"),
@@ -185,7 +194,7 @@ class LossMap(AnalysisHistogram):
     def plot(self, ax, total_weight=None, legend_filter=1):
         """ Use this to "zoom in" the axes: ``ax.xlim(19700, 20000)`` """
         if total_weight is not None:
-            self._h = 700*self._h/total_weight
+            self._h = 700 * self._h / total_weight
 
         def legend(data, h):
             if h.sum() != 0:
@@ -274,7 +283,7 @@ class EventAnalysis(Analysis):
         try:
             aperture = pd.read_parquet(
                 os.path.join(self._path, "1-twiss.parquet"))
-                #f"{self._prefix}-{self.SUFFIXES['twiss']}.parquet")
+            # f"{self._prefix}-{self.SUFFIXES['twiss']}.parquet")
 
         except FileNotFoundError:
             aperture = None
@@ -289,7 +298,7 @@ class EventAnalysis(Analysis):
             load_beam=True
         )
         self._tr.beam_distribution.model = self._beam_model
-        self._total_weight = self._tr.compute_weights()
+        self._total_weight = self._tr.compute_weights()  # Adds the weight column and return the total weight
 
         def _preprocess_data():
             """Preprocessing applied to the loss dataframe."""
@@ -363,11 +372,10 @@ class AnalysisCombineTracks(Analysis):
         b.model = self._beam_model
         initial_distribution = self._data.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values
         weights = b.weight_from_denormalized_distribution(initial_distribution)
-        self._data['weight'] = self._data.apply(lambda _: weights[int(_['number'])-1], axis=1)
+        self._data['weight'] = self._data.apply(lambda _: weights[int(_['number']) - 1], axis=1)
 
     def save(self, filename: str = 'combined-tracks.parquet'):
         self._data.to_parquet(os.path.join(self._path, filename))
-        # pq.write_table(self._data, os.path.join(self._path, filename))
 
     @property
     def results(self):

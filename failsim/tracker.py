@@ -78,10 +78,14 @@ class Tracker:
                     filedata = fd.read()
                 for key, value in self._mask_values.items():
                     filedata = filedata.replace(key, value)
-                with open(f"tmp_{idx}.txt", "w") as fd:
+
+                file_name = FailSim.path_to_cwd(
+                    os.path.join(FailSimGlobals.tmp_directory, f"tmp_{idx}.txt")
+                )
+                with open(file_name, "w") as fd:
                     fd.write(filedata)
 
-                time_depen.append(f"tmp_{idx}.txt")
+                time_depen.append(file_name)
 
             twiss_df = pd.DataFrame()
             for i in range(turns+1):
