@@ -71,10 +71,6 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
             for n in range(len(self._h[0, :].values())):
                 self._h[:, n] = np.cumsum(self._h[:, n])
 
-        # df = data.groupby(["element"])
-        # elements = list(df.groups.keys())
-        # [self._h.fill(df.get_group(item)["turn"], item) for item in elements]
-
     def plot(self):
         self._h.stack(1)
         self._h.plot(stack=True, histtype="fill")
@@ -166,6 +162,7 @@ class EventAnalysis(Analysis):
             _process_data()
 
     def save(self):
+        self._tr.save_data(path=self._path, suffix=self._prefix, only_tracking=True, beam_suffix=str(self._beam_model))
         np.save(os.path.join(self._path, f"{self._prefix}-weights-{self._beam_model}.npy"), self._tr.track_df.query("turn == 0.0")[['number', 'weight']].values)
         super().save(filename=f"{self._prefix}-analysis-{self._beam_model}.pkl")
 
@@ -200,9 +197,9 @@ class AnalysisCombineLosses(Analysis):
 
 
 class AnalysisCombineTracks(Analysis):
-    def __init__(self, path: str = '.', filters: Optional[List]=None, beam_model: Optional[PDF]=None):
+    def __init__(self, path: str = '.', filters: Optional[List]=None, beam_model: str='DoubleGaussianPDF'):
         super().__init__(path)
-        self._files = glob.glob(self._path + "/**track.parquet")
+        self._files = glob.glob(self._path + f"/**track-{beam_model}.parquet")
         self._beam_model = beam_model
         nthreads = 1 if filters is not None else 64
         self._dataset = pq.ParquetDataset(
@@ -216,12 +213,6 @@ class AnalysisCombineTracks(Analysis):
     def __call__(self, columns: Optional[List[str]]=None):
         self._data = self._dataset.read(columns=columns, use_threads=True).to_pandas()
 
-        with open(os.path.join(self._path, "1-beam.pkl"), 'rb') as f:
-            b = pickle.load(f)
-        b.model = self._beam_model
-        initial_distribution = self._data.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values
-        weights = b.weight_from_denormalized_distribution(initial_distribution)
-        self._data['weight'] = self._data.apply(lambda _: weights[int(_['number'])-1], axis=1)
 
     def save(self, filename: str = 'combined-tracks.parquet'):
         self._data.to_parquet(os.path.join(self._path, filename))

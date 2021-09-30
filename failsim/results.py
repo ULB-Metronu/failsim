@@ -451,7 +451,7 @@ class TrackingResult(Result):
 
         return {"x": actionx, "y": actiony, "r": actionr}
 
-    def save_data(self, path: str, suffix: str = ""):
+    def save_data(self, path: str, suffix: str = "", only_tracking: bool = False, beam_suffix: str = ''):
         """
         Saves the TrackingResult data in 4 disctinct files:
 
@@ -466,25 +466,30 @@ class TrackingResult(Result):
 
         """
         suffix = f"{suffix}-"
-        super().save_data(path, suffix)
+        if beam_suffix != '':
+            beam_suffix = f"-{beam_suffix}"
+
+        if not only_tracking:
+            super().save_data(path, suffix)
 
         if not path.startswith("/"):
             path = FailSim.path_to_cwd(path)
 
         # Save track
-        track_name = os.path.join(path, suffix + f"track.parquet")
+        track_name = os.path.join(path, suffix + f"track{beam_suffix}.parquet")
         self.track_df.to_parquet(track_name)
 
         # Save loss if it is not None
         if self.loss_df is not None:
-            loss_name = os.path.join(path, suffix + "loss.parquet")
+            loss_name = os.path.join(path, suffix + f"loss{beam_suffix}.parquet")
             self.loss_df.to_parquet(loss_name)
 
         # Save beam distribution if it is not None
         if self.beam_distribution is not None:
-            np.save(os.path.join(path, suffix + "beam.npy"), self.beam_distribution.distribution_with_weights)
-            with open(os.path.join(path, suffix + "beam.pkl"), "wb") as f:
-                pickle.dump(self.beam_distribution, f)
+            np.save(os.path.join(path, suffix + f"beam{beam_suffix}.npy"), self.beam_distribution.distribution_with_weights)
+            if self.beam_distribution.model is None:
+                with open(os.path.join(path, suffix + "beam.pkl"), "wb") as f:
+                    pickle.dump(self.beam_distribution, f)
 
     def compute_weights(self, use_initial_distribution_from_tracks: bool=False) -> float:
         """TODO"""

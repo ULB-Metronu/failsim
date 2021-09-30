@@ -5,19 +5,16 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
-def generate_multivariate_uniform_ring(ndims: int, nsamples: int=1, center: Optional[np.ndarray]=None, inner_radius: float=0.0, outer_radius:float=1.0, **kwargs):
-    if center is None:
-        center = np.zeros(ndims)
-
+def generate_multivariate_uniform_ring(ndims: int, nsamples: int=1, inner_radius: float=0.0, outer_radius:float=1.0, **kwargs):
     _ = np.random.normal(size=(nsamples, ndims))
     _ = _ / np.linalg.norm(_, axis=-1, keepdims=True)
     __ = np.random.uniform(size=(nsamples, ))
     __ = (__ * (outer_radius**ndims - inner_radius**ndims) + inner_radius**ndims)**(1/ndims)
 
-    return _ * __[:, None] + center
+    return _ * __[:, None]
 
 
-def generate_double_multivariate_gaussian(ndims: int, nsamples: int=1, center: Optional[np.ndarray]=None, weight: float=0.8, sigma2: float=2.0):
+def generate_double_multivariate_gaussian(ndims: int, nsamples: int=1, weight: float=0.8, sigma2: float=2.0):
     _ = np.random.uniform(size=int(nsamples))
     return np.concatenate(
         (
@@ -36,9 +33,9 @@ class PDF:
 class DoubleGaussianPDF(PDF):
     def __init__(
         self,
-        coreIntensity: float=0.8,
+        coreIntensity: float=1.0,
         coreSize: float=1.0,
-        tailIntensity: float=0.2,
+        tailIntensity: float=0.0,
         tailSize: float=2.0,
         ):
         self._pdf = lambda _: coreIntensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=coreSize*np.eye(4)).pdf(_) \
@@ -59,7 +56,7 @@ class Beam:
     GENERATOR = None
 
     def __init__(self, closed_orbit: Optional[np.ndarray] = None, twiss: Optional[Dict] = None, model: Optional[PDF]=None):
-        self._closed_orbit= closed_orbit or np.zeros(6)
+        self._closed_orbit= closed_orbit if closed_orbit is not None else np.zeros(6)
         self._twiss = twiss or {}
         self._model = model
         self._weights = None
