@@ -502,18 +502,27 @@ class TrackingResult(Result):
                 if self.beam_distribution is not None:
                     weights = self.beam_distribution.weights
                 else:
-                    weights = None 
+                    weights = None
+        else:
+            if use_initial_distribution_from_tracks:
+                initial_distribution = self.track_df.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values
+                weights = np.ones(len(initial_distribution))
+            else:
+                if self.beam_distribution is not None:
+                    weights = np.ones(len(self.beam_distribution.distribution))
+                else:
+                    weights = None
             
-            if self.track_df is not None:
-                if weights is not None:
-                    self.track_df['weight'] = self.track_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
-                else:
-                    self.track_df['weight'] = 1.0
-            if self.loss_df is not None:
-                if weights is not None:
-                    self.loss_df['weight'] = self.loss_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
-                else:
-                    self.loss_df['weight'] = 1.0
+        if self.track_df is not None:
+            if weights is not None:
+                self.track_df['weight'] = self.track_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
+            else:
+                self.track_df['weight'] = 1.0
+        if self.loss_df is not None:
+            if weights is not None:
+                self.loss_df['weight'] = self.loss_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
+            else:
+                self.loss_df['weight'] = 1.0
         
         return weights.sum() if weights is not None else 1.0
 

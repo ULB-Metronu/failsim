@@ -14,7 +14,7 @@ def generate_multivariate_uniform_ring(ndims: int, nsamples: int=1, inner_radius
     return _ * __[:, None]
 
 
-def generate_double_multivariate_gaussian(ndims: int, nsamples: int=1, weight: float=0.8, sigma2: float=2.0):
+def generate_double_multivariate_gaussian(ndims: int, nsamples: int=1, weight: float=0.8, sigma2: float=2.0, **kwargs):
     _ = np.random.uniform(size=int(nsamples))
     return np.concatenate(
         (
@@ -30,19 +30,115 @@ class PDF:
     def __str__(self):
         return f"{self.__class__.__name__}"
 
+
+class UniformPDF(PDF):
+    def __init__(self):
+        self._pdf = lambda _: np.ones(len(_))
+
+class GaussianPDF(PDF):
+    def __init__(
+        self,
+        intensity: float=0.8,
+        size: float=1.0,
+        ):
+        self._pdf = lambda _: intensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=size*np.eye(4)).pdf(_)
+
 class DoubleGaussianPDF(PDF):
     def __init__(
         self,
-        coreIntensity: float=1.0,
+        coreIntensity: float=0.8,
         coreSize: float=1.0,
-        tailIntensity: float=0.0,
+        tailIntensity: float=0.2,
         tailSize: float=2.0,
         ):
-        self._pdf = lambda _: coreIntensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=coreSize*np.eye(4)).pdf(_) \
-            + tailIntensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=tailSize*np.eye(4)).pdf(_)
+        self._pdf = lambda _: coreIntensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=coreSize**2*np.eye(4)).pdf(_) \
+            + tailIntensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=tailSize**2*np.eye(4)).pdf(_)
 
-class ExponentialTailDepletionPDF(PDF):
-    pass
+
+class DoubleGaussianELensHardEdgePDF(PDF):
+    def __init__(
+        self,
+        coreIntensity: float=0.8,
+        coreSize: float=1.0,
+        tailIntensity: float=0.2,
+        tailSize: float=2.0,
+        elens: float=4.7
+        ):
+        def pdf(_):            
+            r = coreIntensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=coreSize**2*np.eye(4)).pdf(_) \
+            + tailIntensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=tailSize**2*np.eye(4)).pdf(_)
+            r[np.linalg.norm(_, axis=1) > elens] = 0.0
+            return r
+
+        self._pdf = pdf
+
+class DoubleGaussianElensExponentialTailDepletionPDF(DoubleGaussianPDF):
+    def __init__(
+        self,
+        coreIntensity: float=0.8,
+        coreSize: float=1.0,
+        tailIntensity: float=0.2,
+        tailSize: float=2.0,
+        elens: float=4.7,
+        tcp: float=6.7,
+        eta: float=0.5
+        ):
+            super().__init__(coreIntensity, coreSize, tailIntensity, tailSize)
+            self.coreIntensity = coreIntensity
+            self.coreSize = coreSize
+            self.tailIntensity = tailIntensity
+            self.tailSize = tailSize
+            self.elens = elens
+            self.tcp = tcp
+            self.eta = eta
+            self.tau = self.compute_tau()
+
+            spdf = self._pdf
+            def pdf(_):
+                return spdf(_) * self.depletion_factor(np.linalg.norm(_, axis=1))
+            
+            self._pdf = pdf
+
+    def __str__(self):
+        return f"{self.__class__.__name__}{self.eta}" 
+        
+    def radial_distribution(self, x, depleted: bool=True):
+        factor = 1.0
+        if depleted:
+            factor = np.exp(-(x - self.elens) / (self.tcp - self.elens) / self.tau)
+        factor[x < self.elens] = 1.0
+        return  factor * (
+              self.coreIntensity * scipy.stats.chi(4).pdf(x/self.coreSize) / self.coreSize
+            + self.tailIntensity * scipy.stats.chi(4).pdf(x/self.tailSize) / self.tailSize
+        )
+    
+    def depletion_factor(self, x):
+        f = np.exp(-(x - self.elens) / (self.tcp - self.elens) / self.tau)
+        f[x < self.elens] = 1.0
+        f[x > self.tcp] = 0.0
+        return f
+        
+    def compute_tau(self):
+        def exponentialTailCleaning(tau):
+            ref = (
+                self.coreIntensity * (scipy.stats.chi(4).cdf(self.tcp/self.coreSize) - scipy.stats.chi(4).cdf(self.elens/self.coreSize)) / self.coreSize
+              + self.tailIntensity * (scipy.stats.chi(4).cdf(self.tcp/self.tailSize) - scipy.stats.chi(4).cdf(self.elens/self.tailSize)) / self.tailSize
+            )
+            return ((
+                (self.coreIntensity * scipy.integrate.quad(
+                    lambda _: scipy.stats.chi(4).pdf(_) * np.exp(-((_ - self.elens/self.coreSize) / (self.tcp/self.coreSize - self.elens/self.coreSize)) / tau), 
+                    self.elens/self.coreSize,
+                    self.tcp/self.coreSize
+                )[0] / self.coreSize)
+              + (self.tailIntensity * scipy.integrate.quad(
+                    lambda _: scipy.stats.chi(4).pdf(_) * np.exp(-((_ - self.elens/self.tailSize) / (self.tcp/self.tailSize - self.elens/self.tailSize)) / tau), 
+                    self.elens/self.tailSize,
+                    self.tcp/self.tailSize
+                )[0] / self.tailSize))
+                / ref)
+
+        return scipy.optimize.fsolve(lambda t: exponentialTailCleaning(t) - (1 - self.eta),
+                             np.array([0.1]))[0]
 
 class QGaussianPDF(PDF):
     pass
@@ -89,6 +185,13 @@ class Beam:
         else:
             return np.hstack((self.distribution, np.ones((self.distribution.shape[0], 1))))
 
+    @property
+    def emittances(self):
+        return (
+            np.sqrt(np.linalg.det(np.cov(self.distribution[:, 0:2], rowvar=False, aweights=self.weights))),
+            np.sqrt(np.linalg.det(np.cov(self.distribution[:, 2:4], rowvar=False, aweights=self.weights)))
+        )
+
     def compute_weights(self, distribution):
         if self._model is not None:
             return self._model(distribution)
@@ -133,16 +236,16 @@ class DoubleGaussianBeam(Beam):
 
     GENERATOR = generate_double_multivariate_gaussian
 
-    def generate(self, nparticles: int, inner_radius: float=0.0, outer_radius: float=1.0):
+    def generate(self, nparticles: int, weight=0.8, **kwargs):
         args = locals()
         del args['self']
-        print(args)
+        args['weight'] = weight
+        args['sigma2'] = 2.0
         return super().generate(**args)
 
 class GaussianBeam(DoubleGaussianBeam):
 
-    def generate(self, nparticles: int, inner_radius: float=0.0, outer_radius: float=1.0):
+    def generate(self, nparticles: int):
         args = locals()
         del args['self']
-        print(args)
-        return super().generate(**args)
+        return super().generate(weight=1.0, **args)

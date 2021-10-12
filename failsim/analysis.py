@@ -22,7 +22,10 @@ class AnalysisHistogram:
         self._load_parameters()
 
     def __add__(self, other):
-        r = self.__class__(self._h + other.h)
+        if other is None:
+            r = self.__class(self._h)
+        else:
+            r = self.__class__(self._h + other.h)
         if self.groupby != other.groupby:
             raise Exception("Trying to add histograms of different types")
         else:
@@ -30,8 +33,7 @@ class AnalysisHistogram:
         return r
 
     def _load_parameters(self):
-        self.parameters = yaml.safe_load(open(os.path.join(pkg_resources.resource_filename('failsim', "data"),
-                                                           'analysis_parameters.yaml')))
+        self.parameters = yaml.safe_load(open(os.path.join(pkg_resources.resource_filename('failsim', "data"), 'analysis_parameters.yaml')))
 
     @property
     def h(self):
@@ -59,11 +61,15 @@ class LossPerTurnHistogram(AnalysisHistogram):
         self._h.fill(data["turn"], weight=data["weight"].values)
 
     def plot(self, ax, total_weight=None, cumulative: bool = False, **kwargs):
+        tmp_hist = self._h.copy()
         if cumulative:
-            self._h[:] = np.cumsum(self._h[:])
+            tmp_hist[:] = np.cumsum(tmp_hist[:])
         if total_weight is not None:
-            self._h = 700 * self._h / total_weight
-        self._h.plot(histtype="fill", ax=ax, **kwargs)
+            tmp_hist = 700 * tmp_hist / total_weight
+        tmp_hist.plot(ax=ax, **kwargs)
+
+    def threshold(self, value: float, cumulated: bool=True):
+        return np.min(np.argwhere(700 * np.cumsum(self._h[:])))
 
 
 class LossPerTurnByGroupHistogram(AnalysisHistogram):
@@ -87,10 +93,10 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
     def fill(self, data):
         self._h.fill(data["turn"], data[self.groupby], weight=data["weight"].values)
 
-    def plot(self, ax, total_weight=None, cumulative: bool = False, legend_filter=1):
-
+    def plot(self, ax, total_weight=None, cumulative: bool = False, legend_filter=1, **kwargs):
+        temp_hist = self._h.copy()
         if total_weight is not None:
-            self._h = 700 * self._h / total_weight
+            temp_hist = 700 * temp_hist / total_weight
 
         def legend(data, h):
             if h.sum() != 0:
@@ -98,13 +104,13 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
                     return data[0]
 
         legend_parameters = pd.DataFrame(AnalysisHistogram().parameters["groupby"][self.groupby]
-                                         ).apply(legend, args=(self._h,), axis=1).dropna()
+                                         ).apply(legend, args=(temp_hist,), axis=1).dropna()
 
         if cumulative:
             for n in range(len(self._h[0, :].values())):
-                self._h[:, n] = np.cumsum(self._h[:, n])
+                temp_hist[:, n] = np.cumsum(temp_hist[:, n])
 
-        self._h.stack(1).plot(stack=True, histtype="fill", legend=True, ax=ax)
+        temp_hist.stack(1).plot(stack=True, histtype="fill", legend=True, ax=ax, **kwargs)
 
         artists = np.take(ax.get_legend_handles_labels()[0], -legend_parameters.index - 1)
         labels = np.take(ax.get_legend_handles_labels()[1], -legend_parameters.index - 1)
@@ -329,18 +335,17 @@ class AnalysisCombineLosses(Analysis):
     def __init__(self, path: str = '.', beam_model: str = 'DoubleGaussianPDF'):
         super().__init__(path)
         self._files = glob.glob(os.path.join(self._path, f"*-analysis-{beam_model}.pkl"))
-        self._event_histograms = None
-        self._histograms = None
-
-        for i, filename in enumerate(self._files):
-            with open(filename, 'rb') as f:
-                _ = np.array(pickle.load(f))
-                if self._event_histograms is None:
-                    self._event_histograms = np.empty((len(self._files), len(_)), dtype='O')
-                self._event_histograms[i, :] = _
+        self._histograms = []
 
     def __call__(self):
-        self._histograms = np.apply_along_axis(lambda _: AnalysisHistogram.combine(*_), 0, self._event_histograms)
+        for filename in self._files:
+            with open(filename, 'rb') as f:
+                _ = np.array(pickle.load(f))
+            for j, h in enumerate(_):
+                try:
+                    self._histograms[j] += h
+                except IndexError:
+                    self._histograms.append(h)
 
     def save(self, filename: str = 'combined.pkl'):
         super().save(filename)
@@ -355,6 +360,7 @@ class AnalysisCombineTracks(Analysis):
         super().__init__(path)
         self._files = glob.glob(self._path + f"/**track-{beam_model}.parquet")
         self._beam_model = beam_model
+        self._filters = filters
         nthreads = 1 if filters is not None else 64
         self._dataset = pq.ParquetDataset(
             self._files,
@@ -365,11 +371,11 @@ class AnalysisCombineTracks(Analysis):
         self._data = None
 
     def __call__(self, columns: Optional[List[str]] = None):
-        self._data = self._dataset.read(columns=columns, use_threads=True).to_pandas()
-
+        print(f"Reading the data using filters: {self._filters}")
+        self._data = self._dataset.read(columns=columns, use_threads=True)
 
     def save(self, filename: str = 'combined-tracks.parquet'):
-        self._data.to_parquet(os.path.join(self._path, filename))
+        pq.write_table(self._data, os.path.join(self._path, filename))
 
     @property
     def results(self):
