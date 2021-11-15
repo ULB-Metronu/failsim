@@ -65,6 +65,11 @@ HLLHCV1.4:
       beta_star: [ 150, 0, 150, 0 ]
       strength_file: round/opt_round_150_1500_thin.madx
       collimation: {b1: filename, b2: filename}
+    HL_COL_THIN_SEXTUPOLES_OFF:
+      type: round
+      beta_star: [ 150, 0, 150, 0 ]
+      strength_file: round/opt_round_150_1500_thin_sextupoles_off.madx
+      collimation: {b1: filename, b2: filename}
     HL_FLAT:
       type: flat
       beta_star: [ 0, 0, 75, 0 ]
@@ -95,3 +100,19 @@ runIII:
   sequence_filenames: ['data/acc-models-lhc/lhc.seq']
   run: 3
   version: 0
+  optics_base_path: /afs/cern.ch/eng/acc-models/lhc/2022
+  macros:
+    - /afs/cern.ch/eng/lhc/optics/runIII/toolkit/macro.madx
+  aperture_files:
+    - aperture/const_for_aperture.madx
+  thin_aperture_files:
+    - aperture/exp_pipe_model_after_LS2.madx
+    - aperture/exp_pipe_install_after_LS2.madx
+  collimation_base_path: data/collimation
+  collimation:
+    2018_2SIGMA_RETRACTION: collgaps_Run3_7TeV_40cm_2sig_retr.dat
+  optics:
+    2021_V6:
+      type: round
+      beta_star: [ 200, 10000, 200, 200 ]
+      strength_file: ../../../lhc/optics/runIII/RunIII_dev/2021_V6/PROTON/opticsfile.29
