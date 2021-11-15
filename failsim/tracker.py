@@ -269,7 +269,7 @@ class Tracker:
         for obs in self._observation_points:
             self._failsim.mad_input(f"observe, place='{obs}'")
 
-        self._failsim.mad_input(f"run, turns={turns}")
+        self._failsim.mad_input(f"run, turns={turns}, maxaper={{1, 1, 1, 1, 1.0, 0.1}}")
         self._failsim.mad_input("endtrack")
         if len(self._time_dependencies) != 0:
             self._failsim.mad_input("exec tr$macro(0);")

@@ -623,25 +623,43 @@ class LHCSequence:
         :return:
             LHCSequence: Returns self.
         """
-        self._apertures = [
-            pkg_resources.resource_filename(__name__, "data/aperture/aperture.b1.madx"),
-            pkg_resources.resource_filename(__name__, "data/aperture/aperture.b2.madx"),
-            pkg_resources.resource_filename(__name__, "data/aperture/aper_tol.b1.madx"),
-            pkg_resources.resource_filename(__name__, "data/aperture/aper_tol.b2.madx"),
-        ]
-        for file in self._metadata[self._sequence_key]["aperture_files"]:
-            self._apertures.append(
-                pkg_resources.resource_filename(
-                    __name__, self._metadata[self._sequence_key]["optics_base_path"] + file
+        if self._run_version != 0 and self._metadata[self._sequence_key]['optics_base_path'].startswith('/'):
+            base = self._metadata[self._sequence_key]["optics_base_path"]
+            self._apertures = [
+                os.path.join(base, 'aperture', 'aperture.b1.madx'),
+                os.path.join(base, 'aperture', 'aperture.b2.madx'),
+                os.path.join(base, 'aperture', 'aper_tol.b1.madx'),
+                os.path.join(base, 'aperture', 'aper_tol.b2.madx'),
+            ]
+            for file in self._metadata[self._sequence_key]["aperture_files"]:
+                self._apertures.append(
+                    os.path.join(base, file),
                 )
-            )
-        self._thin_apertures = []
-        for file in self._metadata[self._sequence_key]["thin_aperture_files"]:
-            self._thin_apertures.append(
-                pkg_resources.resource_filename(
-                    __name__, self._metadata[self._sequence_key]["optics_base_path"] + file
+            self._thin_apertures = []
+            for file in self._metadata[self._sequence_key]["thin_aperture_files"]:
+                self._thin_apertures.append(
+                    os.path.join(base, file),
                 )
-            )
+        else:
+            self._apertures = [
+                pkg_resources.resource_filename(__name__, "data/aperture/aperture.b1.madx"),
+                pkg_resources.resource_filename(__name__, "data/aperture/aperture.b2.madx"),
+                pkg_resources.resource_filename(__name__, "data/aperture/aper_tol.b1.madx"),
+                pkg_resources.resource_filename(__name__, "data/aperture/aper_tol.b2.madx"),
+            ]
+            for file in self._metadata[self._sequence_key]["aperture_files"]:
+                self._apertures.append(
+                    pkg_resources.resource_filename(
+                        __name__, self._metadata[self._sequence_key]["optics_base_path"] + file
+                    )
+                )
+            self._thin_apertures = []
+            for file in self._metadata[self._sequence_key]["thin_aperture_files"]:
+                self._thin_apertures.append(
+                    pkg_resources.resource_filename(
+                        __name__, self._metadata[self._sequence_key]["optics_base_path"] + file
+                    )
+                )
         return self
 
     @print_info("LHCSequence")
@@ -686,11 +704,14 @@ class LHCSequence:
         @print_info(BUILD_INFO_MESSAGE)
         def step_01__load_macros(self):
             for macro in sequence_data['macros']:
-                self._failsim.mad_call_file(
-                    pkg_resources.resource_filename(
-                        __name__, sequence_data["optics_base_path"] + macro
+                if macro.startswith('/'):
+                    self._failsim.mad_call_file(macro)
+                else:
+                    self._failsim.mad_call_file(
+                        pkg_resources.resource_filename(
+                            __name__, sequence_data["optics_base_path"] + macro
+                        )
                     )
-                )
 
         @print_info(BUILD_INFO_MESSAGE)
         def step_02__load_sequence(self):
@@ -755,7 +776,10 @@ class LHCSequence:
                 self._optics_base_path,
                 sequence_data["optics"][self._optics_key]["strength_file"],
             )
-            self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
+            if self._optics_base_path.startswith("/"):
+                self._optics_path = rel_path
+            else:
+                self._optics_path = pkg_resources.resource_filename(__name__, rel_path)
             self._failsim.mad_call_file(self._optics_path)
 
         @print_info(BUILD_INFO_MESSAGE)

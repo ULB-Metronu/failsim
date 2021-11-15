@@ -64,7 +64,7 @@ class OpticsChecks:
                         "element_name": f"ip{ip}:1",
                         "scale_factor": -2 * 1e-3,
                         "plane": plane,
-                        # knobs like on_sep1h, onsep8v etc
+                        # knobs like on_sep1h, on_sep8v etc
                         "varname": f"on_sep{ip}" + {"x": "h", "y": "v"}[plane],
                         "tol": self.tol_sep[iip],
                     }

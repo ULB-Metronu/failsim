@@ -81,7 +81,7 @@ class DoubleGaussianElensExponentialTailDepletionPDF(DoubleGaussianPDF):
         tailSize: float=2.0,
         elens: float=4.7,
         tcp: float=6.7,
-        eta: float=0.5
+        eta: float=0.8
         ):
             super().__init__(coreIntensity, coreSize, tailIntensity, tailSize)
             self.coreIntensity = coreIntensity
@@ -221,6 +221,10 @@ class Beam:
         self._beam = np.dot(self._normalized_distribution, self.denormalization_matrix().T) + self._closed_orbit
         return self
 
+    def filter_by_indices(self, indices: np.array):
+        self._beam = self.beam[indices]
+        self._weights = self._weights[indices]
+        self._normalized_distribution = self._normalized_distribution[indices]
 
 class UniformBeam(Beam):
 

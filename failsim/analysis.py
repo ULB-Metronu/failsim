@@ -9,6 +9,7 @@ import functools
 import pkg_resources
 import numpy as np
 import pandas as pd
+import scipy
 import pyarrow.parquet as pq
 import hist
 from .results import TrackingResult
@@ -58,18 +59,40 @@ class LossPerTurnHistogram(AnalysisHistogram):
             ))
 
     def fill(self, data):
-        self._h.fill(data["turn"], weight=data["weight"].values)
+        if not data.empty:
+            self._h.fill(data["turn"], weight=data["weight"].values)
 
-    def plot(self, ax, total_weight=None, cumulative: bool = False, **kwargs):
+    def plot(self, ax, total_weight: float = None, normalization: float = 1.0, cumulative: bool = False, **kwargs):
         tmp_hist = self._h.copy()
         if cumulative:
             tmp_hist[:] = np.cumsum(tmp_hist[:])
         if total_weight is not None:
-            tmp_hist = 700 * tmp_hist / total_weight
+            tmp_hist = normalization * tmp_hist / total_weight
         tmp_hist.plot(ax=ax, **kwargs)
 
-    def threshold(self, value: float, cumulated: bool=True):
-        return np.min(np.argwhere(700 * np.cumsum(self._h[:])))
+    def threshold(self, value: float, total_weight: float = None, normalization: float = 1.0, cumulated: bool=True):
+        def coarse():
+            tmp = np.argwhere(cumulative > value)
+            if len(tmp) > 0:
+                return np.min(tmp)
+            else:
+                return np.nan
+            
+        def refined(coarse_value):
+            return scipy.optimize.broyden1(
+                scipy.interpolate.UnivariateSpline(self._h.axes[0].centers, cumulative - value, bounds_error=False, kind='quadratic'),
+                coarse_value
+            )
+        
+        cumulative = normalization * np.cumsum(self._h[:]) / total_weight
+        coarse = coarse()
+        if not np.isnan(coarse):
+            try:
+                return refined(coarse)
+            except Exception:
+                return coarse
+        else:
+            return coarse
 
 
 class LossPerTurnByGroupHistogram(AnalysisHistogram):
@@ -289,10 +312,9 @@ class EventAnalysis(Analysis):
         try:
             aperture = pd.read_parquet(
                 os.path.join(self._path, "1-twiss.parquet"))
-            # f"{self._prefix}-{self.SUFFIXES['twiss']}.parquet")
-
         except FileNotFoundError:
             aperture = None
+
         self._tr = TrackingResult.load_data(
             path=self._path,
             suffix=self._prefix,
@@ -308,9 +330,10 @@ class EventAnalysis(Analysis):
 
         def _preprocess_data():
             """Preprocessing applied to the loss dataframe."""
-            self._tr.loss_df["family"] = self._tr.loss_df.apply(
-                lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
-            self._tr.loss_df["aper_1"] = aperture["aper_1"]
+            if not self._tr.loss_df.empty:
+                self._tr.loss_df["family"] = self._tr.loss_df.apply(
+                    lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
+                self._tr.loss_df["aper_1"] = aperture["aper_1"]
 
         def _process_data():
             for h in self._histograms:

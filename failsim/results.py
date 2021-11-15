@@ -400,27 +400,35 @@ class TrackingResult(Result):
             data = track_df.loc[obs].copy()
             if type(data) != pd.DataFrame:
                 continue
-
+        
             betx = twiss_df.loc[obs]["betx"]
             alfx = twiss_df.loc[obs]["alfx"]
             bety = twiss_df.loc[obs]["bety"]
             alfy = twiss_df.loc[obs]["alfy"]
+            x0 = twiss_df.loc[obs]['x']
+            px0 = twiss_df.loc[obs]['px']
+            y0 = twiss_df.loc[obs]['y']
+            py0 = twiss_df.loc[obs]['py']
 
-            data["xn"] = data.apply(lambda x: x["x"] / np.sqrt(eps_g * betx), axis=1)
+            data["xn"] = data.apply(lambda x: (x["x"]-x0) / np.sqrt(eps_g * betx), axis=1)
 
             data["pxn"] = data.apply(
-                lambda x: (x["x"] * alfx / np.sqrt(betx) + x["px"] * np.sqrt(betx))
+                lambda x: ((x["x"]-x0) * alfx / np.sqrt(betx) + (x["px"]-px0) * np.sqrt(betx))
                 / np.sqrt(eps_g),
                 axis=1,
             )
 
-            data["yn"] = data.apply(lambda x: x["y"] / np.sqrt(eps_g * bety), axis=1)
+            data["yn"] = data.apply(lambda x: (x["y"]-y0) / np.sqrt(eps_g * bety), axis=1)
 
             data["pyn"] = data.apply(
-                lambda x: (x["y"] * alfy / np.sqrt(bety) + x["py"] * np.sqrt(bety))
+                lambda x: ((x["y"]-y0) * alfy / np.sqrt(bety) + (x["py"]-py0) * np.sqrt(bety))
                 / np.sqrt(eps_g),
                 axis=1,
             )
+
+            data['jx'] = np.sqrt(data['xn']**2 + data['pxn']**2)
+            data['jy'] = np.sqrt(data['yn']**2 + data['pyn']**2)
+            data['jr'] = np.sqrt(data['jx']**2 + data['jy']**2)
 
             data_out = data_out.append(data)
 
@@ -477,7 +485,8 @@ class TrackingResult(Result):
 
         # Save track
         track_name = os.path.join(path, suffix + f"track{beam_suffix}.parquet")
-        self.track_df.to_parquet(track_name)
+        if self.track_df is not None:
+            self.track_df.to_parquet(track_name)
 
         # Save loss if it is not None
         if self.loss_df is not None:
@@ -494,7 +503,7 @@ class TrackingResult(Result):
     def compute_weights(self, use_initial_distribution_from_tracks: bool=False) -> float:
         """TODO"""
         weights = None
-        if self.beam_distribution.model is not None:
+        if self.beam_distribution is not None and self.beam_distribution.model is not None:
             if use_initial_distribution_from_tracks:
                 initial_distribution = self.track_df.query("turn == 0.0")[['x', 'px', 'y', 'py', 't', 'pt']].values
                 weights = self.beam_distribution.weight_from_denormalized_distribution(initial_distribution)
@@ -513,12 +522,12 @@ class TrackingResult(Result):
                 else:
                     weights = None
             
-        if self.track_df is not None:
+        if self.track_df is not None and not self.track_df.empty:
             if weights is not None:
                 self.track_df['weight'] = self.track_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
             else:
                 self.track_df['weight'] = 1.0
-        if self.loss_df is not None:
+        if self.loss_df is not None and not self.loss_df.empty:
             if weights is not None:
                 self.loss_df['weight'] = self.loss_df.apply(lambda _: weights[int(_['number'])-1], axis=1)
             else:
