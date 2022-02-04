@@ -41,7 +41,7 @@ class GaussianPDF(PDF):
         intensity: float=0.8,
         size: float=1.0,
         ):
-        self._pdf = lambda _: intensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=size*np.eye(4)).pdf(_)
+        self._pdf = lambda _: intensity * scipy.stats.multivariate_normal(mean=np.zeros(4), cov=size**2*np.eye(4)).pdf(_)
 
 class DoubleGaussianPDF(PDF):
     def __init__(

@@ -37,6 +37,10 @@ class AnalysisHistogram:
         self.parameters = yaml.safe_load(open(os.path.join(pkg_resources.resource_filename('failsim', "data"), 'analysis_parameters.yaml')))
 
     @property
+    def accumulator(self):
+        return self
+
+    @property
     def h(self):
         return self._h
 
@@ -58,16 +62,21 @@ class LossPerTurnHistogram(AnalysisHistogram):
                 self._max_turns, 0.5, self._max_turns + 0.5, underflow=False, overflow=False, name="Turns"
             ))
 
-    def fill(self, data):
+    @property
+    def accumulator(self):
+        return LossPerTurnHistogramAccumulator(self) + self
+
+    def fill(self, data, beam_weight: Optional[float] = None):
+        self._beam_weight = beam_weight
         if not data.empty:
             self._h.fill(data["turn"], weight=data["weight"].values)
 
     def plot(self, ax, total_weight: float = None, normalization: float = 1.0, cumulative: bool = False, **kwargs):
         tmp_hist = self._h.copy()
-        if cumulative:
-            tmp_hist[:] = np.cumsum(tmp_hist[:])
         if total_weight is not None:
             tmp_hist = normalization * tmp_hist / total_weight
+        if cumulative:
+            tmp_hist[:] = np.cumsum(tmp_hist[:])
         tmp_hist.plot(ax=ax, **kwargs)
 
     def threshold(self, value: float, total_weight: float = None, normalization: float = 1.0, cumulated: bool=True):
@@ -94,7 +103,38 @@ class LossPerTurnHistogram(AnalysisHistogram):
         else:
             return coarse
 
+class LossPerTurnHistogramAccumulator(AnalysisHistogram):
+    def __init__(self, histogram: LossPerTurnHistogram):
+        self._h = hist.Hist(*histogram._h.axes, storage=hist.storage.WeightedMean())
+        self._weights = []
 
+    def __add__(self, other):
+        if not isinstance(other, LossPerTurnHistogram):
+            raise Exception("Trying to accumulate histograms of different types")
+        self._weights.append(other._beam_weight)
+        self._h.fill(
+            other._h.axes.centers[0][other._h.view() > 0], 
+            sample=other._h.view()[other._h.view() > 0],
+            weight=1#other._beam_weight
+        )
+
+        return self
+
+    @property
+    def total_weight(self):
+        return np.sum(self._weights)
+
+    def plot(self, ax, normalization: float = 1.0, cumulative: bool = False, **kwargs):
+        tmp_hist = self._h.copy()
+        tmp_hist = normalization * tmp_hist / self.total_weight
+        tmp_hist.plot(ax=ax, **kwargs)
+
+    def plot_cumulative(self, ax, normalization: float = 1.0, **kwargs):
+        tmp_hist = self._h.copy()
+        tmp_hist = normalization * tmp_hist / self.total_weight
+        tmp_hist[:] = np.cumsum(tmp_hist[:])
+        tmp_hist.plot(ax=ax, **kwargs)
+        
 class LossPerTurnByGroupHistogram(AnalysisHistogram):
     def __init__(self, hist_histogram=None, groupby: str = "element", maximum_turns=100):
         super().__init__(hist_histogram=hist_histogram)
@@ -113,7 +153,8 @@ class LossPerTurnByGroupHistogram(AnalysisHistogram):
                 )
             )
 
-    def fill(self, data):
+    def fill(self, data,beam_weight: Optional[float] = None):
+        self._beam_weight = beam_weight
         self._h.fill(data["turn"], data[self.groupby], weight=data["weight"].values)
 
     def plot(self, ax, total_weight=None, cumulative: bool = False, legend_filter=1, **kwargs):
@@ -160,7 +201,8 @@ class ImpactParameterHistogram(AnalysisHistogram):
                 hist.axis.StrCategory(self.parameters["groupby"][self.groupby], label="Collimators", name="Collimators")
             )
 
-    def fill(self, data):
+    def fill(self, data,beam_weight: Optional[float] = None):
+        self._beam_weight = beam_weight
         def _postprocess_data(df):
             return df["x"] - np.sign(df["x"]) * df["aper_1"]
 
@@ -217,7 +259,8 @@ class LossMap(AnalysisHistogram):
                     hist.axis.StrCategory(self.parameters["groupby"][self.groupby], label="Collimators")
                 )
 
-    def fill(self, data):
+    def fill(self, data, beam_weight: Optional[float] = None):
+        self._beam_weight = beam_weight
         self._h.fill(data["s"], data[self.groupby], weight=data["weight"].values)
 
     def plot(self, ax, total_weight=None, legend_filter=1):
@@ -310,10 +353,10 @@ class EventAnalysis(Analysis):
 
     def __call__(self):
         try:
-            aperture = pd.read_parquet(
+            twiss = pd.read_parquet(
                 os.path.join(self._path, "1-twiss.parquet"))
         except FileNotFoundError:
-            aperture = None
+            twiss = None
 
         self._tr = TrackingResult.load_data(
             path=self._path,
@@ -333,11 +376,12 @@ class EventAnalysis(Analysis):
             if not self._tr.loss_df.empty:
                 self._tr.loss_df["family"] = self._tr.loss_df.apply(
                     lambda _: re.compile(r"^.*?(?=\.)").findall(_["element"])[0], axis=1)
-                self._tr.loss_df["aper_1"] = aperture["aper_1"]
+                if twiss is not None:
+                    self._tr.loss_df["aper_1"] = twiss["aper_1"]
 
         def _process_data():
             for h in self._histograms:
-                h.fill(self._tr.loss_df)
+                h.fill(self._tr.loss_df, beam_weight=self._total_weight)
             self._histograms.append(self._total_weight)
 
         if self._tr.loss_df is not None:
@@ -355,20 +399,27 @@ class EventAnalysis(Analysis):
 
 
 class AnalysisCombineLosses(Analysis):
-    def __init__(self, path: str = '.', beam_model: str = 'DoubleGaussianPDF'):
+    def __init__(self, path: str = '.', beam_model: str = 'DoubleGaussianPDF', last_file_prefix: Optional[int] = None):
         super().__init__(path)
         self._files = glob.glob(os.path.join(self._path, f"*-analysis-{beam_model}.pkl"))
+        self._last_file_prefix = last_file_prefix
         self._histograms = []
-
+    
     def __call__(self):
         for filename in self._files:
+            if self._last_file_prefix is not None:
+                r = re.match(r".*\/(\d{1,3})-analysis.*.pkl", filename)
+                if not r:
+                    continue
+                if int(r.groups()[0]) > self._last_file_prefix:
+                    continue
             with open(filename, 'rb') as f:
                 _ = np.array(pickle.load(f))
             for j, h in enumerate(_):
                 try:
                     self._histograms[j] += h
                 except IndexError:
-                    self._histograms.append(h)
+                    self._histograms.append(getattr(h, 'accumulator', h))
 
     def save(self, filename: str = 'combined.pkl'):
         super().save(filename)

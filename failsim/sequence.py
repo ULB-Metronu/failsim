@@ -1117,9 +1117,8 @@ class LHCSequence:
 
 class HLLHCSequence(LHCSequence):
     def __init__(self, *args, **kwargs):
-        if kwargs.get("sequence_key") and kwargs["sequence_key"] != "HLLHCV1.4":
+        if kwargs.get("sequence_key") and (kwargs["sequence_key"] != "HLLHCV1.4" and kwargs["sequence_key"] != "HLLHCV1.5"):
             raise Exception("Invalid sequence key")
-        kwargs.update(sequence_key="HLLHCV1.4")
         super().__init__(*args, **kwargs)
 
 

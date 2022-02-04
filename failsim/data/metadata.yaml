@@ -8,6 +8,7 @@ HLLHCV1.5:
     - aperture/const_for_aperture.madx
     - aperture/aperture_upgrade_IT.madx
     - aperture/aperture_upgrade_MS.madx
+  thin_aperture_files:
     - aperture/exp_pipe_model_after_LS3.madx
     - aperture/exp_pipe_install_after_LS3.madx
   aperture_model: aperture/ldb/aperture.parquet

@@ -245,7 +245,7 @@ class FailSim:
         return self
 
     @print_info("FailSim")
-    def twiss_and_summ(self, seq: str, flags: List[str] = None) -> Tuple[pd.DataFrame]:
+    def twiss_and_summ(self, seq: str, flags: List[str] = None, select: Optional[str] = None) -> Tuple[pd.DataFrame]:
         """Performs a Twiss with the given sequence on the Mad-X instance.
 
         Args:
@@ -261,6 +261,11 @@ class FailSim:
         """
         flags = flags or []
         self.use(seq)
+
+        if select is not None:
+            self.mad_input(f"select, flag=twiss, clear;")
+            self.mad_input(f"select, flag=twiss, {select};")
+        
         self.mad_input(f"{', '.join(['twiss', f'sequence={seq}'] + flags)}")
         return self.mad.table["twiss"].dframe(), self.mad.table["summ"].dframe()
 
