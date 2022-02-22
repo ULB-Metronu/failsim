@@ -90,7 +90,6 @@ class Tracker:
             twiss_df = pd.DataFrame()
             for i in range(turns+1):
                 self._failsim.mad_input(f"comp={i-1}")
-
                 self._failsim.mad_input(
                     f"savebeta, label=end_{i}, place=#e, sequence={self._sequence_to_track}"
                 )
@@ -106,7 +105,7 @@ class Tracker:
                         )
                     else:
                         temp_df, summ_df = self._failsim.twiss_and_summ(
-                            seq=self._sequence_to_track, flags=[f"beta0=end_{i-1}"]
+                            seq=self._sequence_to_track, flags=[f"beta0=end_{i-1}"], select="pattern=tcp*, column=name,s,betx,bety"
                         )
                 except KeyError:
                     break
@@ -120,7 +119,6 @@ class Tracker:
 
         for file in time_depen:
             os.remove(file)
-
         try:
             eps_n = self._failsim.mad.globals["par_beam_norm_emit"] * 1e-6
         except KeyError:
