@@ -13,7 +13,7 @@ pyarrow = "^3.0.0"
 PyYAML = "^5.4.1"
 numba = "^0.53.1"
 Pint = "^0.17"
-
+xsuite = ">=0.2.2"
 pymask = { path = "failsim/data/pymask/", develop = true }
 plotly = "^5.1.0"
 scipy = "^1.7.0"
