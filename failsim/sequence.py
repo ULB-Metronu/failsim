@@ -829,9 +829,12 @@ class LHCSequence:
         self._hllhc_version = sequence_data["version"]
         self._optics_base_path = sequence_data["optics_base_path"]
 
+        self._failsim.set_mad_mute(True)
         step_01__load_macros(self)
         step_02__load_sequence(self)
         step_03__load_apertures(self)
+        if self._madx_verbose:
+            self._failsim.set_mad_mute(False)
         step_04__prepare(self)
         step_05__cycle(self)
         step_06__thin(self)
